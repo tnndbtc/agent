@@ -73,7 +73,14 @@ function connectToTask(taskId) {
         const data = JSON.parse(event.data);
 
         if (data.type === 'progress') {
-            showLoading(data.message || 'Processing...', data.progress);
+            // Check if task completed even in progress messages
+            if (data.status === 'completed' || data.progress >= 100) {
+                hideLoading();
+                showToast('Task completed!', 'success');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showLoading(data.message || 'Processing...', data.progress);
+            }
         } else if (data.type === 'complete') {
             hideLoading();
             showToast('Task completed!', 'success');
@@ -124,8 +131,8 @@ async function pollTaskStatus(taskId, callback) {
             } else if (data.status === 'failed') {
                 throw new Error(data.error_message || 'Task failed');
             } else {
-                // Continue polling
-                setTimeout(poll, 2000);
+                // Continue polling (reduced to 500ms for faster feedback)
+                setTimeout(poll, 500);
             }
         } catch (error) {
             console.error('Polling error:', error);

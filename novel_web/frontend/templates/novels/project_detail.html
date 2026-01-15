@@ -130,32 +130,86 @@
         <div class="section">
             <div class="section-header">
                 <h3>{% trans "Chapters" %}</h3>
-                {% if outlines %}
-                <button class="btn btn-primary" onclick="writeNextChapter()">{% trans "Write Chapter" %}</button>
-                {% else %}
-                <button class="btn btn-primary" onclick="createOutline()">{% trans "Create Outline First" %}</button>
-                {% endif %}
-            </div>
-            {% if chapters %}
-            <div class="chapters-list">
-                {% for chapter in chapters %}
-                <div class="chapter-card" onclick="window.location.href='{% url 'novels:chapter_detail' project.id chapter.id %}'">
-                    <div class="chapter-number">{{ chapter.chapter_number }}</div>
-                    <div class="chapter-info">
-                        <h4>{{ chapter.title }}</h4>
-                        <p>{{ chapter.word_count }} {% trans "words" %} • {{ chapter.updated_at|timesince }} {% trans "ago" %}</p>
-                    </div>
-                    <div class="chapter-status">
-                        {% if chapter.is_draft %}
-                        <span class="badge badge-warning">{% trans "Draft" %}</span>
-                        {% else %}
-                        <span class="badge badge-success">{% trans "Complete" %}</span>
-                        {% endif %}
-                    </div>
+                <div class="button-group">
+                    {% if outlines %}
+                    <button class="btn btn-secondary" onclick="createOutline()">{% trans "Regenerate Outline" %}</button>
+                    <button class="btn btn-primary" onclick="writeNextChapter()">{% trans "Write Chapter" %}</button>
+                    {% else %}
+                    <button class="btn btn-primary" onclick="createOutline()">{% trans "Create Outline" %}</button>
+                    {% endif %}
                 </div>
-                {% endfor %}
             </div>
-            {% else %}
+            {% if outlines %}
+            <div class="outlines-section">
+                <h4>{% trans "Chapter Outlines" %}</h4>
+                <div class="outlines-list">
+                    {% for outline in outlines %}
+                    <div class="outline-card">
+                        <div class="outline-header">
+                            <span class="outline-number">{{ outline.number }}</span>
+                            <h5>{{ outline.title }}</h5>
+                        </div>
+                        <div class="outline-details">
+                            {% if outline.pov %}
+                            <p><strong>{% trans "POV:" %}</strong> {{ outline.pov }}</p>
+                            {% endif %}
+                            {% if outline.setting %}
+                            <p><strong>{% trans "Setting:" %}</strong> {{ outline.setting }}</p>
+                            {% endif %}
+                            {% if outline.events %}
+                            <p><strong>{% trans "Events:" %}</strong> {{ outline.events|truncatewords:30 }}</p>
+                            {% endif %}
+                            {% if outline.pacing %}
+                            <p><strong>{% trans "Pacing:" %}</strong> {{ outline.pacing }}</p>
+                            {% endif %}
+                        </div>
+                        <div class="outline-actions">
+                            <button class="btn btn-sm btn-primary" onclick="writeChapterFromOutline('{{ outline.id }}')">
+                                {% trans "Write This Chapter" %}
+                            </button>
+                            <button class="btn btn-sm btn-secondary" onclick="regenerateOutline({{ outline.number }})">
+                                {% trans "Regenerate" %}
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteOutline('{{ outline.id }}')">
+                                {% trans "Delete" %}
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if chapters %}
+            <div class="chapters-section">
+                <h4>{% trans "Written Chapters" %}</h4>
+                <div class="chapters-list">
+                    {% for chapter in chapters %}
+                    <div class="chapter-card">
+                        <div class="chapter-number">{{ chapter.chapter_number }}</div>
+                        <div class="chapter-info" onclick="window.location.href='{% url 'novels:chapter_detail' project.id chapter.id %}'" style="cursor: pointer; flex: 1;">
+                            <h4>{{ chapter.title }}</h4>
+                            <p>{{ chapter.word_count }} {% trans "words" %} • {{ chapter.updated_at|timesince }} {% trans "ago" %}</p>
+                        </div>
+                        <div class="chapter-status">
+                            {% if chapter.is_draft %}
+                            <span class="badge badge-warning">{% trans "Draft" %}</span>
+                            {% else %}
+                            <span class="badge badge-success">{% trans "Complete" %}</span>
+                            {% endif %}
+                        </div>
+                        <div class="chapter-actions">
+                            <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteChapter('{{ chapter.id }}')">
+                                {% trans "Delete" %}
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if not outlines and not chapters %}
             <div class="empty-state">
                 <p>{% trans "No chapters written yet. Create an outline to start writing!" %}</p>
             </div>
@@ -200,12 +254,23 @@ document.querySelectorAll('.tab').forEach(tab => {
     });
 });
 
+// Restore tab from URL hash on page load
+window.addEventListener('DOMContentLoaded', function() {
+    const hash = window.location.hash.substring(1); // Remove the '#'
+    if (hash && document.getElementById(hash)) {
+        showTab(hash);
+    }
+});
+
 function showTab(tabName) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
     document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
     document.getElementById(tabName).classList.add('active');
+
+    // Update URL hash to preserve tab state across page reloads
+    window.location.hash = tabName;
 }
 
 function startBrainstorm() {
@@ -213,12 +278,22 @@ function startBrainstorm() {
 }
 
 function createOutline() {
-    if (!confirm('Create chapter outline? This may take a few moments.')) return;
+    const numChapters = prompt('How many chapters do you want to create?', '1');
+
+    if (!numChapters) return;
+
+    const chapters = parseInt(numChapters);
+    if (isNaN(chapters) || chapters < 1 || chapters > 100) {
+        showToast('Please enter a valid number between 1 and 100', 'error');
+        return;
+    }
+
+    if (!confirm(`Create outline with ${chapters} chapters? This may take a few moments.`)) return;
 
     showLoading('Creating outline...');
     apiRequest(`/api/projects/${projectId}/create_outline/`, {
         method: 'POST',
-        body: JSON.stringify({ num_chapters: 20 })
+        body: JSON.stringify({ num_chapters: chapters })
     }).then(data => {
         showToast('Outline generation started!', 'success');
         // Open WebSocket to track progress
@@ -241,6 +316,86 @@ function scoreNovel() {
     }).catch(err => {
         hideLoading();
         showToast('Error scoring novel', 'error');
+    });
+}
+
+function writeChapterFromOutline(outlineId) {
+    // Prompt for word count
+    const wordCount = prompt('How many words should this chapter be? (500-10000)', '3000');
+
+    if (wordCount === null) return; // User cancelled
+
+    const words = parseInt(wordCount);
+    if (isNaN(words) || words < 500 || words > 10000) {
+        showToast('Please enter a valid word count between 500 and 10000', 'error');
+        return;
+    }
+
+    if (!confirm(`Write this chapter with approximately ${words} words?`)) return;
+
+    showLoading('Writing chapter...');
+    apiRequest(`/api/projects/${projectId}/write_chapter/`, {
+        method: 'POST',
+        body: JSON.stringify({
+            chapter_outline_id: outlineId,
+            writing_style: 'literary',
+            language: 'English',
+            target_word_count: words
+        })
+    }).then(data => {
+        showToast('Chapter writing started!', 'success');
+        connectToTask(data.task_id);
+    }).catch(err => {
+        hideLoading();
+        showToast('Error writing chapter: ' + err.message, 'error');
+    });
+}
+
+function regenerateOutline(chapterNumber) {
+    if (!confirm(`Regenerate outline for chapter ${chapterNumber}? This will replace the current outline with a new version.`)) return;
+
+    showLoading('Regenerating outline...');
+    apiRequest(`/api/projects/${projectId}/regenerate_chapter_outline/`, {
+        method: 'POST',
+        body: JSON.stringify({ chapter_number: chapterNumber })
+    }).then(data => {
+        showToast('Outline regeneration started!', 'success');
+        connectToTask(data.task_id);
+    }).catch(err => {
+        hideLoading();
+        showToast('Error regenerating outline: ' + err.message, 'error');
+    });
+}
+
+function deleteOutline(outlineId) {
+    if (!confirm('Delete this chapter outline? This cannot be undone.')) return;
+
+    showLoading('Deleting outline...');
+    apiRequest(`/api/projects/${projectId}/delete_outline/${outlineId}/`, {
+        method: 'DELETE'
+    }).then(() => {
+        hideLoading();
+        showToast('Outline deleted successfully!', 'success');
+        setTimeout(() => window.location.reload(), 1000);
+    }).catch(err => {
+        hideLoading();
+        showToast('Error deleting outline: ' + err.message, 'error');
+    });
+}
+
+function deleteChapter(chapterId) {
+    if (!confirm('Delete this chapter? This cannot be undone and all content will be lost.')) return;
+
+    showLoading('Deleting chapter...');
+    apiRequest(`/api/chapters/${chapterId}/`, {
+        method: 'DELETE'
+    }).then(() => {
+        hideLoading();
+        showToast('Chapter deleted successfully!', 'success');
+        setTimeout(() => window.location.reload(), 1000);
+    }).catch(err => {
+        hideLoading();
+        showToast('Error deleting chapter: ' + err.message, 'error');
     });
 }
 

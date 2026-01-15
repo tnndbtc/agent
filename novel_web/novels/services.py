@@ -239,7 +239,7 @@ class WritingService:
     """Service for writing operations."""
 
     @staticmethod
-    def write_chapter(project, chapter_outline, writing_style='literary', language='English'):
+    def write_chapter(project, chapter_outline, writing_style='literary', language='English', target_word_count=3000):
         """Write a complete chapter."""
         service = ProjectService(project)
         writer = service.get_writer()
@@ -247,7 +247,8 @@ class WritingService:
         chapter = writer.write_chapter(
             chapter_outline,
             writing_style=writing_style,
-            language=language
+            language=language,
+            target_word_count=target_word_count
         )
         return chapter
 

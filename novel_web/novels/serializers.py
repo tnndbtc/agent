@@ -169,6 +169,12 @@ class WriteChapterRequestSerializer(serializers.Serializer):
     chapter_outline_id = serializers.UUIDField()
     writing_style = serializers.CharField(default='literary')
     language = serializers.CharField(default='English')
+    target_word_count = serializers.IntegerField(
+        default=3000,
+        min_value=500,
+        max_value=10000,
+        help_text="Target word count for the chapter (500-10000)"
+    )
 
 
 class EditRequestSerializer(serializers.Serializer):

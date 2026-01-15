@@ -116,18 +116,83 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         }
 
         char_type = serializer.validated_data['character_type']
+        num_options = serializer.validated_data.get('num_options', 3)
 
         if char_type == 'protagonist':
             characters_data = CharacterService.create_protagonists(
-                project, plot_data, serializer.validated_data.get('num_options', 3)
+                project, plot_data, num_options
             )
+        elif char_type == 'antagonist':
+            # For antagonist, we need protagonist data - use first protagonist if exists
+            protagonist_data = {}
+            protagonists = project.characters.filter(role='protagonist').first()
+            if protagonists:
+                protagonist_data = {
+                    'name': protagonists.name,
+                    'background': protagonists.background,
+                    'personality': protagonists.personality,
+                    'goals': protagonists.goals
+                }
+
+            # Create single antagonist and wrap in list
+            antagonist = CharacterService.create_antagonist(
+                project, plot_data, protagonist_data
+            )
+            characters_data = [antagonist]
+        elif char_type == 'supporting':
+            # For supporting, use protagonist if exists
+            protagonist_data = {}
+            protagonists = project.characters.filter(role='protagonist').first()
+            if protagonists:
+                protagonist_data = {
+                    'name': protagonists.name,
+                    'background': protagonists.background,
+                    'personality': protagonists.personality,
+                    'goals': protagonists.goals
+                }
+
+            # Create supporting characters with common roles
+            roles = ['sidekick', 'mentor', 'love_interest'][:num_options]
+            supporting = CharacterService.create_supporting(
+                project, plot_data, protagonist_data, roles
+            )
+            characters_data = supporting if isinstance(supporting, list) else [supporting]
         else:
             return Response(
-                {'error': 'Only protagonist creation supported via API. Use service methods for others.'},
+                {'error': f'Unknown character type: {char_type}'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         return Response({'characters': characters_data}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def save_character(self, request, pk=None):
+        """Save a character to the project."""
+        project = self.get_object()
+        character_data = request.data.get('character')
+
+        if not character_data:
+            return Response(
+                {'error': 'Character data is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Create the character
+        character = Character.objects.create(
+            project=project,
+            name=character_data.get('name', ''),
+            role=character_data.get('role', 'supporting'),
+            age=character_data.get('age', ''),
+            background=character_data.get('background', ''),
+            personality=character_data.get('personality', ''),
+            motivation=character_data.get('motivation') or character_data.get('goals', ''),
+            flaw=character_data.get('flaw', ''),
+            arc=character_data.get('arc', ''),
+            appearance=character_data.get('appearance') or character_data.get('physical_description', ''),
+            relationships=character_data.get('relationships', '')
+        )
+
+        return Response(CharacterSerializer(character).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
     def create_outline(self, request, pk=None):
@@ -154,6 +219,64 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             'task_id': task.id,
             'status': 'Task started. Check status at /api/tasks/{id}/'
         }, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=True, methods=['post'])
+    def regenerate_chapter_outline(self, request, pk=None):
+        """Regenerate a single chapter outline."""
+        project = self.get_object()
+        chapter_number = request.data.get('chapter_number')
+
+        if not chapter_number:
+            return Response(
+                {'error': 'chapter_number is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Create generation task
+        task = GenerationTask.objects.create(
+            project=project,
+            user=request.user,
+            task_type='outline_single',
+            input_data={'chapter_number': chapter_number}
+        )
+
+        # Start async task
+        from .tasks import regenerate_single_outline_task
+        regenerate_single_outline_task.delay(
+            task_id=str(task.id),
+            project_id=str(project.id),
+            chapter_number=chapter_number
+        )
+
+        return Response({
+            'task_id': task.id,
+            'status': 'Task started. Check status at /api/tasks/{id}/'
+        }, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=True, methods=['delete'], url_path='delete_outline/(?P<outline_id>[^/.]+)')
+    def delete_outline(self, request, pk=None, outline_id=None):
+        """Delete a chapter outline and renumber subsequent outlines."""
+        from django.db import transaction
+
+        project = self.get_object()
+        outline = get_object_or_404(ChapterOutline, id=outline_id, project=project)
+        deleted_number = outline.number
+
+        with transaction.atomic():
+            # Delete the outline
+            outline.delete()
+
+            # Renumber all subsequent outlines
+            subsequent_outlines = ChapterOutline.objects.filter(
+                project=project,
+                number__gt=deleted_number
+            ).order_by('number')
+
+            for outline in subsequent_outlines:
+                outline.number -= 1
+                outline.save(update_fields=['number'])
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['post'])
     def write_chapter(self, request, pk=None):
@@ -249,6 +372,30 @@ class ChapterViewSet(viewsets.ModelViewSet):
         if self.action == 'list':
             return ChapterListSerializer
         return ChapterSerializer
+
+    def destroy(self, request, *args, **kwargs):
+        """Delete a chapter and renumber subsequent chapters."""
+        from django.db import transaction
+
+        chapter = self.get_object()
+        project = chapter.project
+        deleted_number = chapter.chapter_number
+
+        with transaction.atomic():
+            # Delete the chapter
+            response = super().destroy(request, *args, **kwargs)
+
+            # Renumber all subsequent chapters
+            subsequent_chapters = Chapter.objects.filter(
+                project=project,
+                chapter_number__gt=deleted_number
+            ).order_by('chapter_number')
+
+            for ch in subsequent_chapters:
+                ch.chapter_number -= 1
+                ch.save(update_fields=['chapter_number'])
+
+        return response
 
     @action(detail=True, methods=['post'])
     def edit(self, request, pk=None):

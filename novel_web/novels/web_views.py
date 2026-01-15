@@ -3,7 +3,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib import messages
-from .models import NovelProject, Chapter
+from .models import NovelProject, Chapter, GenerationTask
 
 
 def register(request):
@@ -63,6 +63,22 @@ def brainstorm_view(request, pk):
     """Brainstorming ideas view."""
     project = get_object_or_404(NovelProject, pk=pk, user=request.user)
 
+    # Get previous brainstorm tasks with results
+    previous_tasks = GenerationTask.objects.filter(
+        project=project,
+        task_type='brainstorm',
+        status='completed'
+    ).order_by('-completed_at')[:5]  # Get last 5 completed brainstorms
+
+    # Extract ideas from completed tasks
+    previous_ideas = []
+    for task in previous_tasks:
+        if task.result_data and 'ideas' in task.result_data:
+            for idea in task.result_data['ideas']:
+                idea['task_date'] = task.completed_at
+                previous_ideas.append(idea)
+
     return render(request, 'novels/brainstorm.html', {
-        'project': project
+        'project': project,
+        'previous_ideas': previous_ideas
     })
