@@ -218,12 +218,17 @@ NOVEL_AGENT = {
 }
 
 # Create necessary directories
+# Wrapped in try-except to avoid permission errors in celery-beat
 for dir_path in [
     NOVEL_AGENT['VECTOR_STORE_DIR'],
     NOVEL_AGENT['EXAMPLES_DIR'],
     NOVEL_AGENT['OUTPUT_DIR'],
 ]:
-    dir_path.mkdir(parents=True, exist_ok=True)
+    try:
+        dir_path.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        # Directory will be created by web service with proper permissions
+        pass
 
 # Login URL
 LOGIN_URL = '/login/'

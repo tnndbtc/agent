@@ -170,10 +170,10 @@ class WriteChapterRequestSerializer(serializers.Serializer):
     writing_style = serializers.CharField(default='literary')
     language = serializers.CharField(default='English')
     target_word_count = serializers.IntegerField(
-        default=3000,
-        min_value=500,
+        default=10,
+        min_value=10,
         max_value=10000,
-        help_text="Target word count for the chapter (500-10000)"
+        help_text="Target word count for the chapter (10-10000)"
     )
 
 

@@ -285,19 +285,23 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         serializer = WriteChapterRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        # Convert UUID to string for JSON serialization
+        validated_data = serializer.validated_data.copy()
+        validated_data['chapter_outline_id'] = str(validated_data['chapter_outline_id'])
+
         # Create generation task
         task = GenerationTask.objects.create(
             project=project,
             user=request.user,
             task_type='chapter',
-            input_data=serializer.validated_data
+            input_data=validated_data
         )
 
         # Start async task
         write_chapter_task.delay(
             task_id=str(task.id),
             project_id=str(project.id),
-            **serializer.validated_data
+            **validated_data
         )
 
         return Response({

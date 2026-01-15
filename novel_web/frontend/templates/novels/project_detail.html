@@ -132,7 +132,7 @@
                 <h3>{% trans "Chapters" %}</h3>
                 <div class="button-group">
                     {% if outlines %}
-                    <button class="btn btn-secondary" onclick="createOutline()">{% trans "Regenerate Outline" %}</button>
+                    <button class="btn btn-secondary" onclick="createOutline()">{% trans "Add Outline" %}</button>
                     <button class="btn btn-primary" onclick="writeNextChapter()">{% trans "Write Chapter" %}</button>
                     {% else %}
                     <button class="btn btn-primary" onclick="createOutline()">{% trans "Create Outline" %}</button>
@@ -163,6 +163,33 @@
                             <p><strong>{% trans "Pacing:" %}</strong> {{ outline.pacing }}</p>
                             {% endif %}
                         </div>
+
+                        {% if outline.chapter %}
+                        <!-- Written Chapter -->
+                        <div class="written-chapter-preview">
+                            <div class="chapter-header">
+                                <h5>{% trans "Written Chapter" %}</h5>
+                                {% if outline.chapter.is_draft %}
+                                <span class="badge badge-warning">{% trans "Draft" %}</span>
+                                {% else %}
+                                <span class="badge badge-success">{% trans "Complete" %}</span>
+                                {% endif %}
+                            </div>
+                            <p class="chapter-stats">
+                                {{ outline.chapter.word_count }} {% trans "words" %} •
+                                {% trans "Updated" %} {{ outline.chapter.updated_at|timesince }} {% trans "ago" %}
+                            </p>
+                            <div class="chapter-preview-actions">
+                                <button class="btn btn-sm btn-primary" onclick="window.location.href='{% url 'novels:chapter_detail' project.id outline.chapter.id %}'">
+                                    {% trans "View/Edit Chapter" %}
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteChapter('{{ outline.chapter.id }}')">
+                                    {% trans "Delete Chapter" %}
+                                </button>
+                            </div>
+                        </div>
+                        {% else %}
+                        <!-- Outline Actions (only show if no chapter written) -->
                         <div class="outline-actions">
                             <button class="btn btn-sm btn-primary" onclick="writeChapterFromOutline('{{ outline.id }}')">
                                 {% trans "Write This Chapter" %}
@@ -174,13 +201,15 @@
                                 {% trans "Delete" %}
                             </button>
                         </div>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>
             </div>
             {% endif %}
 
-            {% if chapters %}
+            {% if chapters and not outlines %}
+            <!-- Show standalone chapters only if there are no outlines -->
             <div class="chapters-section">
                 <h4>{% trans "Written Chapters" %}</h4>
                 <div class="chapters-list">
@@ -321,13 +350,13 @@ function scoreNovel() {
 
 function writeChapterFromOutline(outlineId) {
     // Prompt for word count
-    const wordCount = prompt('How many words should this chapter be? (500-10000)', '3000');
+    const wordCount = prompt('How many words should this chapter be? (10-10000)', '10');
 
     if (wordCount === null) return; // User cancelled
 
     const words = parseInt(wordCount);
-    if (isNaN(words) || words < 500 || words > 10000) {
-        showToast('Please enter a valid word count between 500 and 10000', 'error');
+    if (isNaN(words) || words < 10 || words > 10000) {
+        showToast('Please enter a valid word count between 10 and 10000', 'error');
         return;
     }
 

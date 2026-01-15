@@ -773,6 +773,39 @@ body {
     gap: 8px;
 }
 
+.written-chapter-preview {
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--bg-color);
+    border-radius: 8px;
+    border-left: 3px solid var(--secondary-color);
+}
+
+.written-chapter-preview .chapter-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.written-chapter-preview .chapter-header h5 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.written-chapter-preview .chapter-stats {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+
+.written-chapter-preview .chapter-preview-actions {
+    display: flex;
+    gap: 8px;
+}
+
 .chapters-list {
     display: flex;
     flex-direction: column;

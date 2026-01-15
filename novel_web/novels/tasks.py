@@ -280,21 +280,27 @@ def create_outline_task(self, task_id, project_id, num_chapters=20):
 
         update_task_progress(task_id, 80, "Saving outline...")
 
+        # Get highest existing chapter number to append new outlines
+        existing_outlines = ChapterOutline.objects.filter(project=project).order_by('-number')
+        starting_number = existing_outlines.first().number + 1 if existing_outlines.exists() else 1
+
+        # Adjust chapter numbers to append after existing outlines
+        for chapter_data in outline['chapters']:
+            chapter_data['number'] = starting_number + (chapter_data['number'] - 1)
+
         # Save chapter outlines to database with progress updates
         total_chapters = len(outline['chapters'])
         for i, chapter_data in enumerate(outline['chapters'], 1):
-            ChapterOutline.objects.update_or_create(
+            ChapterOutline.objects.create(
                 project=project,
                 number=chapter_data['number'],
-                defaults={
-                    'title': chapter_data.get('title', f"Chapter {chapter_data['number']}"),
-                    'pov': chapter_data.get('pov', ''),
-                    'setting': chapter_data.get('setting', ''),
-                    'events': chapter_data.get('events', ''),
-                    'character_development': chapter_data.get('character_development', ''),
-                    'pacing': chapter_data.get('pacing', 'medium'),
-                    'story_beats': chapter_data.get('story_beats', '')
-                }
+                title=chapter_data.get('title', f"Chapter {chapter_data['number']}"),
+                pov=chapter_data.get('pov', ''),
+                setting=chapter_data.get('setting', ''),
+                events=chapter_data.get('events', ''),
+                character_development=chapter_data.get('character_development', ''),
+                pacing=chapter_data.get('pacing', 'medium'),
+                story_beats=chapter_data.get('story_beats', '')
             )
 
             # Update progress every 3 chapters or on last chapter
