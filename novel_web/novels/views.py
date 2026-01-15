@@ -335,7 +335,10 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def export(self, request, pk=None):
-        """Export novel."""
+        """Export novel as downloadable file."""
+        from django.http import FileResponse
+        import os
+
         project = self.get_object()
         language = request.query_params.get('language', 'English')
 
@@ -347,7 +350,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             'chapters': []
         }
 
-        for chapter in project.chapters.all():
+        for chapter in project.chapters.all().order_by('chapter_number'):
             novel_data['chapters'].append({
                 'chapter_number': chapter.chapter_number,
                 'title': chapter.title,
@@ -357,9 +360,61 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
 
         file_path = ExportService.export_novel(project, novel_data, language)
 
+        # Return file as download
+        if os.path.exists(file_path):
+            response = FileResponse(
+                open(file_path, 'rb'),
+                content_type='text/plain',
+                as_attachment=True,
+                filename=f"{project.title.replace(' ', '_')}.txt"
+            )
+            return response
+        else:
+            return Response({
+                'error': 'Export file not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=True, methods=['get'], url_path='view_text')
+    def view_text(self, request, pk=None):
+        """View novel text online."""
+        project = self.get_object()
+        language = request.query_params.get('language', 'English')
+
+        # Gather novel data
+        novel_data = {
+            'title': project.title,
+            'genre': project.genre,
+            'author': request.user.get_full_name() or request.user.username,
+            'chapters': []
+        }
+
+        for chapter in project.chapters.all().order_by('chapter_number'):
+            novel_data['chapters'].append({
+                'chapter_number': chapter.chapter_number,
+                'title': chapter.title,
+                'content': chapter.content,
+                'word_count': chapter.word_count
+            })
+
+        # Build full text
+        full_text = f"{project.title}\n"
+        full_text += f"by {request.user.get_full_name() or request.user.username}\n"
+        full_text += f"Genre: {project.genre}\n"
+        full_text += "=" * 80 + "\n\n"
+
+        for chapter in novel_data['chapters']:
+            full_text += f"Chapter {chapter['chapter_number']}: {chapter['title']}\n"
+            full_text += "-" * 80 + "\n\n"
+            full_text += chapter['content']
+            full_text += "\n\n" + "=" * 80 + "\n\n"
+
         return Response({
-            'file_path': file_path,
-            'message': 'Novel exported successfully'
+            'title': project.title,
+            'author': request.user.get_full_name() or request.user.username,
+            'genre': project.genre,
+            'full_text': full_text,
+            'total_word_count': project.total_word_count,
+            'chapter_count': len(novel_data['chapters'])
         }, status=status.HTTP_200_OK)
 
 
