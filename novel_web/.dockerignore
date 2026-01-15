@@ -1,0 +1,70 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment files
+.env
+.env.local
+
+# Database
+*.sqlite3
+db.sqlite3
+
+# Media files (will be in volume)
+media/
+
+# Static files (collected separately)
+staticfiles/
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation (not needed in container)
+docs/
+*.md
+!README.md
+
+# Development scripts
+setup.sh
+show-ip.sh
+create_icons.py
+
+# Docker files (not needed in container)
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Backup files
+*.bak
+*.backup

@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Register" %} - {% trans "Novel Writing Agent" %}{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <h2>{% trans "Create Account" %}</h2>
+        <form method="post" class="auth-form">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit" class="btn btn-primary btn-full">{% trans "Register" %}</button>
+        </form>
+
+        <p class="auth-link">
+            {% trans "Already have an account?" %} <a href="{% url 'novels:login' %}">{% trans "Login here" %}</a>
+        </p>
+
+        <!-- Language Switcher -->
+        {% get_available_languages as LANGUAGES %}
+        {% if LANGUAGES|length > 1 %}
+        <div class="auth-language-switcher">
+            <form action="{% url 'set_language' %}" method="post">
+                {% csrf_token %}
+                <input name="next" type="hidden" value="{{ request.get_full_path }}">
+                <label for="language-select">{% trans "Language" %}:</label>
+                <select name="language" id="language-select" onchange="this.form.submit()" class="language-select">
+                    {% get_current_language as LANGUAGE_CODE %}
+                    {% for lang_code, lang_name in LANGUAGES %}
+                        <option value="{{ lang_code }}" {% if lang_code == LANGUAGE_CODE %}selected{% endif %}>
+                            {{ lang_name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

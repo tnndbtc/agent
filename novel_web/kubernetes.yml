@@ -1,0 +1,390 @@
+# Kubernetes deployment configuration for Novel Writing Agent
+# This is a complete example for deploying to Kubernetes
+
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: novel-agent
+
+---
+# ConfigMap for environment variables
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: novel-agent-config
+  namespace: novel-agent
+data:
+  DEBUG: "False"
+  ALLOWED_HOSTS: "novel-agent.example.com,localhost"
+  DB_ENGINE: "django.db.backends.postgresql"
+  DB_NAME: "novel_agent_db"
+  DB_USER: "novel_user"
+  DB_HOST: "postgres-service"
+  DB_PORT: "5432"
+  REDIS_URL: "redis://redis-service:6379/0"
+  CELERY_BROKER_URL: "redis://redis-service:6379/0"
+  CELERY_RESULT_BACKEND: "redis://redis-service:6379/0"
+  MODEL_NAME: "gpt-4o-mini"
+  TEMPERATURE: "0.7"
+
+---
+# Secret for sensitive data
+apiVersion: v1
+kind: Secret
+metadata:
+  name: novel-agent-secrets
+  namespace: novel-agent
+type: Opaque
+stringData:
+  SECRET_KEY: "your-secret-key-here-change-in-production"
+  DB_PASSWORD: "your-database-password"
+  OPENAI_API_KEY: "your-openai-api-key"
+
+---
+# PostgreSQL Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: novel-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: novel-agent-config
+              key: DB_NAME
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: novel-agent-config
+              key: DB_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: novel-agent-secrets
+              key: DB_PASSWORD
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+
+---
+# PostgreSQL Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: novel-agent
+spec:
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+  type: ClusterIP
+
+---
+# PostgreSQL PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: novel-agent
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+# Redis Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: novel-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+        volumeMounts:
+        - name: redis-storage
+          mountPath: /data
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+      volumes:
+      - name: redis-storage
+        persistentVolumeClaim:
+          claimName: redis-pvc
+
+---
+# Redis Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: novel-agent
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+  type: ClusterIP
+
+---
+# Redis PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: novel-agent
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+# Django Web Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: novel-agent-web
+  namespace: novel-agent
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: novel-agent-web
+  template:
+    metadata:
+      labels:
+        app: novel-agent-web
+    spec:
+      containers:
+      - name: web
+        image: your-registry/novel-agent:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: novel-agent-secrets
+              key: SECRET_KEY
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: novel-agent-secrets
+              key: DB_PASSWORD
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: novel-agent-secrets
+              key: OPENAI_API_KEY
+        envFrom:
+        - configMapRef:
+            name: novel-agent-config
+        volumeMounts:
+        - name: media-storage
+          mountPath: /app/media
+        - name: static-storage
+          mountPath: /app/staticfiles
+        livenessProbe:
+          httpGet:
+            path: /liveness/
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /readiness/
+            port: 8000
+          initialDelaySeconds: 20
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+      volumes:
+      - name: media-storage
+        persistentVolumeClaim:
+          claimName: media-pvc
+      - name: static-storage
+        persistentVolumeClaim:
+          claimName: static-pvc
+
+---
+# Web Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: novel-agent-web-service
+  namespace: novel-agent
+spec:
+  selector:
+    app: novel-agent-web
+  ports:
+  - port: 80
+    targetPort: 8000
+  type: ClusterIP
+
+---
+# Celery Worker Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: novel-agent-celery
+  namespace: novel-agent
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: novel-agent-celery
+  template:
+    metadata:
+      labels:
+        app: novel-agent-celery
+    spec:
+      containers:
+      - name: celery
+        image: your-registry/novel-agent:latest
+        command: ["celery"]
+        args: ["-A", "novel_web", "worker", "-l", "info", "--concurrency=2"]
+        env:
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: novel-agent-secrets
+              key: SECRET_KEY
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: novel-agent-secrets
+              key: DB_PASSWORD
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: novel-agent-secrets
+              key: OPENAI_API_KEY
+        envFrom:
+        - configMapRef:
+            name: novel-agent-config
+        volumeMounts:
+        - name: media-storage
+          mountPath: /app/media
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+      volumes:
+      - name: media-storage
+        persistentVolumeClaim:
+          claimName: media-pvc
+
+---
+# Media PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-pvc
+  namespace: novel-agent
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 20Gi
+
+---
+# Static PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: static-pvc
+  namespace: novel-agent
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+# Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: novel-agent-ingress
+  namespace: novel-agent
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+  - hosts:
+    - novel-agent.example.com
+    secretName: novel-agent-tls
+  rules:
+  - host: novel-agent.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: novel-agent-web-service
+            port:
+              number: 80

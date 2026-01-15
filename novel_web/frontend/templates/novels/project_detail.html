@@ -1,0 +1,251 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{{ project.title }} - {% trans "Novel Writing Agent" %}{% endblock %}
+{% block nav_title %}{{ project.title }}{% endblock %}
+
+{% block content %}
+<div class="project-detail">
+    <!-- Tabs -->
+    <div class="tabs">
+        <button class="tab active" data-tab="overview">{% trans "Overview" %}</button>
+        <button class="tab" data-tab="plot">{% trans "Plot" %}</button>
+        <button class="tab" data-tab="characters">{% trans "Characters" %}</button>
+        <button class="tab" data-tab="chapters">{% trans "Chapters" %}</button>
+        <button class="tab" data-tab="tools">{% trans "Tools" %}</button>
+    </div>
+
+    <!-- Overview Tab -->
+    <div class="tab-content active" id="overview">
+        <div class="section">
+            <h3>{% trans "Project Info" %}</h3>
+            <div class="info-grid">
+                <div class="info-item">
+                    <label>{% trans "Status" %}</label>
+                    <span class="status-badge status-{{ project.status }}">{{ project.get_status_display }}</span>
+                </div>
+                <div class="info-item">
+                    <label>{% trans "Genre" %}</label>
+                    <span>{{ project.genre|default:"Not set" }}</span>
+                </div>
+                <div class="info-item">
+                    <label>{% trans "Total Words" %}</label>
+                    <span>{{ project.total_word_count|default:0 }}</span>
+                </div>
+                <div class="info-item">
+                    <label>{% trans "Chapters" %}</label>
+                    <span>{{ chapters|length }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>{% trans "Quick Actions" %}</h3>
+            <div class="action-grid">
+                <button class="action-card" onclick="startBrainstorm()">
+                    <span class="action-icon">💡</span>
+                    <span>{% trans "Brainstorm Ideas" %}</span>
+                </button>
+                <button class="action-card" onclick="showTab('plot')">
+                    <span class="action-icon">📖</span>
+                    <span>{% trans "Develop Plot" %}</span>
+                </button>
+                <button class="action-card" onclick="showTab('characters')">
+                    <span class="action-icon">👥</span>
+                    <span>{% trans "Create Characters" %}</span>
+                </button>
+                <button class="action-card" onclick="createOutline()">
+                    <span class="action-icon">📋</span>
+                    <span>{% trans "Generate Outline" %}</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Plot Tab -->
+    <div class="tab-content" id="plot">
+        <div class="section">
+            <div class="section-header">
+                <h3>{% trans "Plot Structure" %}</h3>
+                {% if not has_plot %}
+                <button class="btn btn-primary" onclick="generatePlot()">{% trans "Generate Plot" %}</button>
+                {% endif %}
+            </div>
+            {% if has_plot %}
+            <div class="plot-display">
+                <div class="plot-field">
+                    <label>Premise</label>
+                    <p>{{ project.plot.premise }}</p>
+                </div>
+                <div class="plot-field">
+                    <label>Genre</label>
+                    <p>{{ project.plot.genre }}</p>
+                </div>
+                <div class="plot-field">
+                    <label>Themes</label>
+                    <p>{{ project.plot.themes }}</p>
+                </div>
+                <div class="plot-field">
+                    <label>Conflict</label>
+                    <p>{{ project.plot.conflict }}</p>
+                </div>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <p>{% trans "No plot created yet. Start by brainstorming ideas!" %}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Characters Tab -->
+    <div class="tab-content" id="characters">
+        <div class="section">
+            <div class="section-header">
+                <h3>{% trans "Characters" %}</h3>
+                <button class="btn btn-primary" onclick="createCharacter()">{% trans "Add Character" %}</button>
+            </div>
+            {% if characters %}
+            <div class="characters-list">
+                {% for character in characters %}
+                <div class="character-card">
+                    <div class="character-header">
+                        <h4>{{ character.name }}</h4>
+                        <span class="role-badge">{{ character.get_role_display }}</span>
+                    </div>
+                    <p class="character-bio">{{ character.background|truncatewords:30 }}</p>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <p>{% trans "No characters yet. Create your protagonist to get started!" %}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Chapters Tab -->
+    <div class="tab-content" id="chapters">
+        <div class="section">
+            <div class="section-header">
+                <h3>{% trans "Chapters" %}</h3>
+                {% if outlines %}
+                <button class="btn btn-primary" onclick="writeNextChapter()">{% trans "Write Chapter" %}</button>
+                {% else %}
+                <button class="btn btn-primary" onclick="createOutline()">{% trans "Create Outline First" %}</button>
+                {% endif %}
+            </div>
+            {% if chapters %}
+            <div class="chapters-list">
+                {% for chapter in chapters %}
+                <div class="chapter-card" onclick="window.location.href='{% url 'novels:chapter_detail' project.id chapter.id %}'">
+                    <div class="chapter-number">{{ chapter.chapter_number }}</div>
+                    <div class="chapter-info">
+                        <h4>{{ chapter.title }}</h4>
+                        <p>{{ chapter.word_count }} {% trans "words" %} • {{ chapter.updated_at|timesince }} {% trans "ago" %}</p>
+                    </div>
+                    <div class="chapter-status">
+                        {% if chapter.is_draft %}
+                        <span class="badge badge-warning">{% trans "Draft" %}</span>
+                        {% else %}
+                        <span class="badge badge-success">{% trans "Complete" %}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <p>{% trans "No chapters written yet. Create an outline to start writing!" %}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Tools Tab -->
+    <div class="tab-content" id="tools">
+        <div class="section">
+            <h3>{% trans "Writing Tools" %}</h3>
+            <div class="tools-grid">
+                <button class="tool-card" onclick="checkConsistency()">
+                    <span class="tool-icon">🔍</span>
+                    <h4>{% trans "Check Consistency" %}</h4>
+                    <p>{% trans "Verify character traits, settings, and timeline" %}</p>
+                </button>
+                <button class="tool-card" onclick="scoreNovel()">
+                    <span class="tool-icon">⭐</span>
+                    <h4>{% trans "Score Novel" %}</h4>
+                    <p>{% trans "Get AI feedback on your writing" %}</p>
+                </button>
+                <button class="tool-card" onclick="exportNovel()">
+                    <span class="tool-icon">📥</span>
+                    <h4>{% trans "Export" %}</h4>
+                    <p>{% trans "Download your novel in various formats" %}</p>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/project.js"></script>
+<script>
+const projectId = '{{ project.id }}';
+
+// Tab switching
+document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        const tabName = tab.dataset.tab;
+        showTab(tabName);
+    });
+});
+
+function showTab(tabName) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+    document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+    document.getElementById(tabName).classList.add('active');
+}
+
+function startBrainstorm() {
+    window.location.href = `/project/${projectId}/brainstorm/`;
+}
+
+function createOutline() {
+    if (!confirm('Create chapter outline? This may take a few moments.')) return;
+
+    showLoading('Creating outline...');
+    apiRequest(`/api/projects/${projectId}/create_outline/`, {
+        method: 'POST',
+        body: JSON.stringify({ num_chapters: 20 })
+    }).then(data => {
+        showToast('Outline generation started!', 'success');
+        // Open WebSocket to track progress
+        connectToTask(data.task_id);
+    }).catch(err => {
+        hideLoading();
+        showToast('Error creating outline', 'error');
+    });
+}
+
+function scoreNovel() {
+    if (!confirm('Score your novel? This will analyze all chapters.')) return;
+
+    showLoading('Scoring novel...');
+    apiRequest(`/api/projects/${projectId}/score/`, {
+        method: 'POST'
+    }).then(data => {
+        showToast('Scoring started!', 'success');
+        connectToTask(data.task_id);
+    }).catch(err => {
+        hideLoading();
+        showToast('Error scoring novel', 'error');
+    });
+}
+
+function exportNovel() {
+    window.location.href = `/api/projects/${projectId}/export/`;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,335 @@
+# Chinese (Simplified) translations for Novel Writing Agent
+# Copyright (C) 2026
+# This file is distributed under the same license as the Novel Writing Agent package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Novel Writing Agent 1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-14 18:00+0000\n"
+"PO-Revision-Date: 2026-01-14 18:00+0000\n"
+"Last-Translator: \n"
+"Language-Team: Chinese (Simplified)\n"
+"Language: zh-hans\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+# Base template - Navigation and Menu
+msgid "Novel Writing Agent"
+msgstr "小说写作助手"
+
+msgid "Novel Agent"
+msgstr "小说助手"
+
+msgid "My Projects"
+msgstr "我的项目"
+
+msgid "Admin"
+msgstr "管理"
+
+msgid "Logout"
+msgstr "登出"
+
+msgid "Login"
+msgstr "登录"
+
+msgid "Register"
+msgstr "注册"
+
+msgid "Language"
+msgstr "语言"
+
+# Login page
+msgid "Invalid username or password. Please try again."
+msgstr "用户名或密码无效。请重试。"
+
+msgid "Username"
+msgstr "用户名"
+
+msgid "Password"
+msgstr "密码"
+
+msgid "Don't have an account?"
+msgstr "还没有账户？"
+
+msgid "Register here"
+msgstr "在此注册"
+
+# Register page
+msgid "Create Account"
+msgstr "创建账户"
+
+msgid "Already have an account?"
+msgstr "已有账户？"
+
+msgid "Login here"
+msgstr "在此登录"
+
+# Dashboard page
+msgid "Dashboard"
+msgstr "控制面板"
+
+msgid "My Novel Projects"
+msgstr "我的小说项目"
+
+msgid "New Project"
+msgstr "新建项目"
+
+msgid "chapters"
+msgstr "章节"
+
+msgid "words"
+msgstr "字"
+
+msgid "Updated"
+msgstr "更新于"
+
+msgid "ago"
+msgstr "前"
+
+msgid "No projects yet"
+msgstr "还没有项目"
+
+msgid "Start your first novel project by clicking the button above"
+msgstr "点击上面的按钮开始您的第一个小说项目"
+
+msgid "Create New Project"
+msgstr "创建新项目"
+
+msgid "Project Title"
+msgstr "项目标题"
+
+msgid "Genre"
+msgstr "类型"
+
+msgid "Fantasy, Sci-Fi, Romance..."
+msgstr "奇幻、科幻、言情..."
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Create"
+msgstr "创建"
+
+# Brainstorm page
+msgid "Brainstorm Ideas"
+msgstr "头脑风暴"
+
+msgid "Brainstorm Plot Ideas"
+msgstr "情节创意头脑风暴"
+
+msgid "Back to Project"
+msgstr "返回项目"
+
+msgid "Generate creative plot ideas for your novel. You can customize the genre, theme, and number of ideas to generate."
+msgstr "为您的小说生成创意情节想法。您可以自定义类型、主题和要生成的想法数量。"
+
+msgid "Select a genre..."
+msgstr "选择一个类型..."
+
+msgid "Fantasy"
+msgstr "奇幻"
+
+msgid "Science Fiction"
+msgstr "科幻"
+
+msgid "Mystery"
+msgstr "悬疑"
+
+msgid "Thriller"
+msgstr "惊悚"
+
+msgid "Romance"
+msgstr "言情"
+
+msgid "Horror"
+msgstr "恐怖"
+
+msgid "Historical Fiction"
+msgstr "历史小说"
+
+msgid "Literary Fiction"
+msgstr "文学小说"
+
+msgid "Adventure"
+msgstr "冒险"
+
+msgid "Contemporary"
+msgstr "当代"
+
+msgid "Theme"
+msgstr "主题"
+
+msgid "optional"
+msgstr "可选"
+
+msgid "e.g., Redemption, Coming of age, Good vs Evil"
+msgstr "例如：救赎、成长、善恶之战"
+
+msgid "Enter a theme to guide the brainstorming"
+msgstr "输入主题以指导头脑风暴"
+
+msgid "Number of Ideas"
+msgstr "想法数量"
+
+msgid "Enter a number between 1 and 20"
+msgstr "输入1到20之间的数字"
+
+msgid "Generate Ideas"
+msgstr "生成想法"
+
+msgid "Generated Ideas"
+msgstr "生成的想法"
+
+# Project detail page
+msgid "Overview"
+msgstr "概览"
+
+msgid "Plot"
+msgstr "情节"
+
+msgid "Characters"
+msgstr "角色"
+
+msgid "Chapters"
+msgstr "章节"
+
+msgid "Tools"
+msgstr "工具"
+
+msgid "Project Info"
+msgstr "项目信息"
+
+msgid "Status"
+msgstr "状态"
+
+msgid "Total Words"
+msgstr "总字数"
+
+msgid "Quick Actions"
+msgstr "快速操作"
+
+msgid "Develop Plot"
+msgstr "发展情节"
+
+msgid "Create Characters"
+msgstr "创建角色"
+
+msgid "Generate Outline"
+msgstr "生成大纲"
+
+msgid "Plot Structure"
+msgstr "情节结构"
+
+msgid "Generate Plot"
+msgstr "生成情节"
+
+msgid "No plot created yet. Start by brainstorming ideas!"
+msgstr "还没有创建情节。从头脑风暴开始吧！"
+
+msgid "Add Character"
+msgstr "添加角色"
+
+msgid "No characters yet. Create your protagonist to get started!"
+msgstr "还没有角色。创建您的主角开始吧！"
+
+msgid "Create Outline First"
+msgstr "先创建大纲"
+
+msgid "Write Chapter"
+msgstr "写章节"
+
+msgid "No chapters written yet. Create an outline to start writing!"
+msgstr "还没有写章节。创建大纲开始写作！"
+
+msgid "Writing Tools"
+msgstr "写作工具"
+
+msgid "Check Consistency"
+msgstr "检查一致性"
+
+msgid "Verify character traits, settings, and timeline"
+msgstr "验证角色特征、设置和时间线"
+
+msgid "Score Novel"
+msgstr "小说评分"
+
+msgid "Get AI feedback on your writing"
+msgstr "获取AI对您写作的反馈"
+
+msgid "Export"
+msgstr "导出"
+
+msgid "Download your novel in various formats"
+msgstr "以各种格式下载您的小说"
+
+# Common UI elements
+msgid "Save"
+msgstr "保存"
+
+msgid "Edit"
+msgstr "编辑"
+
+msgid "Delete"
+msgstr "删除"
+
+msgid "Close"
+msgstr "关闭"
+
+msgid "Confirm"
+msgstr "确认"
+
+msgid "Loading..."
+msgstr "加载中..."
+
+msgid "Error"
+msgstr "错误"
+
+msgid "Success"
+msgstr "成功"
+
+msgid "Warning"
+msgstr "警告"
+
+# Status messages
+msgid "Draft"
+msgstr "草稿"
+
+msgid "Writing"
+msgstr "写作中"
+
+msgid "Completed"
+msgstr "已完成"
+
+msgid "Planning"
+msgstr "规划中"
+
+msgid "Editing"
+msgstr "编辑中"
+
+# Chapter detail page
+msgid "Chapter"
+msgstr "章节"
+
+msgid "Back"
+msgstr "返回"
+
+msgid "Style"
+msgstr "风格"
+
+msgid "Style Edit"
+msgstr "编辑风格"
+
+msgid "Grammar"
+msgstr "语法"
+
+msgid "Grammar Check"
+msgstr "语法检查"
+
+msgid "Consistency Check"
+msgstr "一致性检查"
+
+msgid "AI Suggestions"
+msgstr "AI建议"

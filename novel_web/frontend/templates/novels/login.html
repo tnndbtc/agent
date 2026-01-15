@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Login" %} - {% trans "Novel Writing Agent" %}{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <h2>{% trans "Login" %}</h2>
+        <form method="post" class="auth-form">
+            {% csrf_token %}
+            {% if form.errors %}
+            <div class="error-message">
+                {% trans "Invalid username or password. Please try again." %}
+            </div>
+            {% endif %}
+
+            <div class="form-group">
+                <label for="id_username">{% trans "Username" %}</label>
+                <input type="text" name="username" id="id_username" required autofocus>
+            </div>
+
+            <div class="form-group">
+                <label for="id_password">{% trans "Password" %}</label>
+                <input type="password" name="password" id="id_password" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-full">{% trans "Login" %}</button>
+        </form>
+
+        <p class="auth-link">
+            {% trans "Don't have an account?" %} <a href="{% url 'novels:register' %}">{% trans "Register here" %}</a>
+        </p>
+
+        <!-- Language Switcher -->
+        {% get_available_languages as LANGUAGES %}
+        {% if LANGUAGES|length > 1 %}
+        <div class="auth-language-switcher">
+            <form action="{% url 'set_language' %}" method="post">
+                {% csrf_token %}
+                <input name="next" type="hidden" value="{{ request.get_full_path }}">
+                <label for="language-select">{% trans "Language" %}:</label>
+                <select name="language" id="language-select" onchange="this.form.submit()" class="language-select">
+                    {% get_current_language as LANGUAGE_CODE %}
+                    {% for lang_code, lang_name in LANGUAGES %}
+                        <option value="{{ lang_code }}" {% if lang_code == LANGUAGE_CODE %}selected{% endif %}>
+                            {{ lang_name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

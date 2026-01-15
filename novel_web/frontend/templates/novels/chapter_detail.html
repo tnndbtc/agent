@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Chapter" %} {{ chapter.chapter_number }}: {{ chapter.title }}{% endblock %}
+{% block nav_title %}{{ chapter.title }}{% endblock %}
+
+{% block content %}
+<div class="chapter-editor">
+    <div class="editor-header">
+        <button class="btn btn-secondary" onclick="window.history.back()">← {% trans "Back" %}</button>
+        <h2>{% trans "Chapter" %} {{ chapter.chapter_number }}: {{ chapter.title }}</h2>
+        <button class="btn btn-primary" onclick="saveChapter()">{% trans "Save" %}</button>
+    </div>
+
+    <div class="editor-toolbar">
+        <button class="tool-btn" onclick="editStyle()" title="{% trans 'Style Edit' %}">
+            ✨ {% trans "Style" %}
+        </button>
+        <button class="tool-btn" onclick="checkGrammar()" title="{% trans 'Grammar Check' %}">
+            ✓ {% trans "Grammar" %}
+        </button>
+        <button class="tool-btn" onclick="checkConsistency()" title="{% trans 'Consistency Check' %}">
+            🔍 {% trans "Consistency" %}
+        </button>
+        <div class="word-count">
+            <span id="wordCount">{{ chapter.word_count }}</span> {% trans "words" %}
+        </div>
+    </div>
+
+    <div class="editor-container">
+        <textarea id="chapterContent" class="chapter-textarea">{{ chapter.content }}</textarea>
+    </div>
+
+    <!-- AI Suggestions Panel -->
+    <div class="suggestions-panel" id="suggestionsPanel" style="display: none;">
+        <div class="panel-header">
+            <h3>{% trans "AI Suggestions" %}</h3>
+            <button class="close-btn" onclick="closeSuggestions()">&times;</button>
+        </div>
+        <div class="panel-content" id="suggestionsContent">
+            <!-- Suggestions will be loaded here -->
+        </div>
+    </div>
+</div>
+
+<script>
+const chapterId = '{{ chapter.id }}';
+const projectId = '{{ project.id }}';
+
+// Word count update
+const textarea = document.getElementById('chapterContent');
+textarea.addEventListener('input', updateWordCount);
+
+function updateWordCount() {
+    const text = textarea.value;
+    const words = text.trim().split(/\s+/).filter(w => w.length > 0).length;
+    document.getElementById('wordCount').textContent = words;
+}
+
+function saveChapter() {
+    const content = textarea.value;
+
+    showLoading('Saving chapter...');
+    apiRequest(`/api/chapters/${chapterId}/`, {
+        method: 'PATCH',
+        body: JSON.stringify({ content })
+    }).then(data => {
+        hideLoading();
+        showToast('Chapter saved!', 'success');
+    }).catch(err => {
+        hideLoading();
+        showToast('Error saving chapter', 'error');
+    });
+}
+
+function editStyle() {
+    const content = textarea.value;
+    if (!content.trim()) {
+        showToast('Please write some content first', 'warning');
+        return;
+    }
+
+    showLoading('Analyzing style...');
+    apiRequest(`/api/chapters/${chapterId}/edit/`, {
+        method: 'POST',
+        body: JSON.stringify({
+            content: content.substring(0, 2000), // First 2000 chars
+            edit_type: 'style'
+        })
+    }).then(data => {
+        hideLoading();
+        showSuggestions('Style Improvements', data);
+    }).catch(err => {
+        hideLoading();
+        showToast('Error analyzing style', 'error');
+    });
+}
+
+function checkGrammar() {
+    const content = textarea.value;
+    if (!content.trim()) {
+        showToast('Please write some content first', 'warning');
+        return;
+    }
+
+    showLoading('Checking grammar...');
+    apiRequest(`/api/chapters/${chapterId}/edit/`, {
+        method: 'POST',
+        body: JSON.stringify({
+            content: content.substring(0, 2000),
+            edit_type: 'grammar'
+        })
+    }).then(data => {
+        hideLoading();
+        showSuggestions('Grammar Check', data);
+    }).catch(err => {
+        hideLoading();
+        showToast('Error checking grammar', 'error');
+    });
+}
+
+function checkConsistency() {
+    showLoading('Checking consistency...');
+    apiRequest(`/api/chapters/${chapterId}/consistency_check/`).then(data => {
+        hideLoading();
+        showSuggestions('Consistency Check', data);
+    }).catch(err => {
+        hideLoading();
+        showToast('Error checking consistency', 'error');
+    });
+}
+
+function showSuggestions(title, data) {
+    const panel = document.getElementById('suggestionsPanel');
+    const content = document.getElementById('suggestionsContent');
+
+    let html = `<h4>${title}</h4>`;
+
+    if (data.issues && data.issues.length > 0) {
+        html += '<h5>Issues Found:</h5><ul>';
+        data.issues.forEach(issue => {
+            html += `<li>${issue}</li>`;
+        });
+        html += '</ul>';
+    }
+
+    if (data.suggestions && data.suggestions.length > 0) {
+        html += '<h5>Suggestions:</h5><ul>';
+        data.suggestions.forEach(suggestion => {
+            html += `<li>${suggestion}</li>`;
+        });
+        html += '</ul>';
+    }
+
+    if (data.revised) {
+        html += '<h5>Revised Version:</h5>';
+        html += `<div class="revised-text">${data.revised}</div>`;
+        html += '<button class="btn btn-primary btn-sm" onclick="applyRevision()">Apply Revision</button>';
+    }
+
+    if (data.corrected) {
+        html += '<h5>Corrected Version:</h5>';
+        html += `<div class="revised-text">${data.corrected}</div>`;
+        html += '<button class="btn btn-primary btn-sm" onclick="applyCorrection()">Apply Correction</button>';
+    }
+
+    content.innerHTML = html;
+    panel.style.display = 'flex';
+}
+
+function closeSuggestions() {
+    document.getElementById('suggestionsPanel').style.display = 'none';
+}
+
+// Auto-save every 30 seconds
+setInterval(() => {
+    if (textarea.value !== textarea.dataset.lastSaved) {
+        saveChapter();
+        textarea.dataset.lastSaved = textarea.value;
+    }
+}, 30000);
+</script>
+{% endblock %}

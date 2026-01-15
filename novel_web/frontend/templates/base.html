@@ -1,0 +1,109 @@
+{% load i18n %}
+<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#4F46E5">
+
+    <title>{% block title %}{% trans "Novel Writing Agent" %}{% endblock %}</title>
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/static/manifest.json">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="/static/css/mobile.css">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Mobile Navigation -->
+    <nav class="mobile-nav">
+        <div class="nav-header">
+            <button class="menu-toggle" id="menuToggle" aria-label="Menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <h1 class="nav-title">{% block nav_title %}{% trans "Novel Agent" %}{% endblock %}</h1>
+            {% if user.is_authenticated %}
+            <span class="user-badge">{{ user.username }}</span>
+            {% endif %}
+        </div>
+    </nav>
+
+    <!-- Sidebar Menu -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-content">
+            {% if user.is_authenticated %}
+            <div class="user-info">
+                <div class="user-avatar">{{ user.username|slice:":1"|upper }}</div>
+                <div>
+                    <p class="user-name">{{ user.get_full_name|default:user.username }}</p>
+                    <p class="user-email">{{ user.email }}</p>
+                </div>
+            </div>
+
+            <ul class="menu-items">
+                <li><a href="{% url 'novels:dashboard' %}" class="menu-item">
+                    <span class="icon">📚</span> {% trans "My Projects" %}
+                </a></li>
+                <li><a href="{% url 'admin:index' %}" class="menu-item" target="_blank">
+                    <span class="icon">⚙️</span> {% trans "Admin" %}
+                </a></li>
+                <li>
+                    <form method="post" action="{% url 'novels:logout' %}" class="logout-form">
+                        {% csrf_token %}
+                        <button type="submit" class="menu-item logout-button">
+                            <span class="icon">🚪</span> {% trans "Logout" %}
+                        </button>
+                    </form>
+                </li>
+            </ul>
+            {% else %}
+            <ul class="menu-items">
+                <li><a href="{% url 'novels:login' %}" class="menu-item">
+                    <span class="icon">🔐</span> {% trans "Login" %}
+                </a></li>
+                <li><a href="{% url 'novels:register' %}" class="menu-item">
+                    <span class="icon">✍️</span> {% trans "Register" %}
+                </a></li>
+            </ul>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Overlay -->
+    <div class="overlay" id="overlay"></div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="message message-{{ message.tags }}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Loading Spinner -->
+    <div class="loading-spinner" id="loadingSpinner" style="display: none;">
+        <div class="spinner"></div>
+        <p id="loadingMessage">Loading...</p>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Scripts -->
+    <script src="/static/js/mobile-ui.js"></script>
+    <script src="/static/js/api.js"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

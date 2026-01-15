@@ -1,0 +1,45 @@
+# Django and Core Dependencies
+Django==5.0.1
+djangorestframework==3.14.0
+django-cors-headers==4.3.1
+django-filter==24.1
+
+# WebSocket Support
+channels==4.0.0
+channels-redis==4.2.0
+daphne==4.1.0
+
+# Async Task Queue
+celery==5.3.6
+redis==5.0.1
+
+# Database
+psycopg2-binary==2.9.9  # PostgreSQL adapter
+
+# Authentication
+djangorestframework-simplejwt==5.3.1
+
+# Environment Variables
+python-dotenv==1.0.1
+
+# Novel Agent Dependencies - Updated to match local environment
+langchain>=1.2.3
+langchain-openai>=1.1.7
+langchain-community>=0.4.1
+langchain-core>=1.2.7
+langchain-text-splitters>=1.1.0
+chromadb>=0.4.22
+openai>=2.15.0
+tiktoken>=0.5.2
+pydantic>=2.5.0
+
+# Utilities
+python-docx==1.1.0
+markdown==3.5.2
+
+# Production Server
+gunicorn==21.2.0
+whitenoise==6.6.0  # Static file serving
+
+# Monitoring (Optional)
+sentry-sdk==1.40.6

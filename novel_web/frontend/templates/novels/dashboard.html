@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Dashboard" %} - {% trans "Novel Writing Agent" %}{% endblock %}
+{% block nav_title %}{% trans "My Projects" %}{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <div class="dashboard-header">
+        <h2>{% trans "My Novel Projects" %}</h2>
+        <button class="btn btn-primary" onclick="createNewProject()">
+            ➕ {% trans "New Project" %}
+        </button>
+    </div>
+
+    {% if projects %}
+    <div class="projects-grid">
+        {% for project in projects %}
+        <div class="project-card" onclick="window.location.href='{% url 'novels:project_detail' project.id %}'">
+            <div class="project-header">
+                <h3>{{ project.title }}</h3>
+                <span class="status-badge status-{{ project.status }}">{{ project.get_status_display }}</span>
+            </div>
+            <div class="project-meta">
+                <p class="genre">{{ project.genre|default:"No genre" }}</p>
+                <div class="project-stats">
+                    <span>📝 {{ project.chapters.count }} {% trans "chapters" %}</span>
+                    <span>📊 {{ project.total_word_count|default:0 }} {% trans "words" %}</span>
+                </div>
+                <p class="updated">{% trans "Updated" %} {{ project.updated_at|timesince }} {% trans "ago" %}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">📚</div>
+        <h3>{% trans "No projects yet" %}</h3>
+        <p>{% trans "Start your first novel project by clicking the button above" %}</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Create Project Modal -->
+<div class="modal" id="createProjectModal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>{% trans "Create New Project" %}</h3>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <form id="createProjectForm" class="modal-form">
+            <div class="form-group">
+                <label for="title">{% trans "Project Title" %}</label>
+                <input type="text" id="title" name="title" required>
+            </div>
+            <div class="form-group">
+                <label for="genre">{% trans "Genre" %}</label>
+                <input type="text" id="genre" name="genre" placeholder="{% trans "Fantasy, Sci-Fi, Romance..." %}">
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">{% trans "Cancel" %}</button>
+                <button type="submit" class="btn btn-primary">{% trans "Create" %}</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function createNewProject() {
+    document.getElementById('createProjectModal').style.display = 'flex';
+}
+
+function closeModal() {
+    document.getElementById('createProjectModal').style.display = 'none';
+}
+
+document.getElementById('createProjectForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const data = {
+        title: formData.get('title'),
+        genre: formData.get('genre'),
+    };
+
+    try {
+        showLoading('Creating project...');
+        const response = await apiRequest('/api/projects/', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+        hideLoading();
+        showToast('Project created successfully!', 'success');
+        setTimeout(() => window.location.reload(), 1000);
+    } catch (error) {
+        hideLoading();
+        showToast('Error creating project', 'error');
+    }
+});
+</script>
+{% endblock %}

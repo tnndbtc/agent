@@ -1,0 +1,26 @@
+[
+  {
+    "id": "writing_20260112_124631_841214",
+    "category": "writing",
+    "description": "Test example",
+    "file_path": "/home/tnnd/data/code/agent/novel_agent/data/examples/good/writing_20260112_124631_841214.txt",
+    "timestamp": "2026-01-12T12:46:31.841421",
+    "metadata": {}
+  },
+  {
+    "id": "writing_20260112_124648_935142",
+    "category": "writing",
+    "description": "Test example",
+    "file_path": "/home/tnnd/data/code/agent/novel_agent/data/examples/good/writing_20260112_124648_935142.txt",
+    "timestamp": "2026-01-12T12:46:48.935328",
+    "metadata": {}
+  },
+  {
+    "id": "writing_20260115_093153_753534",
+    "category": "writing",
+    "description": "Test example",
+    "file_path": "/home/tnnd/data/code/agent/novel_agent/data/examples/good/writing_20260115_093153_753534.txt",
+    "timestamp": "2026-01-15T09:31:53.753762",
+    "metadata": {}
+  }
+]

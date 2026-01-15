@@ -1,0 +1,401 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Brainstorm Ideas" %} - {{ project.title }}{% endblock %}
+{% block nav_title %}{% trans "Brainstorm Ideas" %}{% endblock %}
+
+{% block content %}
+<div class="brainstorm-page">
+    <div class="section">
+        <div class="section-header">
+            <h2>{% trans "Brainstorm Plot Ideas" %}</h2>
+            <button class="btn btn-secondary" onclick="window.location.href='{% url 'novels:project_detail' project.id %}'">
+                ← {% trans "Back to Project" %}
+            </button>
+        </div>
+
+        <div class="info-message">
+            <p>{% trans "Generate creative plot ideas for your novel. You can customize the genre, theme, and number of ideas to generate." %}</p>
+        </div>
+
+        <form id="brainstormForm" class="form-card">
+            <div class="form-group">
+                <label for="genre">{% trans "Genre" %}</label>
+                <select id="genre" name="genre" class="form-control" required>
+                    <option value="">{% trans "Select a genre..." %}</option>
+                    <option value="Fantasy">{% trans "Fantasy" %}</option>
+                    <option value="Science Fiction">{% trans "Science Fiction" %}</option>
+                    <option value="Mystery">{% trans "Mystery" %}</option>
+                    <option value="Thriller">{% trans "Thriller" %}</option>
+                    <option value="Romance">{% trans "Romance" %}</option>
+                    <option value="Horror">{% trans "Horror" %}</option>
+                    <option value="Historical Fiction">{% trans "Historical Fiction" %}</option>
+                    <option value="Literary Fiction">{% trans "Literary Fiction" %}</option>
+                    <option value="Adventure">{% trans "Adventure" %}</option>
+                    <option value="Contemporary">{% trans "Contemporary" %}</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="theme">{% trans "Theme" %} ({% trans "optional" %})</label>
+                <input type="text" id="theme" name="theme" class="form-control"
+                       placeholder="{% trans "e.g., Redemption, Coming of age, Good vs Evil" %}">
+                <small class="form-text">{% trans "Enter a theme to guide the brainstorming" %}</small>
+            </div>
+
+            <div class="form-group">
+                <label for="num_ideas">{% trans "Number of Ideas" %}</label>
+                <input type="number" id="num_ideas" name="num_ideas" class="form-control"
+                       value="3" min="1" max="20" required>
+                <small class="form-text">{% trans "Enter a number between 1 and 20" %}</small>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block">
+                {% trans "Generate Ideas" %}
+            </button>
+        </form>
+
+        <div id="resultsSection" class="results-section" style="display: none;">
+            <h3>{% trans "Generated Ideas" %}</h3>
+            <div id="ideasContainer" class="ideas-container"></div>
+        </div>
+    </div>
+</div>
+
+<style>
+.brainstorm-page {
+    padding: 1rem;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.section {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.section-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: #1f2937;
+}
+
+.info-message {
+    background: #eff6ff;
+    border-left: 4px solid #3b82f6;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border-radius: 4px;
+}
+
+.info-message p {
+    margin: 0;
+    color: #1e40af;
+}
+
+.form-card {
+    background: #f9fafb;
+    padding: 1.5rem;
+    border-radius: 8px;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #374151;
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.form-text {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+.btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: #4f46e5;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #4338ca;
+}
+
+.btn-secondary {
+    background: #6b7280;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #4b5563;
+}
+
+.btn-block {
+    width: 100%;
+    margin-top: 1rem;
+}
+
+.results-section {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 2px solid #e5e7eb;
+}
+
+.results-section h3 {
+    margin-bottom: 1rem;
+    color: #1f2937;
+}
+
+.ideas-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.idea-card {
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.idea-card:hover {
+    border-color: #4f46e5;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.15);
+}
+
+.idea-card.selected {
+    border-color: #4f46e5;
+    background: #eff6ff;
+}
+
+.idea-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 0.5rem;
+}
+
+.idea-premise {
+    color: #4b5563;
+    line-height: 1.6;
+    margin-bottom: 0.75rem;
+}
+
+.idea-tags {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.tag {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    background: #e0e7ff;
+    color: #4338ca;
+    border-radius: 12px;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.action-buttons {
+    margin-top: 1.5rem;
+    display: flex;
+    gap: 1rem;
+}
+
+@media (max-width: 768px) {
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .action-buttons {
+        flex-direction: column;
+    }
+
+    .action-buttons .btn {
+        width: 100%;
+    }
+}
+</style>
+
+<script>
+const projectId = '{{ project.id }}';
+let selectedIdea = null;
+
+document.getElementById('brainstormForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const formData = {
+        genre: document.getElementById('genre').value,
+        theme: document.getElementById('theme').value || undefined,
+        num_ideas: parseInt(document.getElementById('num_ideas').value)
+    };
+
+    if (!formData.genre) {
+        showToast('Please select a genre', 'error');
+        return;
+    }
+
+    generateIdeas(formData);
+});
+
+function generateIdeas(data) {
+    showLoading('Generating ideas... This may take a moment.');
+
+    apiRequest(`/api/projects/${projectId}/brainstorm/`, {
+        method: 'POST',
+        body: JSON.stringify(data)
+    }).then(response => {
+        showToast('Ideas generation started!', 'success');
+        // Poll for task completion
+        pollTask(response.task_id);
+    }).catch(error => {
+        hideLoading();
+        showToast('Error generating ideas: ' + error.message, 'error');
+    });
+}
+
+function pollTask(taskId) {
+    const interval = setInterval(() => {
+        apiRequest(`/api/tasks/${taskId}/`)
+            .then(task => {
+                if (task.status === 'completed') {
+                    clearInterval(interval);
+                    hideLoading();
+                    displayIdeas(task.result_data.ideas);
+                } else if (task.status === 'failed') {
+                    clearInterval(interval);
+                    hideLoading();
+                    showToast('Failed to generate ideas: ' + task.error_message, 'error');
+                }
+            })
+            .catch(error => {
+                clearInterval(interval);
+                hideLoading();
+                showToast('Error checking task status', 'error');
+            });
+    }, 2000);
+}
+
+function displayIdeas(ideas) {
+    const container = document.getElementById('ideasContainer');
+    const resultsSection = document.getElementById('resultsSection');
+
+    container.innerHTML = '';
+
+    ideas.forEach((idea, index) => {
+        const card = document.createElement('div');
+        card.className = 'idea-card';
+        card.dataset.index = index;
+
+        card.innerHTML = `
+            <div class="idea-title">${idea.title || 'Idea ' + (index + 1)}</div>
+            <div class="idea-premise">${idea.premise || idea.description || ''}</div>
+            ${idea.genre ? `<div class="idea-tags"><span class="tag">${idea.genre}</span></div>` : ''}
+        `;
+
+        card.addEventListener('click', () => selectIdea(card, idea));
+
+        container.appendChild(card);
+    });
+
+    // Add action buttons
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'action-buttons';
+    actionsDiv.innerHTML = `
+        <button class="btn btn-primary" id="useSelectedBtn" disabled>Use Selected Idea</button>
+        <button class="btn btn-secondary" onclick="window.location.href='{% url 'novels:project_detail' project.id %}'">Back to Project</button>
+    `;
+    container.appendChild(actionsDiv);
+
+    document.getElementById('useSelectedBtn').addEventListener('click', useSelectedIdea);
+
+    resultsSection.style.display = 'block';
+    resultsSection.scrollIntoView({ behavior: 'smooth' });
+}
+
+function selectIdea(card, idea) {
+    // Deselect all cards
+    document.querySelectorAll('.idea-card').forEach(c => c.classList.remove('selected'));
+
+    // Select this card
+    card.classList.add('selected');
+    selectedIdea = idea;
+
+    // Enable use button
+    document.getElementById('useSelectedBtn').disabled = false;
+}
+
+function useSelectedIdea() {
+    if (!selectedIdea) {
+        showToast('Please select an idea first', 'error');
+        return;
+    }
+
+    if (!confirm('Use this idea to create the plot for your novel?')) {
+        return;
+    }
+
+    showLoading('Creating plot structure...');
+
+    apiRequest(`/api/projects/${projectId}/create_plot/`, {
+        method: 'POST',
+        body: JSON.stringify({ idea_data: selectedIdea })
+    }).then(response => {
+        hideLoading();
+        showToast('Plot created successfully!', 'success');
+        setTimeout(() => {
+            window.location.href = '{% url 'novels:project_detail' project.id %}';
+        }, 1500);
+    }).catch(error => {
+        hideLoading();
+        showToast('Error creating plot: ' + error.message, 'error');
+    });
+}
+</script>
+{% endblock %}

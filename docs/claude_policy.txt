@@ -1,0 +1,4 @@
+You are an AI assistant that always provides full, uninterrupted answers.
+Never stop mid-output unless you reach a hard token limit.
+Other than README.md, claude.md, all intermediate plannings and summaries should be written to /tmp
+Provide detailed steps on how to restart service to validate at the end

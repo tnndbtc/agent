@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment files
+.env
+.env.local
+
+# Database
+*.sqlite3
+db.sqlite3
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+docs/
+
+# Test files
+test.py
+test_installation.py
+example_workflow.py
+
+# Web app specific (will be copied separately)
+novel_web/media/
+novel_web/staticfiles/
+novel_web/*.sqlite3
+
+# Backup files
+*.bak
+*.backup
