@@ -57,8 +57,53 @@ setup_docker() {
     if [ ! -f .env ]; then
         log_info "Creating .env file from .env.example..."
         cp .env.example .env
-        log_warn "IMPORTANT: Edit .env file and add your OPENAI_API_KEY"
-        log_warn "You must also set SECRET_KEY for production use"
+    fi
+
+    # Update .env with environment variables if they are set
+    log_info "Checking for environment variables..."
+
+    if [ ! -z "$SECRET_KEY" ]; then
+        log_info "Using SECRET_KEY from environment variable"
+        if grep -q "^SECRET_KEY=" .env; then
+            sed -i "s|^SECRET_KEY=.*|SECRET_KEY=$SECRET_KEY|" .env
+        else
+            echo "SECRET_KEY=$SECRET_KEY" >> .env
+        fi
+    else
+        log_warn "SECRET_KEY not found in environment. Please edit .env file to set it."
+    fi
+
+    if [ ! -z "$DB_USER" ]; then
+        log_info "Using DB_USER from environment variable"
+        if grep -q "^DB_USER=" .env; then
+            sed -i "s|^DB_USER=.*|DB_USER=$DB_USER|" .env
+        else
+            echo "DB_USER=$DB_USER" >> .env
+        fi
+    fi
+
+    if [ ! -z "$DB_PASSWORD" ]; then
+        log_info "Using DB_PASSWORD from environment variable"
+        if grep -q "^DB_PASSWORD=" .env; then
+            sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=$DB_PASSWORD|" .env
+        else
+            echo "DB_PASSWORD=$DB_PASSWORD" >> .env
+        fi
+    fi
+
+    if [ ! -z "$ALLOWED_HOSTS" ]; then
+        log_info "Using ALLOWED_HOSTS from environment variable"
+        if grep -q "^ALLOWED_HOSTS=" .env; then
+            sed -i "s|^ALLOWED_HOSTS=.*|ALLOWED_HOSTS=$ALLOWED_HOSTS|" .env
+        else
+            echo "ALLOWED_HOSTS=$ALLOWED_HOSTS" >> .env
+        fi
+    fi
+
+    if [ -z "$SECRET_KEY" ] || [ -z "$OPENAI_API_KEY" ]; then
+        log_warn "IMPORTANT: Edit .env file and add missing configuration"
+        [ -z "$OPENAI_API_KEY" ] && log_warn "  - OPENAI_API_KEY is required"
+        [ -z "$SECRET_KEY" ] && log_warn "  - SECRET_KEY must be set for production use"
         echo ""
         read -p "Press Enter to continue after editing .env..."
     fi
@@ -92,7 +137,15 @@ setup_docker() {
     echo ""
     read -p "Create superuser now? (y/n): " create_super
     if [ "$create_super" = "y" ]; then
+        set +e  # Temporarily disable exit on error
         docker compose exec web python manage.py createsuperuser
+        if [ $? -eq 0 ]; then
+            log_info "Superuser created successfully!"
+        else
+            log_warn "Superuser creation cancelled or failed. You can create one later with:"
+            log_warn "  docker compose exec web python manage.py createsuperuser"
+        fi
+        set -e  # Re-enable exit on error
     fi
 
     local_ip=$(get_local_ip)
@@ -165,7 +218,15 @@ setup_local() {
     echo ""
     read -p "Create superuser now? (y/n): " create_super
     if [ "$create_super" = "y" ]; then
+        set +e  # Temporarily disable exit on error
         python manage.py createsuperuser
+        if [ $? -eq 0 ]; then
+            log_info "Superuser created successfully!"
+        else
+            log_warn "Superuser creation cancelled or failed. You can create one later with:"
+            log_warn "  python manage.py createsuperuser"
+        fi
+        set -e  # Re-enable exit on error
     fi
 
     echo ""
