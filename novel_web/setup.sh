@@ -83,23 +83,17 @@ setup_docker() {
     log_info "Waiting for services to be ready..."
     sleep 10
 
-    log_info "Creating migration files..."
-    docker compose exec web python manage.py makemigrations || log_warn "No new migrations to create"
+    log_info "Starting web application..."
+    docker compose up -d
 
-    log_info "Running migrations..."
-    docker compose exec web python manage.py migrate
-
-    log_info "Collecting static files..."
-    docker compose exec web python manage.py collectstatic --noinput
+    log_info "Waiting for web service to initialize (migrations will run automatically)..."
+    sleep 5
 
     echo ""
     read -p "Create superuser now? (y/n): " create_super
     if [ "$create_super" = "y" ]; then
         docker compose exec web python manage.py createsuperuser
     fi
-
-    log_info "Starting web application..."
-    docker compose up -d
 
     local_ip=$(get_local_ip)
 

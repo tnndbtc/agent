@@ -107,8 +107,11 @@ docker compose exec web python manage.py collectstatic --noinput
 # View logs
 docker compose logs -f web
 
-# Stop services
+# Stop services (keeps data)
 docker compose down
+
+# Complete cleanup - removes all volumes (database, redis, media)
+docker compose down -v
 
 # Restart services
 docker compose restart
@@ -299,8 +302,14 @@ On your phone/tablet (connected to the same WiFi):
 
 **Docker:**
 ```bash
+# Stop services (keeps data)
 docker compose down
+
+# Complete cleanup (removes all data including database, redis, media volumes)
+docker compose down -v
 ```
+
+**Note:** Use `docker compose down -v` when you want to completely reset the application and delete all database tables, Redis data, and uploaded files. This is useful for testing from a clean slate or troubleshooting persistent issues.
 
 **Local Development:**
 - Press `Ctrl+C` in each terminal window
@@ -502,6 +511,31 @@ SCORING_EMOTIONAL_IMPACT_WEIGHT=5
 ```
 
 ## Troubleshooting
+
+### Complete Cleanup and Fresh Start
+
+If you're experiencing persistent issues and want to start completely fresh:
+
+```bash
+cd novel_web
+
+# Complete cleanup - removes all Docker volumes (database, redis, media)
+docker compose down -v
+
+# Rebuild and restart
+./setup.sh
+```
+
+This deletes all data including:
+- All PostgreSQL database tables and data
+- All Redis cache data
+- All uploaded media files (vector stores, exports, etc.)
+
+Use this when:
+- Migrations are corrupted or failing
+- Database is in an inconsistent state
+- Testing from a clean slate
+- Troubleshooting persistent configuration issues
 
 ### "no such table: novels_novelproject" Error
 

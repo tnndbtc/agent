@@ -43,7 +43,8 @@ RUN mkdir -p /app/media/vector_stores /app/staticfiles
 
 # Create non-root user for security
 RUN adduser --disabled-password --gecos '' appuser && \
-    chown -R appuser:appuser /app
+    chown -R appuser:appuser /app && \
+    chown -R appuser:appuser /tmp/novel_agent
 USER appuser
 
 # Set entrypoint
