@@ -68,15 +68,18 @@ def brainstorm_view(request, pk):
         project=project,
         task_type='brainstorm',
         status='completed'
-    ).order_by('-completed_at')[:5]  # Get last 5 completed brainstorms
+    ).order_by('-created_at')[:10]  # Get last 10 completed brainstorms, ordered by creation date
 
     # Extract ideas from completed tasks
     previous_ideas = []
     for task in previous_tasks:
         if task.result_data and 'ideas' in task.result_data:
-            for idea in task.result_data['ideas']:
-                idea['task_date'] = task.completed_at
-                previous_ideas.append(idea)
+            ideas_list = task.result_data.get('ideas', [])
+            if isinstance(ideas_list, list):
+                for idea in ideas_list:
+                    if isinstance(idea, dict):
+                        idea['task_date'] = task.completed_at or task.created_at
+                        previous_ideas.append(idea)
 
     return render(request, 'novels/brainstorm.html', {
         'project': project,

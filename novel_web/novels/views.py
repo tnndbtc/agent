@@ -71,9 +71,38 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             'status': 'Task started. Check status at /api/tasks/{id}/'
         }, status=status.HTTP_202_ACCEPTED)
 
+    @action(detail=True, methods=['post'], url_path='save_manual_idea')
+    def save_manual_idea(self, request, pk=None):
+        """Save a manually entered idea."""
+        project = self.get_object()
+        idea_data = request.data.get('idea')
+
+        if not idea_data or not idea_data.get('premise'):
+            return Response(
+                {'error': 'Idea premise is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Create a completed generation task with the manual idea
+        from django.utils import timezone
+        task = GenerationTask.objects.create(
+            project=project,
+            user=request.user,
+            task_type='brainstorm',
+            status='completed',
+            input_data={'manual': True},
+            result_data={'ideas': [idea_data]},
+            completed_at=timezone.now()
+        )
+
+        return Response({
+            'message': 'Idea saved successfully',
+            'task_id': task.id
+        }, status=status.HTTP_201_CREATED)
+
     @action(detail=True, methods=['post'])
     def create_plot(self, request, pk=None):
-        """Create full plot structure."""
+        """Create full plot structure and auto-generate protagonist and antagonist."""
         project = self.get_object()
         serializer = CreatePlotRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -93,7 +122,68 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             }
         )
 
-        return Response(PlotSerializer(plot).data, status=status.HTTP_201_CREATED)
+        # Auto-generate protagonist character
+        character_plot_data = {
+            'title': plot.premise,
+            'genre': plot.genre,
+            'premise': plot.premise,
+            'themes': plot.themes
+        }
+
+        # Generate and save protagonist
+        protagonist_options = CharacterService.create_protagonists(
+            project, character_plot_data, num_options=1
+        )
+
+        protagonist_db = None
+        if protagonist_options:
+            protagonist_data = protagonist_options[0]
+            protagonist_db = Character.objects.create(
+                project=project,
+                name=protagonist_data.get('name', ''),
+                role='protagonist',
+                age=protagonist_data.get('age', ''),
+                background=protagonist_data.get('background', ''),
+                personality=protagonist_data.get('personality', ''),
+                motivation=protagonist_data.get('motivation') or protagonist_data.get('goals', ''),
+                flaw=protagonist_data.get('flaw', ''),
+                arc=protagonist_data.get('arc', ''),
+                appearance=protagonist_data.get('appearance') or protagonist_data.get('physical_description', ''),
+                relationships=protagonist_data.get('relationships', '')
+            )
+
+        # Auto-generate antagonist character
+        if protagonist_db:
+            protagonist_data_for_antagonist = {
+                'name': protagonist_db.name,
+                'background': protagonist_db.background,
+                'personality': protagonist_db.personality,
+                'goals': protagonist_db.motivation
+            }
+
+            antagonist_data = CharacterService.create_antagonist(
+                project, character_plot_data, protagonist_data_for_antagonist
+            )
+
+            if antagonist_data:
+                Character.objects.create(
+                    project=project,
+                    name=antagonist_data.get('name', ''),
+                    role='antagonist',
+                    age=antagonist_data.get('age', ''),
+                    background=antagonist_data.get('background', ''),
+                    personality=antagonist_data.get('personality', ''),
+                    motivation=antagonist_data.get('motivation') or antagonist_data.get('goals', ''),
+                    flaw=antagonist_data.get('flaw', ''),
+                    arc=antagonist_data.get('arc', ''),
+                    appearance=antagonist_data.get('appearance') or antagonist_data.get('physical_description', ''),
+                    relationships=antagonist_data.get('relationships', '')
+                )
+
+        return Response({
+            'plot': PlotSerializer(plot).data,
+            'message': 'Plot and characters (protagonist and antagonist) created successfully'
+        }, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
     def create_characters(self, request, pk=None):

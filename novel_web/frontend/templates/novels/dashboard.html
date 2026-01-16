@@ -19,7 +19,12 @@
         <div class="project-card" onclick="window.location.href='{% url 'novels:project_detail' project.id %}'">
             <div class="project-header">
                 <h3>{{ project.title }}</h3>
-                <span class="status-badge status-{{ project.status }}">{{ project.get_status_display }}</span>
+                <div class="project-header-actions">
+                    <span class="status-badge status-{{ project.status }}">{{ project.get_status_display }}</span>
+                    <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteProject('{{ project.id }}', '{{ project.title }}')">
+                        🗑️ {% trans "Delete" %}
+                    </button>
+                </div>
             </div>
             <div class="project-meta">
                 <p class="genre">{{ project.genre|default:"No genre" }}</p>
@@ -54,8 +59,26 @@
                 <input type="text" id="title" name="title" required>
             </div>
             <div class="form-group">
-                <label for="genre">{% trans "Genre" %}</label>
-                <input type="text" id="genre" name="genre" placeholder="{% trans "Fantasy, Sci-Fi, Romance..." %}">
+                <label for="genreSelect">{% trans "Genre" %}</label>
+                <select id="genreSelect" name="genreSelect" onchange="handleGenreChange()">
+                    <option value="">{% trans "Select a genre..." %}</option>
+                    <option value="Fantasy">{% trans "Fantasy" %}</option>
+                    <option value="Science Fiction">{% trans "Science Fiction" %}</option>
+                    <option value="Romance">{% trans "Romance" %}</option>
+                    <option value="Mystery">{% trans "Mystery" %}</option>
+                    <option value="Thriller">{% trans "Thriller" %}</option>
+                    <option value="Horror">{% trans "Horror" %}</option>
+                    <option value="Historical Fiction">{% trans "Historical Fiction" %}</option>
+                    <option value="Literary Fiction">{% trans "Literary Fiction" %}</option>
+                    <option value="Young Adult">{% trans "Young Adult" %}</option>
+                    <option value="Adventure">{% trans "Adventure" %}</option>
+                    <option value="Dystopian">{% trans "Dystopian" %}</option>
+                    <option value="Custom">{% trans "Custom (Enter your own)" %}</option>
+                </select>
+            </div>
+            <div class="form-group" id="customGenreGroup" style="display: none;">
+                <label for="customGenre">{% trans "Custom Genre" %}</label>
+                <input type="text" id="customGenre" name="customGenre" placeholder="{% trans "Enter custom genre..." %}">
             </div>
             <div class="modal-actions">
                 <button type="button" class="btn btn-secondary" onclick="closeModal()">{% trans "Cancel" %}</button>
@@ -72,14 +95,38 @@ function createNewProject() {
 
 function closeModal() {
     document.getElementById('createProjectModal').style.display = 'none';
+    // Reset form
+    document.getElementById('createProjectForm').reset();
+    document.getElementById('customGenreGroup').style.display = 'none';
+}
+
+function handleGenreChange() {
+    const genreSelect = document.getElementById('genreSelect');
+    const customGenreGroup = document.getElementById('customGenreGroup');
+
+    if (genreSelect.value === 'Custom') {
+        customGenreGroup.style.display = 'block';
+    } else {
+        customGenreGroup.style.display = 'none';
+    }
 }
 
 document.getElementById('createProjectForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
+    const genreSelect = formData.get('genreSelect');
+
+    // Determine the final genre value
+    let genre = '';
+    if (genreSelect === 'Custom') {
+        genre = formData.get('customGenre') || '';
+    } else {
+        genre = genreSelect || '';
+    }
+
     const data = {
         title: formData.get('title'),
-        genre: formData.get('genre'),
+        genre: genre,
     };
 
     try {
@@ -96,5 +143,23 @@ document.getElementById('createProjectForm').addEventListener('submit', async (e
         showToast('Error creating project', 'error');
     }
 });
+
+function deleteProject(projectId, projectTitle) {
+    if (!confirm(`Are you sure you want to delete "${projectTitle}"? This action cannot be undone and will delete all chapters, outlines, and related data.`)) {
+        return;
+    }
+
+    showLoading('Deleting project...');
+    apiRequest(`/api/projects/${projectId}/`, {
+        method: 'DELETE'
+    }).then(() => {
+        hideLoading();
+        showToast('Project deleted successfully!', 'success');
+        setTimeout(() => window.location.reload(), 1000);
+    }).catch(err => {
+        hideLoading();
+        showToast('Error deleting project: ' + err.message, 'error');
+    });
+}
 </script>
 {% endblock %}

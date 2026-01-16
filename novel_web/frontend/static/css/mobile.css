@@ -423,6 +423,12 @@ body {
     flex: 1;
 }
 
+.project-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .status-badge {
     padding: 4px 12px;
     border-radius: 20px;

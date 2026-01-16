@@ -14,6 +14,61 @@
             </button>
         </div>
 
+        <!-- Previously Saved Ideas - Moved to Top -->
+        {% if previous_ideas %}
+        <div class="saved-ideas-section" style="margin-top: 1rem;">
+            <h3>My Idea</h3>
+            <div class="ideas-container">
+                {% for idea in previous_ideas|slice:":1" %}
+                <div class="idea-card current-idea">
+                    <div class="idea-premise" style="font-size: 1rem; margin-bottom: 1rem;">
+                        {% firstof idea.premise idea.description "No description" %}
+                    </div>
+                    {% if idea.genre %}
+                    <div class="idea-tags">
+                        <span class="tag">{{ idea.genre }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            <div style="margin-top: 1rem; display: flex; gap: 1rem;">
+                <button class="btn btn-primary" onclick="modifyIdea()">
+                    ✏️ Modify Idea
+                </button>
+                <button class="btn btn-primary" onclick="useCurrentIdea()">
+                    ✨ Create Plot & Characters
+                </button>
+            </div>
+        </div>
+
+        <!-- Edit Form - Hidden by default -->
+        <div id="editSection" style="display: none; margin-top: 1.5rem;">
+            <form id="editForm" class="form-card">
+                <div class="form-group">
+                    <label for="edit_premise">Idea</label>
+                    <textarea id="edit_premise" name="premise" class="form-control" rows="4" required
+                              placeholder="Describe your plot idea...">{% firstof previous_ideas.0.premise previous_ideas.0.description "" %}</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>{% trans "Genre" %}</label>
+                    <div class="genre-display">{{ project.genre|default:"Not specified" }}</div>
+                </div>
+
+                <div style="display: flex; gap: 1rem;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">
+                        💾 Save Changes
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="cancelEdit()">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        {% else %}
+        <!-- Original Brainstorm Page - Only shown when no ideas exist -->
         <div class="info-message">
             <p>{% trans "Generate creative plot ideas for your novel. You can customize the genre, theme, and number of ideas to generate." %}</p>
         </div>
@@ -31,20 +86,8 @@
         <!-- AI Generation Form -->
         <form id="brainstormForm" class="form-card" style="display: block;">
             <div class="form-group">
-                <label for="genre">{% trans "Genre" %}</label>
-                <select id="genre" name="genre" class="form-control" required>
-                    <option value="">{% trans "Select a genre..." %}</option>
-                    <option value="Fantasy">{% trans "Fantasy" %}</option>
-                    <option value="Science Fiction">{% trans "Science Fiction" %}</option>
-                    <option value="Mystery">{% trans "Mystery" %}</option>
-                    <option value="Thriller">{% trans "Thriller" %}</option>
-                    <option value="Romance">{% trans "Romance" %}</option>
-                    <option value="Horror">{% trans "Horror" %}</option>
-                    <option value="Historical Fiction">{% trans "Historical Fiction" %}</option>
-                    <option value="Literary Fiction">{% trans "Literary Fiction" %}</option>
-                    <option value="Adventure">{% trans "Adventure" %}</option>
-                    <option value="Contemporary">{% trans "Contemporary" %}</option>
-                </select>
+                <label>{% trans "Genre" %}</label>
+                <div class="genre-display">{{ project.genre|default:"Not specified" }}</div>
             </div>
 
             <div class="form-group">
@@ -69,62 +112,31 @@
         <!-- Manual Input Form -->
         <form id="manualForm" class="form-card" style="display: none;">
             <div class="form-group">
-                <label for="manual_title">Idea Title</label>
-                <input type="text" id="manual_title" name="title" class="form-control" required>
-            </div>
-
-            <div class="form-group">
-                <label for="manual_premise">Premise / Description</label>
+                <label for="manual_premise">Idea</label>
                 <textarea id="manual_premise" name="premise" class="form-control" rows="4" required
                           placeholder="Describe your plot idea..."></textarea>
             </div>
 
             <div class="form-group">
-                <label for="manual_genre">{% trans "Genre" %}</label>
-                <select id="manual_genre" name="genre" class="form-control">
-                    <option value="">{% trans "Select a genre..." %}</option>
-                    <option value="Fantasy">{% trans "Fantasy" %}</option>
-                    <option value="Science Fiction">{% trans "Science Fiction" %}</option>
-                    <option value="Mystery">{% trans "Mystery" %}</option>
-                    <option value="Thriller">{% trans "Thriller" %}</option>
-                    <option value="Romance">{% trans "Romance" %}</option>
-                    <option value="Horror">{% trans "Horror" %}</option>
-                    <option value="Historical Fiction">{% trans "Historical Fiction" %}</option>
-                    <option value="Literary Fiction">{% trans "Literary Fiction" %}</option>
-                    <option value="Adventure">{% trans "Adventure" %}</option>
-                    <option value="Contemporary">{% trans "Contemporary" %}</option>
-                </select>
+                <label>{% trans "Genre" %}</label>
+                <div class="genre-display">{{ project.genre|default:"Not specified" }}</div>
             </div>
 
-            <button type="submit" class="btn btn-primary btn-block">
-                Save Idea
+            <div id="progressContainer" class="progress-container">
+                <div class="progress-bar">
+                    <div id="progressBarFill" class="progress-bar-fill">0%</div>
+                </div>
+                <div id="progressText" class="progress-text">Saving idea and creating plot & characters...</div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block" id="saveIdeaBtn">
+                💾 Save Idea
             </button>
         </form>
 
         <div id="resultsSection" class="results-section" style="display: none;">
             <h3>{% trans "Generated Ideas" %}</h3>
             <div id="ideasContainer" class="ideas-container"></div>
-        </div>
-
-        <!-- Previously Saved Ideas -->
-        {% if previous_ideas %}
-        <div class="saved-ideas-section">
-            <h3>Previously Saved Ideas</h3>
-            <div class="ideas-container">
-                {% for idea in previous_ideas %}
-                <div class="idea-card saved-idea" onclick="selectSavedIdea({{ forloop.counter0 }})">
-                    <div class="idea-title">{{ idea.title|default:"Untitled Idea" }}</div>
-                    <div class="idea-premise">
-                        {% firstof idea.premise idea.description "No description" %}
-                    </div>
-                    {% if idea.genre %}
-                    <div class="idea-tags">
-                        <span class="tag">{{ idea.genre }}</span>
-                    </div>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            </div>
         </div>
         {% endif %}
     </div>
@@ -371,6 +383,51 @@ textarea.form-control {
     opacity: 1;
 }
 
+.genre-display {
+    padding: 0.75rem;
+    background: #e0e7ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 6px;
+    color: #4338ca;
+    font-weight: 500;
+    font-size: 1rem;
+}
+
+.progress-container {
+    margin: 1.5rem 0;
+    display: none;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 30px;
+    background: #e5e7eb;
+    border-radius: 15px;
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%);
+    border-radius: 15px;
+    transition: width 0.3s ease;
+    width: 0%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.progress-text {
+    margin-top: 0.5rem;
+    text-align: center;
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
 @media (max-width: 768px) {
     .section-header {
         flex-direction: column;
@@ -390,40 +447,224 @@ textarea.form-control {
 
 <script>
 const projectId = '{{ project.id }}';
-let selectedIdea = null;
+let currentIdea = {{ previous_ideas|length }} > 0 ? {
+    title: '{{ previous_ideas.0.title|default:"My Idea"|escapejs }}',
+    premise: `{{ previous_ideas.0.premise|default:""|escapejs }}`,
+    genre: '{{ previous_ideas.0.genre|default:"General"|escapejs }}'
+} : null;
 
-function switchMode(mode) {
-    // Update button states
-    document.querySelectorAll('.mode-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.mode === mode);
-    });
-
-    // Toggle forms
-    if (mode === 'generate') {
-        document.getElementById('brainstormForm').style.display = 'block';
-        document.getElementById('manualForm').style.display = 'none';
-    } else {
-        document.getElementById('brainstormForm').style.display = 'none';
-        document.getElementById('manualForm').style.display = 'block';
-    }
+function modifyIdea() {
+    document.getElementById('editSection').style.display = 'block';
+    document.querySelector('.saved-ideas-section').style.display = 'none';
 }
 
-document.getElementById('brainstormForm').addEventListener('submit', function(e) {
-    e.preventDefault();
+function cancelEdit() {
+    document.getElementById('editSection').style.display = 'none';
+    document.querySelector('.saved-ideas-section').style.display = 'block';
+}
 
-    const formData = {
-        genre: document.getElementById('genre').value,
-        theme: document.getElementById('theme').value || undefined,
-        num_ideas: parseInt(document.getElementById('num_ideas').value)
-    };
-
-    if (!formData.genre) {
-        showToast('Please select a genre', 'error');
+function useCurrentIdea() {
+    if (!currentIdea) {
+        showToast('No idea found', 'error');
         return;
     }
 
-    generateIdeas(formData);
-});
+    if (!confirm('Create plot and characters from this idea?')) {
+        return;
+    }
+
+    showLoading('Creating plot and characters...');
+
+    apiRequest(`/api/projects/${projectId}/create_plot/`, {
+        method: 'POST',
+        body: JSON.stringify({ idea_data: currentIdea })
+    }).then(response => {
+        hideLoading();
+        showToast('Plot and characters created successfully!', 'success');
+        setTimeout(() => {
+            window.location.href = '{% url 'novels:project_detail' project.id %}';
+        }, 1500);
+    }).catch(error => {
+        hideLoading();
+        showToast('Error creating plot and characters: ' + error.message, 'error');
+    });
+}
+
+// Progress bar management
+let progressInterval = null;
+let currentProgress = 0;
+
+function startProgressBar() {
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBarFill = document.getElementById('progressBarFill');
+    const saveBtn = document.getElementById('saveIdeaBtn');
+
+    if (progressContainer) {
+        progressContainer.style.display = 'block';
+        saveBtn.disabled = true;
+        saveBtn.style.opacity = '0.6';
+        currentProgress = 0;
+
+        progressInterval = setInterval(() => {
+            if (currentProgress < 95) {
+                currentProgress += 5;
+                progressBarFill.style.width = currentProgress + '%';
+                progressBarFill.textContent = currentProgress + '%';
+            }
+        }, 2000); // Add 5% every 2 seconds
+    }
+}
+
+function completeProgressBar() {
+    const progressBarFill = document.getElementById('progressBarFill');
+
+    if (progressInterval) {
+        clearInterval(progressInterval);
+    }
+
+    currentProgress = 100;
+    progressBarFill.style.width = '100%';
+    progressBarFill.textContent = '100%';
+}
+
+function resetProgressBar() {
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBarFill = document.getElementById('progressBarFill');
+    const saveBtn = document.getElementById('saveIdeaBtn');
+
+    if (progressInterval) {
+        clearInterval(progressInterval);
+    }
+
+    if (progressContainer) {
+        progressContainer.style.display = 'none';
+        currentProgress = 0;
+        progressBarFill.style.width = '0%';
+        progressBarFill.textContent = '0%';
+        saveBtn.disabled = false;
+        saveBtn.style.opacity = '1';
+    }
+}
+
+// Manual form submission - for new ideas
+const manualForm = document.getElementById('manualForm');
+if (manualForm) {
+    manualForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const projectGenre = '{{ project.genre|default:"General"|escapejs }}';
+        const manualIdea = {
+            title: 'My Idea',
+            premise: document.getElementById('manual_premise').value,
+            genre: projectGenre
+        };
+
+        try {
+            startProgressBar();
+
+            // Save the idea to the database
+            await apiRequest(`/api/projects/${projectId}/save_manual_idea/`, {
+                method: 'POST',
+                body: JSON.stringify({ idea: manualIdea })
+            });
+
+            // Automatically create plot and characters
+            await apiRequest(`/api/projects/${projectId}/create_plot/`, {
+                method: 'POST',
+                body: JSON.stringify({ idea_data: manualIdea })
+            });
+
+            completeProgressBar();
+            showToast('Idea saved and plot/characters created successfully!', 'success');
+
+            // Redirect to project detail page
+            setTimeout(() => {
+                window.location.href = '{% url 'novels:project_detail' project.id %}';
+            }, 1500);
+        } catch (error) {
+            resetProgressBar();
+            showToast('Error: ' + error.message, 'error');
+        }
+    });
+}
+
+// Edit form submission - for modifying existing ideas
+const editForm = document.getElementById('editForm');
+if (editForm) {
+    editForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const projectGenre = '{{ project.genre|default:"General"|escapejs }}';
+        const updatedIdea = {
+            title: 'My Idea',
+            premise: document.getElementById('edit_premise').value,
+            genre: projectGenre
+        };
+
+        try {
+            showLoading('Saving changes...');
+
+            // Save the updated idea
+            await apiRequest(`/api/projects/${projectId}/save_manual_idea/`, {
+                method: 'POST',
+                body: JSON.stringify({ idea: updatedIdea })
+            });
+
+            hideLoading();
+            showToast('Changes saved successfully! Reloading...', 'success');
+
+            // Reload to show updated idea
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } catch (error) {
+            hideLoading();
+            showToast('Error saving changes: ' + error.message, 'error');
+        }
+    });
+}
+
+// Mode switching for AI generation vs manual input
+function switchMode(mode) {
+    const generateBtn = document.querySelector('[data-mode="generate"]');
+    const manualBtn = document.querySelector('[data-mode="manual"]');
+    const brainstormForm = document.getElementById('brainstormForm');
+    const manualForm = document.getElementById('manualForm');
+
+    if (mode === 'generate') {
+        generateBtn.classList.add('active');
+        manualBtn.classList.remove('active');
+        brainstormForm.style.display = 'block';
+        manualForm.style.display = 'none';
+    } else {
+        generateBtn.classList.remove('active');
+        manualBtn.classList.add('active');
+        brainstormForm.style.display = 'none';
+        manualForm.style.display = 'block';
+    }
+}
+
+// AI brainstorm form submission
+const brainstormForm = document.getElementById('brainstormForm');
+if (brainstormForm) {
+    brainstormForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const projectGenre = '{{ project.genre|default:""|escapejs }}';
+        if (!projectGenre) {
+            showToast('Please set a genre for your project first', 'error');
+            return;
+        }
+
+        const formData = {
+            genre: projectGenre,
+            theme: document.getElementById('theme').value || undefined,
+            num_ideas: parseInt(document.getElementById('num_ideas').value)
+        };
+
+        generateIdeas(formData);
+    });
+}
 
 function generateIdeas(data) {
     showLoading('Generating ideas... This may take a moment.');
@@ -433,7 +674,6 @@ function generateIdeas(data) {
         body: JSON.stringify(data)
     }).then(response => {
         showToast('Ideas generation started!', 'success');
-        // Poll for task completion
         pollTask(response.task_id);
     }).catch(error => {
         hideLoading();
@@ -481,7 +721,6 @@ function displayIdeas(ideas) {
         `;
 
         card.addEventListener('click', () => selectIdea(card, idea));
-
         container.appendChild(card);
     });
 
@@ -489,7 +728,10 @@ function displayIdeas(ideas) {
     const actionsDiv = document.createElement('div');
     actionsDiv.className = 'action-buttons';
     actionsDiv.innerHTML = `
-        <button class="btn btn-primary" id="useSelectedBtn" disabled>Use Selected Idea</button>
+        <div style="flex: 1;">
+            <button class="btn btn-primary" id="useSelectedBtn" disabled style="width: 100%; opacity: 0.5;">Use Selected Idea</button>
+            <small id="selectReminder" style="display: block; margin-top: 0.5rem; color: #6b7280; text-align: center;">Select an idea to continue</small>
+        </div>
         <button class="btn btn-secondary" onclick="window.location.href='{% url 'novels:project_detail' project.id %}'">Back to Project</button>
     `;
     container.appendChild(actionsDiv);
@@ -500,16 +742,24 @@ function displayIdeas(ideas) {
     resultsSection.scrollIntoView({ behavior: 'smooth' });
 }
 
-function selectIdea(card, idea) {
-    // Deselect all cards
-    document.querySelectorAll('.idea-card').forEach(c => c.classList.remove('selected'));
+let selectedIdea = null;
 
-    // Select this card
+function selectIdea(card, idea) {
+    document.querySelectorAll('.idea-card').forEach(c => c.classList.remove('selected'));
     card.classList.add('selected');
     selectedIdea = idea;
 
-    // Enable use button
-    document.getElementById('useSelectedBtn').disabled = false;
+    const useBtn = document.getElementById('useSelectedBtn');
+    const reminder = document.getElementById('selectReminder');
+
+    if (useBtn) {
+        useBtn.disabled = false;
+        useBtn.style.opacity = '1';
+    }
+
+    if (reminder) {
+        reminder.style.display = 'none';
+    }
 }
 
 function useSelectedIdea() {
@@ -518,80 +768,25 @@ function useSelectedIdea() {
         return;
     }
 
-    if (!confirm('Use this idea to create the plot for your novel?')) {
+    if (!confirm('Use this idea to create the plot and characters for your novel?')) {
         return;
     }
 
-    showLoading('Creating plot structure...');
+    showLoading('Creating plot and characters...');
 
     apiRequest(`/api/projects/${projectId}/create_plot/`, {
         method: 'POST',
         body: JSON.stringify({ idea_data: selectedIdea })
     }).then(response => {
         hideLoading();
-        showToast('Plot created successfully!', 'success');
+        showToast('Plot and characters created successfully!', 'success');
         setTimeout(() => {
             window.location.href = '{% url 'novels:project_detail' project.id %}';
         }, 1500);
     }).catch(error => {
         hideLoading();
-        showToast('Error creating plot: ' + error.message, 'error');
+        showToast('Error creating plot and characters: ' + error.message, 'error');
     });
-}
-
-// Manual form submission
-document.getElementById('manualForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-
-    const manualIdea = {
-        title: document.getElementById('manual_title').value,
-        premise: document.getElementById('manual_premise').value,
-        genre: document.getElementById('manual_genre').value || 'General'
-    };
-
-    // Display the manual idea as a single result
-    displayIdeas([manualIdea]);
-    showToast('Idea saved! Select it to create your plot.', 'success');
-});
-
-// Store previous ideas for selection
-const previousIdeasData = {{ previous_ideas|length }} > 0 ? [
-    {% for idea in previous_ideas %}
-    {
-        title: '{{ idea.title|default:"Untitled"|escapejs }}',
-        premise: '{% firstof idea.premise idea.description "No description" %}'.replace(/\n/g, ' '),
-        genre: '{{ idea.genre|default:"General"|escapejs }}'
-    }{% if not forloop.last %},{% endif %}
-    {% endfor %}
-] : [];
-const previousIdeas = previousIdeasData;
-
-function selectSavedIdea(index) {
-    const idea = previousIdeas[index];
-    if (!idea) return;
-
-    // Deselect all saved ideas
-    document.querySelectorAll('.saved-idea').forEach(c => c.classList.remove('selected'));
-
-    // Select this idea
-    event.currentTarget.classList.add('selected');
-    selectedIdea = idea;
-
-    // Scroll to top and show use button
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-
-    // Show confirmation button
-    if (!document.getElementById('useSavedIdeaBtn')) {
-        const btnDiv = document.createElement('div');
-        btnDiv.innerHTML = `
-            <button class="btn btn-primary btn-block" id="useSavedIdeaBtn" style="margin-top: 1rem;">
-                Use Selected Idea to Create Plot
-            </button>
-        `;
-        document.querySelector('.saved-ideas-section').insertBefore(btnDiv, document.querySelector('.saved-ideas-section .ideas-container'));
-
-        document.getElementById('useSavedIdeaBtn').addEventListener('click', useSelectedIdea);
-    }
 }
 </script>
 {% endblock %}

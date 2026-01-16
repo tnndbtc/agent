@@ -9,8 +9,6 @@
     <!-- Tabs -->
     <div class="tabs">
         <button class="tab active" data-tab="overview">{% trans "Overview" %}</button>
-        <button class="tab" data-tab="plot">{% trans "Plot" %}</button>
-        <button class="tab" data-tab="characters">{% trans "Characters" %}</button>
         <button class="tab" data-tab="chapters">{% trans "Chapters" %}</button>
         <button class="tab" data-tab="tools">{% trans "Tools" %}</button>
     </div>
@@ -46,65 +44,47 @@
                     <span class="action-icon">💡</span>
                     <span>{% trans "Brainstorm Ideas" %}</span>
                 </button>
-                <button class="action-card" onclick="showTab('plot')">
-                    <span class="action-icon">📖</span>
-                    <span>{% trans "Develop Plot" %}</span>
-                </button>
-                <button class="action-card" onclick="showTab('characters')">
-                    <span class="action-icon">👥</span>
-                    <span>{% trans "Create Characters" %}</span>
-                </button>
+                <!-- Hidden as per requirements
                 <button class="action-card" onclick="createOutline()">
                     <span class="action-icon">📋</span>
                     <span>{% trans "Generate Outline" %}</span>
                 </button>
+                -->
             </div>
         </div>
-    </div>
 
-    <!-- Plot Tab -->
-    <div class="tab-content" id="plot">
+        <!-- Plot Section -->
         <div class="section">
-            <div class="section-header">
-                <h3>{% trans "Plot Structure" %}</h3>
-                {% if not has_plot %}
-                <button class="btn btn-primary" onclick="generatePlot()">{% trans "Generate Plot" %}</button>
-                {% endif %}
-            </div>
+            <h3>{% trans "Plot Structure" %}</h3>
             {% if has_plot %}
             <div class="plot-display">
                 <div class="plot-field">
-                    <label>Premise</label>
+                    <label>{% trans "Premise" %}</label>
                     <p>{{ project.plot.premise }}</p>
                 </div>
                 <div class="plot-field">
-                    <label>Genre</label>
+                    <label>{% trans "Genre" %}</label>
                     <p>{{ project.plot.genre }}</p>
                 </div>
                 <div class="plot-field">
-                    <label>Themes</label>
+                    <label>{% trans "Themes" %}</label>
                     <p>{{ project.plot.themes }}</p>
                 </div>
                 <div class="plot-field">
-                    <label>Conflict</label>
+                    <label>{% trans "Conflict" %}</label>
                     <p>{{ project.plot.conflict }}</p>
                 </div>
             </div>
             {% else %}
             <div class="empty-state">
-                <p>{% trans "No plot created yet. Start by brainstorming ideas!" %}</p>
+                <p>{% trans "No plot created yet. Plot will be auto-generated from your brainstorm ideas." %}</p>
             </div>
             {% endif %}
         </div>
-    </div>
 
-    <!-- Characters Tab -->
-    <div class="tab-content" id="characters">
+        <!-- Characters Section -->
         <div class="section">
-            <div class="section-header">
-                <h3>{% trans "Characters" %}</h3>
-                <button class="btn btn-primary" onclick="createCharacter()">{% trans "Add Character" %}</button>
-            </div>
+            <h3>{% trans "Characters" %}</h3>
             {% if characters %}
             <div class="characters-list">
                 {% for character in characters %}
@@ -119,7 +99,7 @@
             </div>
             {% else %}
             <div class="empty-state">
-                <p>{% trans "No characters yet. Create your protagonist to get started!" %}</p>
+                <p>{% trans "No characters yet. Characters will be auto-generated based on plot." %}</p>
             </div>
             {% endif %}
         </div>
