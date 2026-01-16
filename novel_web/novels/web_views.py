@@ -34,13 +34,32 @@ def project_detail(request, pk):
     """Project detail view."""
     project = get_object_or_404(NovelProject, pk=pk, user=request.user)
 
+    # Get previous brainstorm tasks with results
+    previous_tasks = GenerationTask.objects.filter(
+        project=project,
+        task_type='brainstorm',
+        status='completed'
+    ).order_by('-created_at')[:10]  # Get last 10 completed brainstorms, ordered by creation date
+
+    # Extract ideas from completed tasks
+    previous_ideas = []
+    for task in previous_tasks:
+        if task.result_data and 'ideas' in task.result_data:
+            ideas_list = task.result_data.get('ideas', [])
+            if isinstance(ideas_list, list):
+                for idea in ideas_list:
+                    if isinstance(idea, dict):
+                        idea['task_date'] = task.completed_at or task.created_at
+                        previous_ideas.append(idea)
+
     context = {
         'project': project,
         'has_plot': hasattr(project, 'plot'),
         'characters': project.characters.all(),
         'settings': project.settings.all(),
         'outlines': project.chapter_outlines.all(),
-        'chapters': project.chapters.all()
+        'chapters': project.chapters.all(),
+        'previous_ideas': previous_ideas
     }
 
     return render(request, 'novels/project_detail.html', context)
