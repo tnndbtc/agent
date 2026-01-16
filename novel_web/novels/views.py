@@ -1,10 +1,13 @@
 """API views for Novel Writing Agent."""
+import logging
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 
 from .models import (
     NovelProject, Plot, Character, Setting,
@@ -52,6 +55,12 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         serializer = BrainstormRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        # Get user's language preference
+        user_language = getattr(request, 'LANGUAGE_CODE', 'en')
+
+        logger.info(f"Brainstorm API called - User: {request.user.username}, Project: {project.id}, "
+                   f"Language: {user_language}, Input: {serializer.validated_data}")
+
         # Create generation task
         task = GenerationTask.objects.create(
             project=project,
@@ -64,6 +73,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         brainstorm_ideas_task.delay(
             task_id=str(task.id),
             project_id=str(project.id),
+            user_language=user_language,
             **serializer.validated_data
         )
 
@@ -108,10 +118,16 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         serializer = CreatePlotRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        # Get user's language preference
+        user_language = getattr(request, 'LANGUAGE_CODE', 'en')
+
+        logger.info(f"Create Plot API called - User: {request.user.username}, Project: {project.id}, "
+                   f"Language: {user_language}, Input: {serializer.validated_data}")
+
         # Track API performance
         start_time = timezone.now()
 
-        plot_data = PlotService.create_full_plot(project, serializer.validated_data['idea_data'])
+        plot_data = PlotService.create_full_plot(project, serializer.validated_data['idea_data'], user_language=user_language)
 
         # Save to database
         plot, created = Plot.objects.update_or_create(
@@ -136,7 +152,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
 
         # Generate and save protagonist
         protagonist_options = CharacterService.create_protagonists(
-            project, character_plot_data, num_options=1
+            project, character_plot_data, num_options=1, user_language=user_language
         )
 
         protagonist_db = None
@@ -167,7 +183,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             }
 
             antagonist_data = CharacterService.create_antagonist(
-                project, character_plot_data, protagonist_data_for_antagonist
+                project, character_plot_data, protagonist_data_for_antagonist, user_language=user_language
             )
 
             if antagonist_data:
@@ -213,6 +229,12 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         serializer = CreateCharacterRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        # Get user's language preference
+        user_language = getattr(request, 'LANGUAGE_CODE', 'en')
+
+        logger.info(f"Create Characters API called - User: {request.user.username}, Project: {project.id}, "
+                   f"Language: {user_language}, Input: {serializer.validated_data}")
+
         if not hasattr(project, 'plot'):
             return Response(
                 {'error': 'Project must have a plot before creating characters'},
@@ -231,7 +253,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
 
         if char_type == 'protagonist':
             characters_data = CharacterService.create_protagonists(
-                project, plot_data, num_options
+                project, plot_data, num_options, user_language=user_language
             )
         elif char_type == 'antagonist':
             # For antagonist, we need protagonist data - use first protagonist if exists
@@ -242,12 +264,12 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
                     'name': protagonists.name,
                     'background': protagonists.background,
                     'personality': protagonists.personality,
-                    'goals': protagonists.goals
+                    'motivation': protagonists.motivation
                 }
 
             # Create single antagonist and wrap in list
             antagonist = CharacterService.create_antagonist(
-                project, plot_data, protagonist_data
+                project, plot_data, protagonist_data, user_language=user_language
             )
             characters_data = [antagonist]
         elif char_type == 'supporting':
@@ -259,13 +281,13 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
                     'name': protagonists.name,
                     'background': protagonists.background,
                     'personality': protagonists.personality,
-                    'goals': protagonists.goals
+                    'motivation': protagonists.motivation
                 }
 
             # Create supporting characters with common roles
             roles = ['sidekick', 'mentor', 'love_interest'][:num_options]
             supporting = CharacterService.create_supporting(
-                project, plot_data, protagonist_data, roles
+                project, plot_data, protagonist_data, roles, user_language=user_language
             )
             characters_data = supporting if isinstance(supporting, list) else [supporting]
         else:
@@ -309,7 +331,17 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
     def create_outline(self, request, pk=None):
         """Create chapter outline."""
         project = self.get_object()
+
+        # Get user's language preference
+        user_language = getattr(request, 'LANGUAGE_CODE', 'en')
+
+        # Log raw request data for debugging
+        logger.info(f"Create Outline API called - User: {request.user.username}, Project: {project.id}, "
+                   f"Language: {user_language}, Raw request.data: {request.data}")
+
         num_chapters = int(request.data.get('num_chapters', 20))
+
+        logger.info(f"Create Outline - num_chapters parsed: {num_chapters}")
 
         # Create generation task
         task = GenerationTask.objects.create(
@@ -323,7 +355,8 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         create_outline_task.delay(
             task_id=str(task.id),
             project_id=str(project.id),
-            num_chapters=num_chapters
+            num_chapters=num_chapters,
+            user_language=user_language
         )
 
         return Response({
@@ -351,12 +384,16 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             input_data={'chapter_number': chapter_number}
         )
 
+        # Get user's language preference
+        user_language = getattr(request, 'LANGUAGE_CODE', 'en')
+
         # Start async task
         from .tasks import regenerate_single_outline_task
         regenerate_single_outline_task.delay(
             task_id=str(task.id),
             project_id=str(project.id),
-            chapter_number=chapter_number
+            chapter_number=chapter_number,
+            user_language=user_language
         )
 
         return Response({
@@ -398,7 +435,31 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
 
         # Convert UUID to string for JSON serialization
         validated_data = serializer.validated_data.copy()
-        validated_data['chapter_outline_id'] = str(validated_data['chapter_outline_id'])
+        chapter_outline_id = validated_data['chapter_outline_id']
+
+        # Validate that the ChapterOutline exists and belongs to this project
+        try:
+            outline = ChapterOutline.objects.get(
+                id=chapter_outline_id,
+                project=project
+            )
+            logger.info(f"Found ChapterOutline: {outline.id} - Title: {outline.title}")
+        except ChapterOutline.DoesNotExist:
+            logger.error(f"ChapterOutline {chapter_outline_id} not found for project {project.id}")
+            return Response({
+                'error': f'Chapter outline {chapter_outline_id} not found or does not belong to this project'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        validated_data['chapter_outline_id'] = str(chapter_outline_id)
+
+        # If language not specified in request, use user's UI language preference
+        if 'language' not in validated_data or not validated_data['language']:
+            from novels.services import get_language_name
+            user_language_code = getattr(request, 'LANGUAGE_CODE', 'en')
+            validated_data['language'] = get_language_name(user_language_code)
+
+        logger.info(f"Write Chapter API called - User: {request.user.username}, Project: {project.id}, "
+                   f"Outline: {outline.title}, Language: {validated_data.get('language')}, Input: {validated_data}")
 
         # Create generation task
         task = GenerationTask.objects.create(

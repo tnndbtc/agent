@@ -642,7 +642,7 @@ docker compose exec -T db psql -U novel_user novel_agent_db < backup.sql
 ### Currently Supported Languages
 
 1. **English** (`en`) - Default language
-2. **简体中文** (`zh-hans`) - Simplified Chinese
+2. **简体中文** (`zh-Hans`) - Simplified Chinese
 
 ### How to Use the Language Switcher
 
@@ -658,10 +658,10 @@ Users can switch languages using the language selector in the login page:
 
 ```bash
 # For Docker setup
-docker compose exec web python manage.py makemessages -l zh-hans
+docker compose exec web python manage.py makemessages -l zh_Hans
 
 # For local setup
-python manage.py makemessages -l zh-hans
+python manage.py makemessages -l zh_Hans
 ```
 
 #### Step 2: Edit Translation File

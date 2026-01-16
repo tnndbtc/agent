@@ -1,10 +1,13 @@
 """Brainstorming module for generating creative plot ideas."""
+import logging
 from typing import List, Dict, Any, Optional
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from novel_agent.config import OPENAI_API_KEY, MODEL_NAME, TEMPERATURE
 from novel_agent.memory.context_manager import ContextManager
+
+logger = logging.getLogger(__name__)
 
 
 class BrainstormingModule:
@@ -45,6 +48,10 @@ class BrainstormingModule:
         Returns:
             List of plot idea dictionaries
         """
+        logger.info(f"BrainstormingModule.generate_plot_ideas - genre: {genre}, theme: {theme}, "
+                   f"num_ideas: {num_ideas}, use_context: {use_context}, "
+                   f"custom_prompt: {custom_prompt[:200] if custom_prompt else None}")
+
         # Build context from memory (optional for performance)
         context = None
         if use_context:
@@ -79,13 +86,21 @@ Make each idea distinctly different from the others."""
 
         user_prompt_parts.append(f"\n\nFormat each idea as:\n---\nIDEA [number]\nTitle: [title]\nPremise: [premise]\nConflict: [conflict]\nHook: [unique hook]\n---")
 
+        user_prompt = "\n".join(user_prompt_parts)
+        logger.info(f"BrainstormingModule - Sending prompt to OpenAI (length: {len(user_prompt)})")
+        logger.debug(f"BrainstormingModule - Full prompt: {user_prompt}")
+
         messages = [
             SystemMessage(content=system_message),
-            HumanMessage(content="\n".join(user_prompt_parts))
+            HumanMessage(content=user_prompt)
         ]
 
         response = self.llm.invoke(messages)
+        logger.info(f"BrainstormingModule - Received response from OpenAI (length: {len(response.content)})")
+        logger.debug(f"BrainstormingModule - Response content: {response.content[:500]}")
+
         ideas = self._parse_plot_ideas(response.content)
+        logger.info(f"BrainstormingModule - Parsed {len(ideas)} ideas from response")
 
         return ideas
 

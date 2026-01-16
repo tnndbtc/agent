@@ -84,8 +84,11 @@ def update_task_progress(task_id, progress, message=""):
 
 
 @shared_task(bind=True, max_retries=3)
-def brainstorm_ideas_task(self, task_id, project_id, genre=None, theme=None, num_ideas=3):
+def brainstorm_ideas_task(self, task_id, project_id, genre=None, theme=None, num_ideas=3, custom_prompt=None, user_language='en'):
     """Generate plot ideas asynchronously."""
+    logger.info(f"Brainstorm task started - task_id: {task_id}, project_id: {project_id}, "
+               f"genre: {genre}, theme: {theme}, num_ideas: {num_ideas}, custom_prompt: {custom_prompt}, user_language: {user_language}")
+
     try:
         task = GenerationTask.objects.get(id=task_id)
         task.status = 'running'
@@ -107,8 +110,11 @@ def brainstorm_ideas_task(self, task_id, project_id, genre=None, theme=None, num
                 genre=genre,
                 theme=theme,
                 num_ideas=num_ideas,
-                use_context=False  # Skip context retrieval for faster generation
+                custom_prompt=custom_prompt,
+                use_context=False,  # Skip context retrieval for faster generation
+                user_language=user_language
             )
+            logger.info(f"Brainstorm task generated {len(ideas)} ideas")
         finally:
             progress_updater.stop()
 
@@ -157,6 +163,8 @@ def brainstorm_ideas_task(self, task_id, project_id, genre=None, theme=None, num
 @shared_task(bind=True, max_retries=3)
 def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_style='literary', language='English', target_word_count=3000):
     """Write a chapter asynchronously."""
+    logger.info(f"Write chapter task started - task_id: {task_id}, project_id: {project_id}, "
+                f"outline_id: {chapter_outline_id}, language: {language}, writing_style: {writing_style}")
     try:
         task = GenerationTask.objects.get(id=task_id)
         task.status = 'running'
@@ -164,8 +172,30 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
         task.celery_task_id = self.request.id
         task.save(update_fields=['status', 'started_at', 'celery_task_id'])
 
-        project = NovelProject.objects.get(id=project_id)
-        outline = ChapterOutline.objects.get(id=chapter_outline_id)
+        # Get project with error handling
+        try:
+            project = NovelProject.objects.get(id=project_id)
+        except NovelProject.DoesNotExist:
+            error_msg = f"Project {project_id} not found"
+            logger.error(error_msg)
+            task.status = 'failed'
+            task.error_message = error_msg
+            task.save()
+            update_task_progress(task_id, 0, f"Error: {error_msg}")
+            return
+
+        # Get outline with specific error handling
+        try:
+            outline = ChapterOutline.objects.get(id=chapter_outline_id, project=project)
+            logger.info(f"Found ChapterOutline: {outline.id} - Title: {outline.title}")
+        except ChapterOutline.DoesNotExist:
+            error_msg = f"Chapter outline {chapter_outline_id} not found for project {project_id}"
+            logger.error(error_msg)
+            task.status = 'failed'
+            task.error_message = error_msg
+            task.save()
+            update_task_progress(task_id, 0, f"Error: {error_msg}")
+            return
 
         outline_data = {
             'number': outline.number,
@@ -185,6 +215,7 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
         progress_updater.start("Generating chapter content...")
 
         try:
+            logger.info(f"Calling WritingService.write_chapter with language='{language}'")
             chapter_data = WritingService.write_chapter(
                 project,
                 outline_data,
@@ -192,6 +223,31 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
                 language=language,
                 target_word_count=target_word_count
             )
+
+            # Log the response structure for debugging
+            logger.info(f"WritingService returned data with keys: {chapter_data.keys() if isinstance(chapter_data, dict) else 'Not a dict'}")
+
+            # Validate response structure
+            required_keys = ['chapter_number', 'title', 'content', 'word_count']
+            missing_keys = [k for k in required_keys if k not in chapter_data]
+            if missing_keys:
+                raise ValueError(f"Invalid chapter data returned, missing keys: {missing_keys}")
+
+            # Check if content contains an error message (from AI)
+            if isinstance(chapter_data.get('content'), dict):
+                if 'error' in chapter_data['content']:
+                    raise ValueError(f"AI returned error: {chapter_data['content']['error']}")
+                # Content shouldn't be a dict, log warning
+                logger.warning(f"Chapter content is a dict, not a string: {chapter_data['content']}")
+
+            # Log if content is in Chinese
+            content = chapter_data.get('content', '')
+            has_chinese = any('\u4e00' <= char <= '\u9fff' for char in content[:500] if char)
+            logger.info(f"Chapter content generated - Language requested: {language}, Contains Chinese: {has_chinese}")
+
+        except Exception as e:
+            logger.error(f"WritingService.write_chapter failed: {e}", exc_info=True)
+            raise
         finally:
             progress_updater.stop()
 
@@ -217,7 +273,9 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
 
         task.result_data = {
             'chapter_id': str(chapter.id),
-            'word_count': chapter_data['word_count']
+            'word_count': chapter_data['word_count'],
+            'content': chapter_data['content'],  # Include content in result
+            'title': chapter_data['title']
         }
         task.status = 'completed'
         task.completed_at = timezone.now()
@@ -259,11 +317,14 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
 
 
 @shared_task(bind=True, max_retries=3, time_limit=180, soft_time_limit=150)
-def create_outline_task(self, task_id, project_id, num_chapters=20):
+def create_outline_task(self, task_id, project_id, num_chapters=20, user_language='en'):
     """Create chapter outline asynchronously.
 
     Time limits: 150s soft limit (raises exception), 180s hard limit (kills task).
     """
+    logger.info(f"Create Outline task started - task_id: {task_id}, project_id: {project_id}, "
+               f"num_chapters: {num_chapters}, user_language: {user_language}")
+
     try:
         task = GenerationTask.objects.get(id=task_id)
         task.status = 'running'
@@ -294,7 +355,8 @@ def create_outline_task(self, task_id, project_id, num_chapters=20):
         progress_updater.start(f"Generating {num_chapters} chapter outline...")
 
         try:
-            outline = OutlineService.create_outline(project, plot_data, num_chapters)
+            outline = OutlineService.create_outline(project, plot_data, num_chapters, user_language=user_language)
+            logger.info(f"Create Outline task generated outline with {len(outline.get('chapters', []))} chapters")
         finally:
             progress_updater.stop()
 
@@ -381,7 +443,7 @@ def create_outline_task(self, task_id, project_id, num_chapters=20):
 
 
 @shared_task(bind=True, max_retries=3, time_limit=120, soft_time_limit=100)
-def regenerate_single_outline_task(self, task_id, project_id, chapter_number):
+def regenerate_single_outline_task(self, task_id, project_id, chapter_number, user_language='en'):
     """Regenerate a single chapter outline asynchronously.
 
     Time limits: 100s soft limit (raises exception), 120s hard limit (kills task).
@@ -421,7 +483,7 @@ def regenerate_single_outline_task(self, task_id, project_id, chapter_number):
 
         try:
             # Generate new outline for this chapter
-            outline = OutlineService.create_outline(project, plot_data, total_chapters)
+            outline = OutlineService.create_outline(project, plot_data, total_chapters, user_language=user_language)
         finally:
             progress_updater.stop()
 

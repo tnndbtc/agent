@@ -571,15 +571,6 @@ python manage.py migrate
 
 ### "relation does not exist" Error (PostgreSQL)
 
-**Quick Fix:**
-```bash
-# Run the PostgreSQL fix script
-chmod +x fix-postgresql.sh
-./fix-postgresql.sh
-```
-
-This error means you're using PostgreSQL (good!) but migrations haven't been run on the PostgreSQL database yet.
-
 **Error Example:**
 ```
 ProgrammingError: relation "novels_novelproject" does not exist

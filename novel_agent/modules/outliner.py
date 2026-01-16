@@ -1,4 +1,5 @@
 """Chapter outlining module for structuring the novel."""
+import logging
 from typing import Dict, Any, Optional, List
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -6,6 +7,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from novel_agent.config import OPENAI_API_KEY, MODEL_NAME, TEMPERATURE
 from novel_agent.memory.context_manager import ContextManager
 from novel_agent.memory.long_term_memory import LongTermMemory
+
+logger = logging.getLogger(__name__)
 
 
 class OutlinerModule:
@@ -30,7 +33,8 @@ class OutlinerModule:
     def create_chapter_outline(
         self,
         plot: Dict[str, Any],
-        num_chapters: int = 20
+        num_chapters: int = 20,
+        language: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Create a complete chapter-by-chapter outline.
@@ -38,10 +42,14 @@ class OutlinerModule:
         Args:
             plot: Plot structure
             num_chapters: Number of chapters to outline
+            language: Optional language for generation (e.g., 'Simplified Chinese')
 
         Returns:
             Complete outline dictionary
         """
+        logger.info(f"OutlinerModule.create_chapter_outline - num_chapters: {num_chapters}, "
+                   f"plot_title: {plot.get('title', 'Untitled')}, language: {language}")
+
         # Get all relevant context
         characters = self.memory.get_all_characters()
         settings = self.memory.retrieve_by_type("setting", k=5)
@@ -89,13 +97,25 @@ Pacing: [slow/medium/fast]
 Story Beats: [which major plot points]
 ---"""
 
+        # Add language instruction if specified
+        if language and language != 'English':
+            user_prompt += f"\n\nIMPORTANT: Generate all content in {language}. All text, names, descriptions, and narrative elements should be written in {language}."
+            logger.info(f"OutlinerModule - Added language instruction for: {language}")
+
+        logger.info(f"OutlinerModule - Sending prompt to OpenAI requesting {num_chapters} chapters with language: {language}")
+        logger.debug(f"OutlinerModule - User prompt: {user_prompt[:500]}")
+
         messages = [
             SystemMessage(content=system_message),
             HumanMessage(content=user_prompt)
         ]
 
         response = self.llm.invoke(messages)
+        logger.info(f"OutlinerModule - Received response from OpenAI (length: {len(response.content)})")
+        logger.debug(f"OutlinerModule - Response content: {response.content[:500]}")
+
         chapters = self._parse_chapter_outline(response.content)
+        logger.info(f"OutlinerModule - Parsed {len(chapters)} chapters from response (requested: {num_chapters})")
 
         outline = {
             'title': plot.get('title', 'Untitled'),
@@ -149,16 +169,20 @@ Provide the refined chapter in the same format."""
 
         return refined_chapters[0] if refined_chapters else chapter_outline
 
-    def generate_scene_breakdown(self, chapter_outline: Dict[str, Any]) -> List[Dict[str, str]]:
+    def generate_scene_breakdown(self, chapter_outline: Dict[str, Any], language: Optional[str] = None) -> List[Dict[str, str]]:
         """
         Break down a chapter into individual scenes.
 
         Args:
             chapter_outline: Chapter outline dictionary
+            language: Optional language for generation (e.g., 'Simplified Chinese')
 
         Returns:
             List of scene dictionaries
         """
+        logger.info(f"OutlinerModule.generate_scene_breakdown - chapter: {chapter_outline.get('number', 'Unknown')}, "
+                   f"language: {language}")
+
         system_message = """You are breaking down a chapter into individual scenes.
 Each scene should have a clear purpose and move the story forward."""
 
@@ -184,6 +208,11 @@ Action: [what happens]
 Purpose: [why it matters]
 Tone: [emotional tone]
 ---"""
+
+        # Add language instruction if specified
+        if language and language != 'English':
+            user_prompt += f"\n\nIMPORTANT: Generate all content in {language}. All text, names, descriptions, and narrative elements should be written in {language}."
+            logger.info(f"OutlinerModule.generate_scene_breakdown - Added language instruction for: {language}")
 
         messages = [
             SystemMessage(content=system_message),

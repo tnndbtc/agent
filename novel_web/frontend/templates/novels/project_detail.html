@@ -1238,13 +1238,17 @@ function resetCreateOutlineProgressBar() {
 async function createOutline() {
     const numChapters = prompt('How many chapters do you want to create?', '1');
 
-    if (!numChapters) return;
+    // If user clicks Cancel, numChapters will be null
+    if (numChapters === null) return;
 
-    const chapters = parseInt(numChapters);
+    // If user clicks OK without typing anything, use default of 1
+    const chapters = parseInt(numChapters || '1');
     if (isNaN(chapters) || chapters < 1 || chapters > 100) {
         showToast('Please enter a valid number between 1 and 100', 'error');
         return;
     }
+
+    console.log('Creating outline with num_chapters:', chapters);
 
     if (!confirm(`Create outline with ${chapters} chapters? This may take a few moments.`)) return;
 
@@ -1329,7 +1333,6 @@ async function writeChapterFromOutline(outlineId) {
             body: JSON.stringify({
                 chapter_outline_id: outlineId,
                 writing_style: 'literary',
-                language: 'English',
                 target_word_count: words
             })
         });

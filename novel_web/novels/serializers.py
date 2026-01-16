@@ -168,13 +168,32 @@ class WriteChapterRequestSerializer(serializers.Serializer):
     """Request serializer for chapter writing."""
     chapter_outline_id = serializers.UUIDField()
     writing_style = serializers.CharField(default='literary')
-    language = serializers.CharField(default='English')
+    language = serializers.CharField(required=False, allow_blank=True)
     target_word_count = serializers.IntegerField(
         default=10,
         min_value=10,
         max_value=10000,
         help_text="Target word count for the chapter (10-10000)"
     )
+
+    def validate_chapter_outline_id(self, value):
+        """Validate that the chapter outline exists."""
+        # Import here to avoid circular imports
+        from novels.models import ChapterOutline
+
+        # If we have project context from the view, validate against it
+        if hasattr(self, 'context') and 'project' in self.context:
+            project = self.context['project']
+            if not ChapterOutline.objects.filter(id=value, project=project).exists():
+                raise serializers.ValidationError(
+                    f"Chapter outline {value} not found or does not belong to this project."
+                )
+        else:
+            # Basic validation - just check if the outline exists
+            if not ChapterOutline.objects.filter(id=value).exists():
+                raise serializers.ValidationError(f"Chapter outline {value} not found.")
+
+        return value
 
 
 class EditRequestSerializer(serializers.Serializer):

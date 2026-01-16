@@ -40,6 +40,7 @@ show_menu() {
     echo "1)  Initial Setup (Docker)"
     echo "2)  Initial Setup (Local Development)"
     echo "3)  Run Migrations"
+    echo "4)  Clean up (Remove and recreate all Docker volumes and data)"
     echo "0)  Exit"
     echo ""
     read -p "Enter choice: " choice
@@ -445,6 +446,71 @@ print('✓ Database tables exist')
     echo "=================================="
 }
 
+# Clean up - Remove all Docker volumes and data
+cleanup_docker() {
+    echo ""
+    echo "=================================="
+    echo "Clean Up Docker Environment"
+    echo "=================================="
+    echo ""
+
+    log_warn "WARNING: This will completely remove all data including:"
+    log_warn "  - All database tables and data"
+    log_warn "  - All Redis cache data"
+    log_warn "  - All Docker volumes"
+    log_warn "  - All Docker containers"
+    echo ""
+
+    read -p "Are you sure you want to continue? (yes/no): " confirm
+
+    if [ "$confirm" != "yes" ]; then
+        log_info "Clean up cancelled."
+        return 0
+    fi
+
+    echo ""
+    read -p "Type 'DELETE ALL DATA' to confirm: " final_confirm
+
+    if [ "$final_confirm" != "DELETE ALL DATA" ]; then
+        log_info "Clean up cancelled."
+        return 0
+    fi
+
+    echo ""
+    log_info "Stopping and removing all containers and volumes..."
+
+    # Check if docker is installed
+    if ! command -v docker &> /dev/null; then
+        log_error "Docker not installed."
+        return 1
+    fi
+
+    if ! command -v docker compose &> /dev/null; then
+        log_error "Docker Compose not installed."
+        return 1
+    fi
+
+    # Run docker compose down with volume removal
+    docker compose down -v
+
+    echo ""
+    log_info "All containers, networks, and volumes have been removed."
+    echo ""
+
+    log_info "Recreating containers..."
+    docker compose up -d
+
+    log_info "Waiting for services to be ready..."
+    sleep 10
+
+    echo ""
+    log_info "Clean up and recreation completed!"
+    echo ""
+    log_info "New containers have been created with fresh databases."
+    log_info "You may need to run migrations (option 3) and create a superuser."
+    echo ""
+}
+
 # Main loop
 while true; do
     show_menu
@@ -452,6 +518,7 @@ while true; do
         1) setup_docker; read -p "Press Enter to continue..." ;;
         2) setup_local; read -p "Press Enter to continue..." ;;
         3) run_migrations; read -p "Press Enter to continue..." ;;
+        4) cleanup_docker; read -p "Press Enter to continue..." ;;
         0) echo "Exiting..."; exit 0 ;;
         *) log_error "Invalid choice. Try again."; read -p "Press Enter to continue..." ;;
     esac
