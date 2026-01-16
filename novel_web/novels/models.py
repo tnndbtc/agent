@@ -315,3 +315,59 @@ class GenerationTask(models.Model):
 
     def __str__(self):
         return f"{self.task_type} task for {self.project.title} - {self.status}"
+
+
+class APIPerformanceMetric(models.Model):
+    """Track API call performance for duration estimation."""
+
+    API_TYPE_CHOICES = [
+        ('brainstorm', 'Idea Generation'),
+        ('plot', 'Plot and Characters Generation'),
+        ('outline', 'Outlines Generation'),
+        ('chapter', 'Chapter Generation'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    api_type = models.CharField(max_length=20, choices=API_TYPE_CHOICES, db_index=True)
+    duration_seconds = models.FloatField(help_text="How long the API call took in seconds")
+
+    # Optional: Store input parameters for better estimates
+    input_params = models.JSONField(default=dict, blank=True, help_text="e.g., num_chapters, word_count")
+
+    # Timestamps
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    # Success tracking
+    success = models.BooleanField(default=True, help_text="Whether the API call succeeded")
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['api_type', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.get_api_type_display()} - {self.duration_seconds:.2f}s"
+
+    def save(self, *args, **kwargs):
+        """Save and maintain max 50 records per API type."""
+        super().save(*args, **kwargs)
+
+        # Keep only last 50 records per API type
+        old_records = APIPerformanceMetric.objects.filter(
+            api_type=self.api_type
+        ).order_by('-created_at')[50:]
+
+        if old_records:
+            old_ids = [r.id for r in old_records]
+            APIPerformanceMetric.objects.filter(id__in=old_ids).delete()
+
+    @classmethod
+    def get_average_duration(cls, api_type):
+        """Get average duration for a specific API type."""
+        from django.db.models import Avg
+        result = cls.objects.filter(
+            api_type=api_type,
+            success=True
+        ).aggregate(avg=Avg('duration_seconds'))
+        return result['avg'] or 30.0  # Default to 30 seconds if no data

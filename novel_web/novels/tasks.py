@@ -7,7 +7,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import threading
 import time
-from .models import GenerationTask, NovelProject, Chapter, ChapterOutline
+from .models import GenerationTask, NovelProject, Chapter, ChapterOutline, APIPerformanceMetric
 from .services import (
     BrainstormService, PlotService, CharacterService,
     SettingService, OutlineService, WritingService,
@@ -120,6 +120,16 @@ def brainstorm_ideas_task(self, task_id, project_id, genre=None, theme=None, num
         task.progress = 100
         task.save()
 
+        # Track API performance
+        if task.started_at and task.completed_at:
+            duration = (task.completed_at - task.started_at).total_seconds()
+            APIPerformanceMetric.objects.create(
+                api_type='brainstorm',
+                duration_seconds=duration,
+                input_params={'num_ideas': num_ideas, 'theme': theme or ''},
+                success=True
+            )
+
         update_task_progress(task_id, 100, "Complete!")
 
         return {'ideas': ideas}
@@ -213,6 +223,16 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
         task.completed_at = timezone.now()
         task.progress = 100
         task.save()
+
+        # Track API performance
+        if task.started_at and task.completed_at:
+            duration = (task.completed_at - task.started_at).total_seconds()
+            APIPerformanceMetric.objects.create(
+                api_type='chapter',
+                duration_seconds=duration,
+                input_params={'target_word_count': target_word_count, 'writing_style': writing_style},
+                success=True
+            )
 
         update_task_progress(task_id, 100, "Chapter complete!")
 
@@ -315,6 +335,16 @@ def create_outline_task(self, task_id, project_id, num_chapters=20):
         task.completed_at = timezone.now()
         task.progress = 100
         task.save()
+
+        # Track API performance
+        if task.started_at and task.completed_at:
+            duration = (task.completed_at - task.started_at).total_seconds()
+            APIPerformanceMetric.objects.create(
+                api_type='outline',
+                duration_seconds=duration,
+                input_params={'num_chapters': num_chapters},
+                success=True
+            )
 
         update_task_progress(task_id, 100, "Outline complete!")
 

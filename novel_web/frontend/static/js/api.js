@@ -58,15 +58,23 @@ async function apiRequest(url, options = {}) {
 }
 
 // WebSocket connection for real-time updates
-function connectToTask(taskId) {
+function connectToTask(taskId, apiType = null) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws/generate/${taskId}/`;
 
     const socket = new WebSocket(wsUrl);
+    let estimatedDuration = null;
+
+    // Fetch estimated duration if apiType is provided
+    if (apiType) {
+        getEstimatedDuration(apiType).then(duration => {
+            estimatedDuration = duration;
+        });
+    }
 
     socket.onopen = () => {
         console.log('WebSocket connected');
-        showLoading('Processing...', 0);
+        showLoading('Processing...', 0, estimatedDuration);
     };
 
     socket.onmessage = (event) => {
@@ -79,7 +87,7 @@ function connectToTask(taskId) {
                 showToast('Task completed!', 'success');
                 setTimeout(() => window.location.reload(), 1500);
             } else {
-                showLoading(data.message || 'Processing...', data.progress);
+                showLoading(data.message || 'Processing...', data.progress, estimatedDuration);
             }
         } else if (data.type === 'complete') {
             hideLoading();
@@ -98,7 +106,7 @@ function connectToTask(taskId) {
                 hideLoading();
                 showToast(data.error || 'Task failed', 'error');
             } else if (data.status === 'running') {
-                showLoading(data.message || 'Processing...', data.progress);
+                showLoading(data.message || 'Processing...', data.progress, estimatedDuration);
             }
         }
     };
@@ -141,4 +149,51 @@ async function pollTaskStatus(taskId, callback) {
     };
 
     return poll();
+}
+
+// Performance stats cache
+let performanceStatsCache = null;
+let lastFetchTime = null;
+const CACHE_DURATION = 60000; // 1 minute cache
+
+// Fetch API performance statistics
+async function getPerformanceStats(forceRefresh = false) {
+    const now = Date.now();
+
+    // Return cached data if available and fresh
+    if (!forceRefresh && performanceStatsCache && lastFetchTime && (now - lastFetchTime < CACHE_DURATION)) {
+        return performanceStatsCache;
+    }
+
+    try {
+        const stats = await apiRequest('/api/tasks/performance-stats/');
+        performanceStatsCache = stats;
+        lastFetchTime = now;
+        return stats;
+    } catch (error) {
+        console.error('Failed to fetch performance stats:', error);
+        // Return default estimates if fetch fails
+        return {
+            'brainstorm': { average_duration_seconds: 30, display_name: 'Idea Generation' },
+            'plot': { average_duration_seconds: 20, display_name: 'Plot and Characters' },
+            'outline': { average_duration_seconds: 60, display_name: 'Outlines' },
+            'chapter': { average_duration_seconds: 45, display_name: 'Chapter' }
+        };
+    }
+}
+
+// Get estimated duration for a specific API type
+async function getEstimatedDuration(apiType) {
+    const stats = await getPerformanceStats();
+    return stats[apiType]?.average_duration_seconds || 30;
+}
+
+// Format time remaining
+function formatTimeRemaining(seconds) {
+    if (seconds < 60) {
+        return `~${Math.ceil(seconds)} sec`;
+    } else {
+        const minutes = Math.ceil(seconds / 60);
+        return `~${minutes} min`;
+    }
 }

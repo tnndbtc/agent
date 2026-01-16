@@ -24,16 +24,32 @@ function closeMenu() {
 }
 
 // Loading spinner
-function showLoading(message = 'Loading...', progress = null) {
+function showLoading(message = 'Loading...', progress = null, estimatedDuration = null) {
     const spinner = document.getElementById('loadingSpinner');
     const messageEl = document.getElementById('loadingMessage');
 
     if (messageEl) {
-        if (progress !== null) {
-            messageEl.textContent = `${message} (${Math.round(progress)}%)`;
-        } else {
-            messageEl.textContent = message;
+        let displayMessage = message;
+
+        if (progress !== null && estimatedDuration !== null && progress < 100) {
+            // Calculate estimated time remaining
+            const remainingPercent = 100 - progress;
+            const estimatedRemaining = (estimatedDuration * remainingPercent) / 100;
+
+            // Format time
+            let timeText;
+            if (estimatedRemaining < 60) {
+                timeText = `~${Math.ceil(estimatedRemaining)} sec remaining`;
+            } else {
+                timeText = `~${Math.ceil(estimatedRemaining / 60)} min remaining`;
+            }
+
+            displayMessage = `${message} (${Math.round(progress)}%) - ${timeText}`;
+        } else if (progress !== null) {
+            displayMessage = `${message} (${Math.round(progress)}%)`;
         }
+
+        messageEl.textContent = displayMessage;
     }
 
     if (spinner) {

@@ -27,14 +27,14 @@ function startBrainstorm() {
         body: JSON.stringify(data)
     }).then(response => {
         showToast('Brainstorming started!', 'success');
-        connectToTask(response.task_id);
+        connectToTask(response.task_id, 'brainstorm');
     }).catch(error => {
         hideLoading();
         showToast('Error: ' + error.message, 'error');
     });
 }
 
-function generatePlot() {
+async function generatePlot() {
     // This would typically show a modal with brainstormed ideas
     // For now, we'll use a simple prompt
     const premise = prompt('Enter plot premise:');
@@ -49,7 +49,9 @@ function generatePlot() {
         }
     };
 
-    showLoading('Generating plot...');
+    // Get estimated duration for plot API
+    const estimatedDuration = await getEstimatedDuration('plot');
+    showLoading('Generating plot...', 50, estimatedDuration);
 
     apiRequest(`/api/projects/${projectId}/create_plot/`, {
         method: 'POST',

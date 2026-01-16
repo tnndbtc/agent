@@ -59,11 +59,19 @@
                     </div>
                     {% endfor %}
                 </div>
+
+                <div id="createPlotProgressContainer" class="progress-container" style="display: none; margin-top: 1rem;">
+                    <div class="progress-bar">
+                        <div id="createPlotProgressBarFill" class="progress-bar-fill">0%</div>
+                    </div>
+                    <div id="createPlotProgressText" class="progress-text">Creating plot & characters...</div>
+                </div>
+
                 <div style="margin-top: 1rem; display: flex; gap: 1rem;">
                     <button class="btn btn-primary" onclick="modifyIdea()">
                         ✏️ Modify Idea
                     </button>
-                    <button class="btn btn-primary" onclick="useCurrentIdea()">
+                    <button class="btn btn-primary" onclick="useCurrentIdea()" id="createPlotBtn">
                         ✨ Create Plot & Characters
                     </button>
                 </div>
@@ -131,7 +139,14 @@
                     <small class="form-text">{% trans "Enter a number between 1 and 20" %}</small>
                 </div>
 
-                <button type="submit" class="btn btn-primary btn-block">
+                <div id="brainstormProgressContainer" class="progress-container" style="display: none;">
+                    <div class="progress-bar">
+                        <div id="brainstormProgressBarFill" class="progress-bar-fill">0%</div>
+                    </div>
+                    <div id="brainstormProgressText" class="progress-text">Generating ideas...</div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block" id="generateIdeasBtn">
                     {% trans "Generate Ideas" %}
                 </button>
             </form>
@@ -157,7 +172,7 @@
                 </div>
 
                 <button type="submit" class="btn btn-primary btn-block" id="saveIdeaBtn">
-                    💾 Save Idea
+                    💾 Save Idea and continue
                 </button>
             </form>
 
@@ -234,6 +249,14 @@
                     {% endif %}
                 </div>
             </div>
+
+            <div id="createOutlineProgressContainer" class="progress-container" style="display: none; margin-top: 1rem;">
+                <div class="progress-bar">
+                    <div id="createOutlineProgressBarFill" class="progress-bar-fill">0%</div>
+                </div>
+                <div id="createOutlineProgressText" class="progress-text">Creating outline...</div>
+            </div>
+
             {% if outlines %}
             <div class="outlines-section">
                 <h4>{% trans "Chapter Outlines" %}</h4>
@@ -629,7 +652,70 @@ function cancelEdit() {
     document.querySelector('.saved-ideas-section').style.display = 'block';
 }
 
-function useCurrentIdea() {
+// Create Plot progress bar management
+let createPlotProgressInterval = null;
+let createPlotCurrentProgress = 0;
+
+function startCreatePlotProgressBar(estimatedDuration = null) {
+    const progressContainer = document.getElementById('createPlotProgressContainer');
+    const progressBarFill = document.getElementById('createPlotProgressBarFill');
+    const createBtn = document.getElementById('createPlotBtn');
+
+    if (progressContainer) {
+        progressContainer.style.display = 'block';
+        createBtn.disabled = true;
+        createBtn.style.opacity = '0.6';
+        createPlotCurrentProgress = 0;
+
+        // Calculate increment based on estimated duration or use default
+        let increment = 5; // Default: 5% every 2 seconds
+        if (estimatedDuration) {
+            increment = Math.max(1, Math.min(95 / (estimatedDuration / 2), 10));
+        }
+
+        createPlotProgressInterval = setInterval(() => {
+            if (createPlotCurrentProgress < 95) {
+                createPlotCurrentProgress += increment;
+                if (createPlotCurrentProgress > 95) createPlotCurrentProgress = 95;
+                progressBarFill.style.width = createPlotCurrentProgress + '%';
+                progressBarFill.textContent = Math.round(createPlotCurrentProgress) + '%';
+            }
+        }, 2000); // Update every 2 seconds
+    }
+}
+
+function completeCreatePlotProgressBar() {
+    const progressBarFill = document.getElementById('createPlotProgressBarFill');
+
+    if (createPlotProgressInterval) {
+        clearInterval(createPlotProgressInterval);
+    }
+
+    createPlotCurrentProgress = 100;
+    progressBarFill.style.width = '100%';
+    progressBarFill.textContent = '100%';
+}
+
+function resetCreatePlotProgressBar() {
+    const progressContainer = document.getElementById('createPlotProgressContainer');
+    const progressBarFill = document.getElementById('createPlotProgressBarFill');
+    const createBtn = document.getElementById('createPlotBtn');
+
+    if (createPlotProgressInterval) {
+        clearInterval(createPlotProgressInterval);
+    }
+
+    if (progressContainer) {
+        progressContainer.style.display = 'none';
+        createPlotCurrentProgress = 0;
+        progressBarFill.style.width = '0%';
+        progressBarFill.textContent = '0%';
+        createBtn.disabled = false;
+        createBtn.style.opacity = '1';
+    }
+}
+
+async function useCurrentIdea() {
     if (!currentIdea) {
         showToast('No idea found', 'error');
         return;
@@ -639,28 +725,32 @@ function useCurrentIdea() {
         return;
     }
 
-    showLoading('Creating plot and characters...');
+    try {
+        // Get estimated duration for plot API
+        const estimatedDuration = await getEstimatedDuration('plot');
+        startCreatePlotProgressBar(estimatedDuration);
 
-    apiRequest(`/api/projects/${projectId}/create_plot/`, {
-        method: 'POST',
-        body: JSON.stringify({ idea_data: currentIdea })
-    }).then(response => {
-        hideLoading();
+        const response = await apiRequest(`/api/projects/${projectId}/create_plot/`, {
+            method: 'POST',
+            body: JSON.stringify({ idea_data: currentIdea })
+        });
+
+        completeCreatePlotProgressBar();
         showToast('Plot and characters created successfully!', 'success');
         setTimeout(() => {
             window.location.href = '{% url 'novels:project_detail' project.id %}';
         }, 1500);
-    }).catch(error => {
-        hideLoading();
+    } catch (error) {
+        resetCreatePlotProgressBar();
         showToast('Error creating plot and characters: ' + error.message, 'error');
-    });
+    }
 }
 
 // Progress bar management
 let progressInterval = null;
 let currentProgress = 0;
 
-function startProgressBar() {
+function startProgressBar(estimatedDuration = null) {
     const progressContainer = document.getElementById('progressContainer');
     const progressBarFill = document.getElementById('progressBarFill');
     const saveBtn = document.getElementById('saveIdeaBtn');
@@ -671,13 +761,22 @@ function startProgressBar() {
         saveBtn.style.opacity = '0.6';
         currentProgress = 0;
 
+        // Calculate increment based on estimated duration or use default
+        let increment = 5; // Default: 5% every 2 seconds
+        if (estimatedDuration) {
+            // Calculate increment to reach 95% by estimated duration
+            // increment = 95 / (estimatedDuration / 2)
+            increment = Math.max(1, Math.min(95 / (estimatedDuration / 2), 10));
+        }
+
         progressInterval = setInterval(() => {
             if (currentProgress < 95) {
-                currentProgress += 5;
+                currentProgress += increment;
+                if (currentProgress > 95) currentProgress = 95;
                 progressBarFill.style.width = currentProgress + '%';
-                progressBarFill.textContent = currentProgress + '%';
+                progressBarFill.textContent = Math.round(currentProgress) + '%';
             }
-        }, 2000); // Add 5% every 2 seconds
+        }, 2000); // Update every 2 seconds
     }
 }
 
@@ -726,7 +825,9 @@ if (manualForm) {
         };
 
         try {
-            startProgressBar();
+            // Get estimated duration for plot API
+            const estimatedDuration = await getEstimatedDuration('plot');
+            startProgressBar(estimatedDuration);
 
             // Save the idea to the database
             await apiRequest(`/api/projects/${projectId}/save_manual_idea/`, {
@@ -832,8 +933,74 @@ if (brainstormForm) {
     });
 }
 
-function generateIdeas(data) {
-    showLoading('Generating ideas... This may take a moment.');
+// Brainstorm progress bar management
+let brainstormProgressInterval = null;
+let brainstormCurrentProgress = 0;
+
+function startBrainstormProgressBar(estimatedDuration = null) {
+    const progressContainer = document.getElementById('brainstormProgressContainer');
+    const progressBarFill = document.getElementById('brainstormProgressBarFill');
+    const generateBtn = document.getElementById('generateIdeasBtn');
+
+    if (progressContainer) {
+        progressContainer.style.display = 'block';
+        generateBtn.disabled = true;
+        generateBtn.style.opacity = '0.6';
+        brainstormCurrentProgress = 0;
+
+        // Calculate increment based on estimated duration or use default
+        let increment = 5; // Default: 5% every 2 seconds
+        if (estimatedDuration) {
+            // Calculate increment to reach 95% by estimated duration
+            increment = Math.max(1, Math.min(95 / (estimatedDuration / 2), 10));
+        }
+
+        brainstormProgressInterval = setInterval(() => {
+            if (brainstormCurrentProgress < 95) {
+                brainstormCurrentProgress += increment;
+                if (brainstormCurrentProgress > 95) brainstormCurrentProgress = 95;
+                progressBarFill.style.width = brainstormCurrentProgress + '%';
+                progressBarFill.textContent = Math.round(brainstormCurrentProgress) + '%';
+            }
+        }, 2000); // Update every 2 seconds
+    }
+}
+
+function completeBrainstormProgressBar() {
+    const progressBarFill = document.getElementById('brainstormProgressBarFill');
+
+    if (brainstormProgressInterval) {
+        clearInterval(brainstormProgressInterval);
+    }
+
+    brainstormCurrentProgress = 100;
+    progressBarFill.style.width = '100%';
+    progressBarFill.textContent = '100%';
+}
+
+function resetBrainstormProgressBar() {
+    const progressContainer = document.getElementById('brainstormProgressContainer');
+    const progressBarFill = document.getElementById('brainstormProgressBarFill');
+    const generateBtn = document.getElementById('generateIdeasBtn');
+
+    if (brainstormProgressInterval) {
+        clearInterval(brainstormProgressInterval);
+    }
+
+    if (progressContainer) {
+        progressContainer.style.display = 'none';
+        brainstormCurrentProgress = 0;
+        progressBarFill.style.width = '0%';
+        progressBarFill.textContent = '0%';
+        generateBtn.disabled = false;
+        generateBtn.style.opacity = '1';
+    }
+}
+
+async function generateIdeas(data) {
+    // Get estimated duration for brainstorm API
+    const estimatedDuration = await getEstimatedDuration('brainstorm');
+    startBrainstormProgressBar(estimatedDuration);
 
     apiRequest(`/api/projects/${projectId}/brainstorm/`, {
         method: 'POST',
@@ -842,7 +1009,7 @@ function generateIdeas(data) {
         showToast('Ideas generation started!', 'success');
         pollTask(response.task_id);
     }).catch(error => {
-        hideLoading();
+        resetBrainstormProgressBar();
         showToast('Error generating ideas: ' + error.message, 'error');
     });
 }
@@ -853,17 +1020,20 @@ function pollTask(taskId) {
             .then(task => {
                 if (task.status === 'completed') {
                     clearInterval(interval);
-                    hideLoading();
-                    displayIdeas(task.result_data.ideas);
+                    completeBrainstormProgressBar();
+                    setTimeout(() => {
+                        resetBrainstormProgressBar();
+                        displayIdeas(task.result_data.ideas);
+                    }, 500);
                 } else if (task.status === 'failed') {
                     clearInterval(interval);
-                    hideLoading();
+                    resetBrainstormProgressBar();
                     showToast('Failed to generate ideas: ' + task.error_message, 'error');
                 }
             })
             .catch(error => {
                 clearInterval(interval);
-                hideLoading();
+                resetBrainstormProgressBar();
                 showToast('Error checking task status', 'error');
             });
     }, 2000);
@@ -895,7 +1065,7 @@ function displayIdeas(ideas) {
     actionsDiv.className = 'action-buttons';
     actionsDiv.innerHTML = `
         <div style="flex: 1;">
-            <button class="btn btn-primary" id="useSelectedBtn" disabled style="width: 100%; opacity: 0.5;">Use Selected Idea</button>
+            <button class="btn btn-primary" id="useSelectedBtn" disabled style="width: 100%; opacity: 0.5;">Save Idea and continue</button>
             <small id="selectReminder" style="display: block; margin-top: 0.5rem; color: #6b7280; text-align: center;">Select an idea to continue</small>
         </div>
         <button class="btn btn-secondary" onclick="window.location.href='{% url 'novels:project_detail' project.id %}'">Back to Project</button>
@@ -991,7 +1161,69 @@ function startBrainstorm() {
     window.location.href = `/project/${projectId}/brainstorm/`;
 }
 
-function createOutline() {
+// Create Outline progress bar management
+let createOutlineProgressInterval = null;
+let createOutlineCurrentProgress = 0;
+let createOutlinePollingInterval = null;
+
+function startCreateOutlineProgressBar(estimatedDuration = null) {
+    const progressContainer = document.getElementById('createOutlineProgressContainer');
+    const progressBarFill = document.getElementById('createOutlineProgressBarFill');
+
+    if (progressContainer) {
+        progressContainer.style.display = 'block';
+        createOutlineCurrentProgress = 0;
+
+        // Calculate increment based on estimated duration or use default
+        let increment = 5; // Default: 5% every 2 seconds
+        if (estimatedDuration) {
+            increment = Math.max(1, Math.min(95 / (estimatedDuration / 2), 10));
+        }
+
+        createOutlineProgressInterval = setInterval(() => {
+            if (createOutlineCurrentProgress < 95) {
+                createOutlineCurrentProgress += increment;
+                if (createOutlineCurrentProgress > 95) createOutlineCurrentProgress = 95;
+                progressBarFill.style.width = createOutlineCurrentProgress + '%';
+                progressBarFill.textContent = Math.round(createOutlineCurrentProgress) + '%';
+            }
+        }, 2000); // Update every 2 seconds
+    }
+}
+
+function completeCreateOutlineProgressBar() {
+    const progressBarFill = document.getElementById('createOutlineProgressBarFill');
+
+    if (createOutlineProgressInterval) {
+        clearInterval(createOutlineProgressInterval);
+    }
+
+    createOutlineCurrentProgress = 100;
+    progressBarFill.style.width = '100%';
+    progressBarFill.textContent = '100%';
+}
+
+function resetCreateOutlineProgressBar() {
+    const progressContainer = document.getElementById('createOutlineProgressContainer');
+    const progressBarFill = document.getElementById('createOutlineProgressBarFill');
+
+    if (createOutlineProgressInterval) {
+        clearInterval(createOutlineProgressInterval);
+    }
+
+    if (createOutlinePollingInterval) {
+        clearInterval(createOutlinePollingInterval);
+    }
+
+    if (progressContainer) {
+        progressContainer.style.display = 'none';
+        createOutlineCurrentProgress = 0;
+        progressBarFill.style.width = '0%';
+        progressBarFill.textContent = '0%';
+    }
+}
+
+async function createOutline() {
     const numChapters = prompt('How many chapters do you want to create?', '1');
 
     if (!numChapters) return;
@@ -1004,18 +1236,46 @@ function createOutline() {
 
     if (!confirm(`Create outline with ${chapters} chapters? This may take a few moments.`)) return;
 
-    showLoading('Creating outline...');
-    apiRequest(`/api/projects/${projectId}/create_outline/`, {
-        method: 'POST',
-        body: JSON.stringify({ num_chapters: chapters })
-    }).then(data => {
+    try {
+        // Get estimated duration for outline API
+        const estimatedDuration = await getEstimatedDuration('outline');
+        startCreateOutlineProgressBar(estimatedDuration);
+
+        const response = await apiRequest(`/api/projects/${projectId}/create_outline/`, {
+            method: 'POST',
+            body: JSON.stringify({ num_chapters: chapters })
+        });
+
         showToast('Outline generation started!', 'success');
-        // Open WebSocket to track progress
-        connectToTask(data.task_id);
-    }).catch(err => {
-        hideLoading();
+
+        // Poll task status
+        createOutlinePollingInterval = setInterval(async () => {
+            try {
+                const task = await apiRequest(`/api/tasks/${response.task_id}/`);
+
+                if (task.status === 'completed') {
+                    clearInterval(createOutlinePollingInterval);
+                    completeCreateOutlineProgressBar();
+                    showToast('Outline created successfully!', 'success');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else if (task.status === 'failed') {
+                    clearInterval(createOutlinePollingInterval);
+                    resetCreateOutlineProgressBar();
+                    showToast('Failed to create outline: ' + (task.error_message || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                clearInterval(createOutlinePollingInterval);
+                resetCreateOutlineProgressBar();
+                showToast('Error checking task status', 'error');
+            }
+        }, 2000);
+
+    } catch (err) {
+        resetCreateOutlineProgressBar();
         showToast('Error creating outline', 'error');
-    });
+    }
 }
 
 function scoreNovel() {
@@ -1058,7 +1318,7 @@ function writeChapterFromOutline(outlineId) {
         })
     }).then(data => {
         showToast('Chapter writing started!', 'success');
-        connectToTask(data.task_id);
+        connectToTask(data.task_id, 'chapter');
     }).catch(err => {
         hideLoading();
         showToast('Error writing chapter: ' + err.message, 'error');

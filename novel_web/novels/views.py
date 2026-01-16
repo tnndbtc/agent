@@ -4,10 +4,11 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
 from .models import (
     NovelProject, Plot, Character, Setting,
-    ChapterOutline, Chapter, Example, GenerationTask
+    ChapterOutline, Chapter, Example, GenerationTask, APIPerformanceMetric
 )
 from .serializers import (
     NovelProjectSerializer, NovelProjectListSerializer,
@@ -107,6 +108,9 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         serializer = CreatePlotRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        # Track API performance
+        start_time = timezone.now()
+
         plot_data = PlotService.create_full_plot(project, serializer.validated_data['idea_data'])
 
         # Save to database
@@ -179,6 +183,16 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
                     appearance=antagonist_data.get('appearance') or antagonist_data.get('physical_description', ''),
                     relationships=antagonist_data.get('relationships', '')
                 )
+
+        # Track API performance
+        end_time = timezone.now()
+        duration = (end_time - start_time).total_seconds()
+        APIPerformanceMetric.objects.create(
+            api_type='plot',
+            duration_seconds=duration,
+            input_params={},
+            success=True
+        )
 
         return Response({
             'plot': PlotSerializer(plot).data,
@@ -591,6 +605,29 @@ class GenerationTaskViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         return GenerationTask.objects.filter(user=self.request.user)
+
+    @action(detail=False, methods=['get'], url_path='performance-stats')
+    def performance_stats(self, request):
+        """Get average duration estimates for each API type."""
+        from django.db.models import Avg, Count
+
+        stats = {}
+        for api_type, display_name in APIPerformanceMetric.API_TYPE_CHOICES:
+            metrics = APIPerformanceMetric.objects.filter(
+                api_type=api_type,
+                success=True
+            ).aggregate(
+                avg_duration=Avg('duration_seconds'),
+                count=Count('id')
+            )
+
+            stats[api_type] = {
+                'display_name': display_name,
+                'average_duration_seconds': round(metrics['avg_duration'] or 30.0, 2),
+                'sample_size': metrics['count']
+            }
+
+        return Response(stats)
 
 
 class ExampleViewSet(viewsets.ModelViewSet):
