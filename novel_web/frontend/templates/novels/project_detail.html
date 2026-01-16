@@ -308,6 +308,12 @@
                         </div>
                         {% else %}
                         <!-- Outline Actions (only show if no chapter written) -->
+                        <div id="writeChapterProgressContainer-{{ outline.id }}" class="progress-container" style="display: none; margin-bottom: 1rem;">
+                            <div class="progress-bar">
+                                <div id="writeChapterProgressBarFill-{{ outline.id }}" class="progress-bar-fill">0%</div>
+                            </div>
+                            <div id="writeChapterProgressText-{{ outline.id }}" class="progress-text">Saving idea and creating plot & characters...</div>
+                        </div>
                         <div id="regenerateProgressContainer-{{ outline.number }}" class="progress-container" style="display: none; margin-bottom: 1rem;">
                             <div class="progress-bar">
                                 <div id="regenerateProgressBarFill-{{ outline.number }}" class="progress-bar-fill">0%</div>
@@ -315,7 +321,7 @@
                             <div id="regenerateProgressText-{{ outline.number }}" class="progress-text">Saving idea and creating plot & characters...</div>
                         </div>
                         <div class="outline-actions">
-                            <button class="btn btn-sm btn-primary" onclick="writeChapterFromOutline('{{ outline.id }}')">
+                            <button class="btn btn-sm btn-primary" onclick="writeChapterFromOutline('{{ outline.id }}')" id="writeChapterBtn-{{ outline.id }}">
                                 {% trans "Write This Chapter" %}
                             </button>
                             <button class="btn btn-sm btn-secondary" onclick="regenerateOutline({{ outline.number }})" id="regenerateBtn-{{ outline.number }}">
@@ -1299,7 +1305,7 @@ function scoreNovel() {
     });
 }
 
-function writeChapterFromOutline(outlineId) {
+async function writeChapterFromOutline(outlineId) {
     // Prompt for word count
     const wordCount = prompt('How many words should this chapter be? (10-10000)', '10');
 
@@ -1313,22 +1319,129 @@ function writeChapterFromOutline(outlineId) {
 
     if (!confirm(`Write this chapter with approximately ${words} words?`)) return;
 
-    showLoading('Writing chapter...');
-    apiRequest(`/api/projects/${projectId}/write_chapter/`, {
-        method: 'POST',
-        body: JSON.stringify({
-            chapter_outline_id: outlineId,
-            writing_style: 'literary',
-            language: 'English',
-            target_word_count: words
-        })
-    }).then(data => {
+    try {
+        // Get estimated duration for chapter API
+        const estimatedDuration = await getEstimatedDuration('chapter');
+        startWriteChapterProgressBar(outlineId, estimatedDuration);
+
+        const response = await apiRequest(`/api/projects/${projectId}/write_chapter/`, {
+            method: 'POST',
+            body: JSON.stringify({
+                chapter_outline_id: outlineId,
+                writing_style: 'literary',
+                language: 'English',
+                target_word_count: words
+            })
+        });
+
         showToast('Chapter writing started!', 'success');
-        connectToTask(data.task_id, 'chapter');
-    }).catch(err => {
-        hideLoading();
+
+        // Poll task status
+        writeChapterPollingIntervals[outlineId] = setInterval(async () => {
+            try {
+                const task = await apiRequest(`/api/tasks/${response.task_id}/`);
+
+                if (task.status === 'completed') {
+                    clearInterval(writeChapterPollingIntervals[outlineId]);
+                    completeWriteChapterProgressBar(outlineId);
+                    showToast('Chapter written successfully!', 'success');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else if (task.status === 'failed') {
+                    clearInterval(writeChapterPollingIntervals[outlineId]);
+                    resetWriteChapterProgressBar(outlineId);
+                    showToast('Failed to write chapter: ' + (task.error_message || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                clearInterval(writeChapterPollingIntervals[outlineId]);
+                resetWriteChapterProgressBar(outlineId);
+                showToast('Error checking task status', 'error');
+            }
+        }, 2000);
+
+    } catch (err) {
+        resetWriteChapterProgressBar(outlineId);
         showToast('Error writing chapter: ' + err.message, 'error');
-    });
+    }
+}
+
+// Write Chapter progress bar management
+let writeChapterProgressIntervals = {};
+let writeChapterCurrentProgress = {};
+let writeChapterPollingIntervals = {};
+
+function startWriteChapterProgressBar(outlineId, estimatedDuration = null) {
+    const progressContainer = document.getElementById(`writeChapterProgressContainer-${outlineId}`);
+    const progressBarFill = document.getElementById(`writeChapterProgressBarFill-${outlineId}`);
+    const writeChapterBtn = document.getElementById(`writeChapterBtn-${outlineId}`);
+
+    if (progressContainer) {
+        progressContainer.style.display = 'block';
+        if (writeChapterBtn) {
+            writeChapterBtn.disabled = true;
+            writeChapterBtn.style.opacity = '0.6';
+        }
+        writeChapterCurrentProgress[outlineId] = 0;
+
+        // Calculate increment based on estimated duration or use default
+        let increment = 5; // Default: 5% every 2 seconds
+        if (estimatedDuration) {
+            increment = Math.max(1, Math.min(95 / (estimatedDuration / 2), 10));
+        }
+
+        writeChapterProgressIntervals[outlineId] = setInterval(() => {
+            if (writeChapterCurrentProgress[outlineId] < 95) {
+                writeChapterCurrentProgress[outlineId] += increment;
+                if (writeChapterCurrentProgress[outlineId] > 95) writeChapterCurrentProgress[outlineId] = 95;
+                progressBarFill.style.width = writeChapterCurrentProgress[outlineId] + '%';
+                progressBarFill.textContent = Math.round(writeChapterCurrentProgress[outlineId]) + '%';
+            }
+        }, 2000); // Update every 2 seconds
+    }
+}
+
+function completeWriteChapterProgressBar(outlineId) {
+    const progressBarFill = document.getElementById(`writeChapterProgressBarFill-${outlineId}`);
+
+    if (writeChapterProgressIntervals[outlineId]) {
+        clearInterval(writeChapterProgressIntervals[outlineId]);
+    }
+
+    writeChapterCurrentProgress[outlineId] = 100;
+    if (progressBarFill) {
+        progressBarFill.style.width = '100%';
+        progressBarFill.textContent = '100%';
+    }
+}
+
+function resetWriteChapterProgressBar(outlineId) {
+    const progressContainer = document.getElementById(`writeChapterProgressContainer-${outlineId}`);
+    const progressBarFill = document.getElementById(`writeChapterProgressBarFill-${outlineId}`);
+    const writeChapterBtn = document.getElementById(`writeChapterBtn-${outlineId}`);
+
+    if (writeChapterProgressIntervals[outlineId]) {
+        clearInterval(writeChapterProgressIntervals[outlineId]);
+        delete writeChapterProgressIntervals[outlineId];
+    }
+
+    if (writeChapterPollingIntervals[outlineId]) {
+        clearInterval(writeChapterPollingIntervals[outlineId]);
+        delete writeChapterPollingIntervals[outlineId];
+    }
+
+    if (progressContainer) {
+        progressContainer.style.display = 'none';
+        writeChapterCurrentProgress[outlineId] = 0;
+        if (progressBarFill) {
+            progressBarFill.style.width = '0%';
+            progressBarFill.textContent = '0%';
+        }
+        if (writeChapterBtn) {
+            writeChapterBtn.disabled = false;
+            writeChapterBtn.style.opacity = '1';
+        }
+    }
 }
 
 // Regenerate Outline progress bar management
