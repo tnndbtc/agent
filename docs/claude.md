@@ -952,6 +952,601 @@ class MyCustomScorer(NovelScorer):
 
 ---
 
+## API Performance Tracking System
+
+### Overview
+
+The Novel Writing Agent includes an intelligent API performance tracking system that monitors the duration of AI-powered operations and provides real-time progress estimation to users. This system consists of two main components:
+
+1. **APIPerformanceMetric Model**: Stores historical performance data
+2. **Progress Bar System**: Displays real-time progress with intelligent time estimation
+
+### APIPerformanceMetric Model
+
+#### Purpose
+
+The `APIPerformanceMetric` model tracks the execution time of AI generation tasks to provide accurate duration estimates for future operations. This data helps:
+
+- Provide realistic time estimates to users
+- Display intelligent progress bars
+- Identify performance bottlenecks
+- Monitor system health
+
+#### Database Schema
+
+Located in `novels/models.py`:
+
+```python
+class APIPerformanceMetric(models.Model):
+    """Track API call performance for duration estimation."""
+
+    API_TYPE_CHOICES = [
+        ('brainstorm', 'Idea Generation'),
+        ('plot', 'Plot and Characters Generation'),
+        ('outline', 'Outlines Generation'),
+        ('chapter', 'Chapter Generation'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    api_type = models.CharField(max_length=20, choices=API_TYPE_CHOICES, db_index=True)
+    duration_seconds = models.FloatField(help_text="How long the API call took in seconds")
+    input_params = models.JSONField(default=dict, blank=True, help_text="e.g., num_chapters, word_count")
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+    success = models.BooleanField(default=True, help_text="Whether the API call succeeded")
+```
+
+**Fields**:
+- `id`: Unique identifier (UUID)
+- `api_type`: Type of operation (brainstorm, plot, outline, chapter)
+- `duration_seconds`: How long the operation took in seconds
+- `input_params`: Optional parameters like word count, number of chapters
+- `created_at`: Timestamp when the metric was recorded
+- `success`: Whether the operation completed successfully
+
+#### Auto-Cleanup Mechanism
+
+The model automatically maintains a maximum of **50 records per API type** to prevent database bloat:
+
+```python
+def save(self, *args, **kwargs):
+    """Save and maintain max 50 records per API type."""
+    super().save(*args, **kwargs)
+
+    # Get records beyond the 50th (ordered by newest first)
+    old_records = APIPerformanceMetric.objects.filter(
+        api_type=self.api_type
+    ).order_by('-created_at')[50:]
+
+    if old_records:
+        old_ids = [r.id for r in old_records]
+        APIPerformanceMetric.objects.filter(id__in=old_ids).delete()
+```
+
+This ensures:
+- Recent performance data is always available
+- Database size remains manageable
+- Statistics reflect current system performance
+
+#### Recording Metrics
+
+Metrics are automatically recorded after each AI operation completes:
+
+**Example - Celery Task (Asynchronous)**:
+
+```python
+# In novels/tasks.py - brainstorm_ideas_task
+start_time = time.time()
+
+try:
+    # ... AI generation logic ...
+
+    # Record successful completion
+    duration = time.time() - start_time
+    APIPerformanceMetric.objects.create(
+        api_type='brainstorm',
+        duration_seconds=duration,
+        input_params={'num_ideas': num_ideas, 'genre': genre, 'theme': theme},
+        success=True
+    )
+except Exception as e:
+    # Record failure
+    duration = time.time() - start_time
+    APIPerformanceMetric.objects.create(
+        api_type='brainstorm',
+        duration_seconds=duration,
+        success=False
+    )
+    raise
+```
+
+**Example - Synchronous API (Plot Generation)**:
+
+```python
+# In novels/views.py - create_plot
+start_time = time.time()
+
+try:
+    # ... AI generation logic ...
+
+    duration = time.time() - start_time
+    APIPerformanceMetric.objects.create(
+        api_type='plot',
+        duration_seconds=duration,
+        input_params={'idea_title': idea_data.get('title')},
+        success=True
+    )
+except Exception as e:
+    duration = time.time() - start_time
+    APIPerformanceMetric.objects.create(
+        api_type='plot',
+        duration_seconds=duration,
+        success=False
+    )
+    raise
+```
+
+#### Performance Statistics API
+
+The system provides a dedicated endpoint to retrieve average duration statistics:
+
+**Endpoint**: `GET /api/tasks/performance-stats/`
+
+**Response**:
+```json
+{
+    "brainstorm": {
+        "display_name": "Idea Generation",
+        "average_duration_seconds": 28.45,
+        "sample_size": 23
+    },
+    "plot": {
+        "display_name": "Plot and Characters Generation",
+        "average_duration_seconds": 18.32,
+        "sample_size": 15
+    },
+    "outline": {
+        "display_name": "Outlines Generation",
+        "average_duration_seconds": 62.18,
+        "sample_size": 41
+    },
+    "chapter": {
+        "display_name": "Chapter Generation",
+        "average_duration_seconds": 47.56,
+        "sample_size": 38
+    }
+}
+```
+
+**Implementation** (in `novels/views.py`):
+
+```python
+@action(detail=False, methods=['get'], url_path='performance-stats')
+def performance_stats(self, request):
+    """Get average duration estimates for each API type."""
+    from django.db.models import Avg, Count
+
+    stats = {}
+    for api_type, display_name in APIPerformanceMetric.API_TYPE_CHOICES:
+        metrics = APIPerformanceMetric.objects.filter(
+            api_type=api_type,
+            success=True  # Only successful calls
+        ).aggregate(
+            avg_duration=Avg('duration_seconds'),
+            count=Count('id')
+        )
+
+        stats[api_type] = {
+            'display_name': display_name,
+            'average_duration_seconds': round(metrics['avg_duration'] or 30.0, 2),
+            'sample_size': metrics['count']
+        }
+
+    return Response(stats)
+```
+
+**Features**:
+- Only considers successful operations
+- Provides display-friendly names
+- Returns sample size for confidence assessment
+- Defaults to 30 seconds if no data available
+
+---
+
+## Progress Bar System
+
+### Overview
+
+The progress bar system provides real-time visual feedback during AI generation operations. It uses the APIPerformanceMetric data to intelligently estimate completion time and update progress accordingly.
+
+### Visual Design
+
+The progress bars use a consistent, modern design across all operations:
+
+- **Purple gradient fill**: Linear gradient from `#4f46e5` to `#7c3aed`
+- **Rounded corners**: 15px border radius
+- **Height**: 30px
+- **Percentage display**: Shown inside the progress bar
+- **Status text**: Below the progress bar
+
+### Implementation Architecture
+
+#### 1. CSS Styling (Global)
+
+Located in `frontend/templates/novels/project_detail.html`:
+
+```css
+.progress-container {
+    margin: 1.5rem 0;
+    display: none;  /* Hidden by default */
+}
+
+.progress-bar {
+    width: 100%;
+    height: 30px;
+    background: #e5e7eb;  /* Light gray background */
+    border-radius: 15px;
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%);
+    border-radius: 15px;
+    transition: width 0.3s ease;
+    width: 0%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.progress-text {
+    margin-top: 0.5rem;
+    text-align: center;
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+```
+
+**Important**: The CSS is **global** (not scoped to any container), allowing progress bars to work in any section of the page.
+
+#### 2. HTML Structure
+
+Each operation has its own progress bar with unique IDs:
+
+```html
+<!-- Example: Write Chapter Progress Bar -->
+<div id="writeChapterProgressContainer-{{ outline.id }}"
+     class="progress-container"
+     style="display: none; margin-bottom: 1rem;">
+    <div class="progress-bar">
+        <div id="writeChapterProgressBarFill-{{ outline.id }}"
+             class="progress-bar-fill">0%</div>
+    </div>
+    <div id="writeChapterProgressText-{{ outline.id }}"
+         class="progress-text">Saving idea and creating plot & characters...</div>
+</div>
+
+<button class="btn btn-sm btn-primary"
+        onclick="writeChapterFromOutline('{{ outline.id }}')"
+        id="writeChapterBtn-{{ outline.id }}">
+    Write This Chapter
+</button>
+```
+
+**Key Points**:
+- Each progress bar has a unique ID based on the operation context (e.g., `outline.id`, `outline.number`)
+- Container starts hidden (`display: none`)
+- Button has an ID for enabling/disabling during progress
+
+#### 3. JavaScript Progress Management
+
+Each operation type has three management functions:
+
+**a) Start Progress Bar**
+
+```javascript
+async function writeChapterFromOutline(outlineId) {
+    // User input...
+
+    try {
+        // Get estimated duration for chapter API
+        const estimatedDuration = await getEstimatedDuration('chapter');
+        startWriteChapterProgressBar(outlineId, estimatedDuration);
+
+        // Make API request...
+    } catch (err) {
+        resetWriteChapterProgressBar(outlineId);
+    }
+}
+
+function startWriteChapterProgressBar(outlineId, estimatedDuration = null) {
+    const progressContainer = document.getElementById(`writeChapterProgressContainer-${outlineId}`);
+    const progressBarFill = document.getElementById(`writeChapterProgressBarFill-${outlineId}`);
+    const writeChapterBtn = document.getElementById(`writeChapterBtn-${outlineId}`);
+
+    if (progressContainer) {
+        // Show progress bar
+        progressContainer.style.display = 'block';
+
+        // Disable button
+        if (writeChapterBtn) {
+            writeChapterBtn.disabled = true;
+            writeChapterBtn.style.opacity = '0.6';
+        }
+
+        writeChapterCurrentProgress[outlineId] = 0;
+
+        // Calculate intelligent increment
+        let increment = 5; // Default: 5% every 2 seconds
+        if (estimatedDuration) {
+            // Calculate increment to reach 95% by estimated time
+            increment = Math.max(1, Math.min(95 / (estimatedDuration / 2), 10));
+        }
+
+        // Update progress every 2 seconds
+        writeChapterProgressIntervals[outlineId] = setInterval(() => {
+            if (writeChapterCurrentProgress[outlineId] < 95) {
+                writeChapterCurrentProgress[outlineId] += increment;
+                if (writeChapterCurrentProgress[outlineId] > 95) {
+                    writeChapterCurrentProgress[outlineId] = 95;
+                }
+                progressBarFill.style.width = writeChapterCurrentProgress[outlineId] + '%';
+                progressBarFill.textContent = Math.round(writeChapterCurrentProgress[outlineId]) + '%';
+            }
+        }, 2000); // Update every 2 seconds
+    }
+}
+```
+
+**b) Complete Progress Bar**
+
+```javascript
+function completeWriteChapterProgressBar(outlineId) {
+    const progressBarFill = document.getElementById(`writeChapterProgressBarFill-${outlineId}`);
+
+    if (writeChapterProgressIntervals[outlineId]) {
+        clearInterval(writeChapterProgressIntervals[outlineId]);
+    }
+
+    writeChapterCurrentProgress[outlineId] = 100;
+    if (progressBarFill) {
+        progressBarFill.style.width = '100%';
+        progressBarFill.textContent = '100%';
+    }
+}
+```
+
+**c) Reset Progress Bar**
+
+```javascript
+function resetWriteChapterProgressBar(outlineId) {
+    const progressContainer = document.getElementById(`writeChapterProgressContainer-${outlineId}`);
+    const progressBarFill = document.getElementById(`writeChapterProgressBarFill-${outlineId}`);
+    const writeChapterBtn = document.getElementById(`writeChapterBtn-${outlineId}`);
+
+    // Clear intervals
+    if (writeChapterProgressIntervals[outlineId]) {
+        clearInterval(writeChapterProgressIntervals[outlineId]);
+        delete writeChapterProgressIntervals[outlineId];
+    }
+
+    if (writeChapterPollingIntervals[outlineId]) {
+        clearInterval(writeChapterPollingIntervals[outlineId]);
+        delete writeChapterPollingIntervals[outlineId];
+    }
+
+    // Hide and reset
+    if (progressContainer) {
+        progressContainer.style.display = 'none';
+        writeChapterCurrentProgress[outlineId] = 0;
+
+        if (progressBarFill) {
+            progressBarFill.style.width = '0%';
+            progressBarFill.textContent = '0%';
+        }
+
+        // Re-enable button
+        if (writeChapterBtn) {
+            writeChapterBtn.disabled = false;
+            writeChapterBtn.style.opacity = '1';
+        }
+    }
+}
+```
+
+#### 4. Intelligent Increment Calculation
+
+The progress bar uses a smart algorithm to reach 95% completion by the estimated time:
+
+```javascript
+// If estimated duration is 60 seconds:
+// increment = 95 / (60 / 2) = 95 / 30 = 3.17% per update
+// At 2-second intervals, it will reach 95% in ~60 seconds
+
+let increment = 5; // Default fallback
+if (estimatedDuration) {
+    increment = Math.max(1, Math.min(95 / (estimatedDuration / 2), 10));
+}
+```
+
+**Formula Breakdown**:
+- `estimatedDuration / 2`: Number of 2-second intervals
+- `95 / intervals`: Percentage to add each interval to reach 95%
+- `Math.max(1, ...)`: Ensure at least 1% per update
+- `Math.min(..., 10)`: Cap at 10% per update for very short tasks
+
+**Why 95% and not 100%?**
+- Prevents the bar from completing before the actual task
+- Last 5% completes only when server confirms success
+- Provides better user experience (no premature completion)
+
+#### 5. Task Status Polling
+
+The progress bar integrates with task polling to complete when the server finishes:
+
+```javascript
+// Poll task status every 2 seconds
+writeChapterPollingIntervals[outlineId] = setInterval(async () => {
+    try {
+        const task = await apiRequest(`/api/tasks/${response.task_id}/`);
+
+        if (task.status === 'completed') {
+            clearInterval(writeChapterPollingIntervals[outlineId]);
+            completeWriteChapterProgressBar(outlineId);  // Jump to 100%
+            showToast('Chapter written successfully!', 'success');
+            setTimeout(() => window.location.reload(), 1500);
+        } else if (task.status === 'failed') {
+            clearInterval(writeChapterPollingIntervals[outlineId]);
+            resetWriteChapterProgressBar(outlineId);  // Hide and reset
+            showToast('Failed to write chapter', 'error');
+        }
+    } catch (error) {
+        clearInterval(writeChapterPollingIntervals[outlineId]);
+        resetWriteChapterProgressBar(outlineId);
+        showToast('Error checking task status', 'error');
+    }
+}, 2000);
+```
+
+### Progress Bar Implementations
+
+Currently implemented for:
+
+1. **Generate Ideas** (Brainstorm page)
+   - Button: "Generate Ideas"
+   - API Type: `brainstorm`
+   - ID Pattern: `brainstormProgressContainer`
+
+2. **Save Idea and Continue** (Manual Input section)
+   - Button: "Save Idea and continue"
+   - API Type: `plot`
+   - ID Pattern: `manualProgressContainer`
+
+3. **Create Outline** (Chapters tab)
+   - Button: "Create Outline"
+   - API Type: `outline`
+   - ID Pattern: `outlineProgressContainer`
+
+4. **Regenerate Outline** (Per chapter)
+   - Button: "Regenerate"
+   - API Type: `outline`
+   - ID Pattern: `regenerateProgressContainer-{chapterNumber}`
+
+5. **Write This Chapter** (Per outline)
+   - Button: "Write This Chapter"
+   - API Type: `chapter`
+   - ID Pattern: `writeChapterProgressContainer-{outlineId}`
+
+### Frontend Caching
+
+The performance stats are cached on the frontend to reduce API calls:
+
+```javascript
+// In frontend/static/js/api.js
+let performanceStatsCache = null;
+let lastFetchTime = null;
+const CACHE_DURATION = 60000; // 1 minute
+
+async function getPerformanceStats(forceRefresh = false) {
+    const now = Date.now();
+
+    // Return cached data if fresh
+    if (!forceRefresh && performanceStatsCache && lastFetchTime &&
+        (now - lastFetchTime < CACHE_DURATION)) {
+        return performanceStatsCache;
+    }
+
+    try {
+        const stats = await apiRequest('/api/tasks/performance-stats/');
+        performanceStatsCache = stats;
+        lastFetchTime = now;
+        return stats;
+    } catch (error) {
+        // Fallback defaults if API fails
+        return {
+            'brainstorm': { average_duration_seconds: 30 },
+            'plot': { average_duration_seconds: 20 },
+            'outline': { average_duration_seconds: 60 },
+            'chapter': { average_duration_seconds: 45 }
+        };
+    }
+}
+
+async function getEstimatedDuration(apiType) {
+    const stats = await getPerformanceStats();
+    return stats[apiType]?.average_duration_seconds || 30;
+}
+```
+
+**Benefits**:
+- Reduces server load
+- Faster progress bar initialization
+- Graceful fallback if API fails
+- 1-minute cache is fresh enough for estimates
+
+### Adding Progress Bars to New Operations
+
+To add a progress bar to a new operation:
+
+1. **Add Progress Bar HTML**:
+```html
+<div id="myOperationProgressContainer-{{ unique_id }}" class="progress-container" style="display: none;">
+    <div class="progress-bar">
+        <div id="myOperationProgressBarFill-{{ unique_id }}" class="progress-bar-fill">0%</div>
+    </div>
+    <div id="myOperationProgressText-{{ unique_id }}" class="progress-text">Processing...</div>
+</div>
+```
+
+2. **Add JavaScript State Variables**:
+```javascript
+let myOperationProgressIntervals = {};
+let myOperationCurrentProgress = {};
+let myOperationPollingIntervals = {};
+```
+
+3. **Create Management Functions**:
+```javascript
+function startMyOperationProgressBar(uniqueId, estimatedDuration) { ... }
+function completeMyOperationProgressBar(uniqueId) { ... }
+function resetMyOperationProgressBar(uniqueId) { ... }
+```
+
+4. **Update Operation Function**:
+```javascript
+async function myOperation(uniqueId) {
+    const estimatedDuration = await getEstimatedDuration('my_api_type');
+    startMyOperationProgressBar(uniqueId, estimatedDuration);
+
+    // Make API call and poll status...
+}
+```
+
+5. **Record Performance Metrics** (Backend):
+```python
+start_time = time.time()
+try:
+    # ... operation logic ...
+    APIPerformanceMetric.objects.create(
+        api_type='my_api_type',
+        duration_seconds=time.time() - start_time,
+        success=True
+    )
+except Exception as e:
+    APIPerformanceMetric.objects.create(
+        api_type='my_api_type',
+        duration_seconds=time.time() - start_time,
+        success=False
+    )
+    raise
+```
+
+---
+
 ## Roadmap
 
 ### Planned Features
