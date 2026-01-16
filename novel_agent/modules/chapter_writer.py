@@ -40,7 +40,8 @@ class ChapterWriter:
         self,
         chapter_outline: Dict[str, Any],
         writing_style: str = "literary",
-        language: str = "English"
+        language: str = "English",
+        target_word_count: int = 3000
     ) -> Dict[str, Any]:
         """
         Write a complete chapter based on the outline.
@@ -49,6 +50,7 @@ class ChapterWriter:
             chapter_outline: Chapter outline dictionary
             writing_style: Style preference (literary, commercial, minimalist, etc.)
             language: Target language
+            target_word_count: Target word count for the chapter (default: 3000)
 
         Returns:
             Complete chapter dictionary with content

@@ -157,6 +157,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             )
 
         # Auto-generate antagonist character
+        antagonist_db = None
         if protagonist_db:
             protagonist_data_for_antagonist = {
                 'name': protagonist_db.name,
@@ -170,7 +171,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             )
 
             if antagonist_data:
-                Character.objects.create(
+                antagonist_db = Character.objects.create(
                     project=project,
                     name=antagonist_data.get('name', ''),
                     role='antagonist',
@@ -194,10 +195,16 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             success=True
         )
 
-        return Response({
+        response_data = {
             'plot': PlotSerializer(plot).data,
             'message': 'Plot and characters (protagonist and antagonist) created successfully'
-        }, status=status.HTTP_201_CREATED)
+        }
+        if protagonist_db:
+            response_data['protagonist'] = CharacterSerializer(protagonist_db).data
+        if antagonist_db:
+            response_data['antagonist'] = CharacterSerializer(antagonist_db).data
+
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
     def create_characters(self, request, pk=None):
@@ -302,7 +309,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
     def create_outline(self, request, pk=None):
         """Create chapter outline."""
         project = self.get_object()
-        num_chapters = request.data.get('num_chapters', 20)
+        num_chapters = int(request.data.get('num_chapters', 20))
 
         # Create generation task
         task = GenerationTask.objects.create(
@@ -328,7 +335,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
     def regenerate_chapter_outline(self, request, pk=None):
         """Regenerate a single chapter outline."""
         project = self.get_object()
-        chapter_number = request.data.get('chapter_number')
+        chapter_number = int(request.data.get('chapter_number')) if request.data.get('chapter_number') else None
 
         if not chapter_number:
             return Response(

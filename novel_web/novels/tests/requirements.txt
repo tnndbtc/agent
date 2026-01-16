@@ -1,0 +1,39 @@
+# Testing Dependencies for Novel Web Integration Tests
+# Install with: pip install -r requirements.txt
+
+# Core Testing Framework
+pytest>=9.0.0
+pytest-django>=4.11.0
+pytest-mock>=3.15.0
+pytest-cov>=7.0.0
+
+# Additional Testing Utilities
+pytest-xdist>=3.5.0          # For parallel test execution
+pytest-timeout>=2.2.0         # For test timeout management
+pytest-sugar>=1.0.0           # Better test output formatting
+pytest-clarity>=1.0.1         # Better assertion output
+
+# Code Quality Tools
+coverage>=7.10.0              # Code coverage measurement
+flake8>=7.0.0                 # Code style checking
+black>=24.0.0                 # Code formatting
+isort>=5.13.0                 # Import sorting
+
+# Mocking and Fixtures
+factory-boy>=3.3.0            # Test fixture factories
+faker>=22.0.0                 # Fake data generation
+freezegun>=1.4.0              # Time mocking for tests
+responses>=0.25.0             # HTTP request mocking
+
+# Note: Main application dependencies required
+# Install the main application dependencies first:
+#   pip install -r ../../requirements-web.txt
+#
+# Main dependencies needed:
+#   - Django>=5.0.1
+#   - djangorestframework>=3.14.0
+#   - celery>=5.3.6
+#   - langchain>=1.2.3
+#   - langchain-openai>=1.1.7
+#   - chromadb>=0.4.22
+#   - All other dependencies from requirements-web.txt
