@@ -1,6 +1,7 @@
 """Database models for Novel Writing Agent."""
 from django.db import models
 from django.contrib.auth.models import User
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 from django.utils.translation import get_language, gettext_lazy as _
 import uuid
@@ -60,6 +61,98 @@ class GenreTranslation(models.Model):
         return f"{self.genre.name_key} - {self.language_code}: {self.name}"
 
 
+class ScoreCategory(models.Model):
+    """Score category - can be system-defined or user-created."""
+
+    id = models.AutoField(primary_key=True)
+
+    # Core fields
+    name = models.CharField(max_length=100, help_text="Category name (can be any language)")
+    public = models.BooleanField(default=False, db_index=True, help_text="Whether this category is publicly available")
+
+    # User association (NULL for system categories)
+    created_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='score_categories',
+        help_text="User who created this category (NULL for system categories)"
+    )
+
+    # Optional metadata
+    default_weight = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="Default weight percentage for this category"
+    )
+    order = models.IntegerField(default=0, help_text="Display order for system categories")
+
+    # System category marker (for translation support)
+    is_system = models.BooleanField(default=False, db_index=True, help_text="True for system-defined categories")
+    name_key = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        unique=True,
+        help_text="Translation key for system categories (e.g., 'story_plot')"
+    )
+
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-is_system', 'order', 'name']
+        indexes = [
+            models.Index(fields=['public', 'created_by']),
+            models.Index(fields=['is_system']),
+        ]
+        verbose_name_plural = "Score categories"
+
+    def __str__(self):
+        """Return translated name for system categories, raw name for user categories."""
+        if self.is_system:
+            current_lang = get_language() or 'en'
+            translation = self.translations.filter(language_code=current_lang).first()
+            return translation.name if translation else self.name
+        return self.name
+
+    def is_accessible_by(self, user):
+        """Check if category is accessible by given user."""
+        if self.public:
+            return True
+        if self.created_by_id and self.created_by_id == user.id:
+            return True
+        return False
+
+
+class ScoreCategoryTranslation(models.Model):
+    """Translations for system-defined score categories."""
+
+    LANGUAGE_CHOICES = [
+        ('en', 'English'),
+        ('zh-hans', 'Simplified Chinese'),
+    ]
+
+    category = models.ForeignKey(
+        ScoreCategory,
+        related_name='translations',
+        on_delete=models.CASCADE,
+        limit_choices_to={'is_system': True}
+    )
+    language_code = models.CharField(max_length=10, choices=LANGUAGE_CHOICES)
+    name = models.CharField(max_length=100, help_text="Translated category name")
+
+    class Meta:
+        unique_together = [['category', 'language_code']]
+        indexes = [
+            models.Index(fields=['language_code']),
+        ]
+
+    def __str__(self):
+        return f"{self.category.name_key} - {self.language_code}: {self.name}"
+
+
 class NovelProject(models.Model):
     """Main project model for a novel."""
 
@@ -88,6 +181,7 @@ class NovelProject(models.Model):
 
     class Meta:
         ordering = ['-updated_at']
+        unique_together = [['user', 'title']]
         indexes = [
             models.Index(fields=['user', '-updated_at']),
         ]
@@ -309,6 +403,45 @@ class Chapter(models.Model):
         self.project.save(update_fields=['total_word_count'])
 
 
+class ExampleScore(models.Model):
+    """Individual category score for an example."""
+
+    id = models.AutoField(primary_key=True)
+    example = models.ForeignKey('Example', related_name='scores', on_delete=models.CASCADE)
+    category = models.ForeignKey(ScoreCategory, on_delete=models.CASCADE)
+
+    weight = models.IntegerField(
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="Weight percentage for this category (0-100)"
+    )
+    score = models.DecimalField(
+        max_digits=3,
+        decimal_places=1,
+        validators=[MinValueValidator(0), MaxValueValidator(10)],
+        help_text="Score for this category (0-10)"
+    )
+
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['category__order', 'id']
+        unique_together = [['example', 'category']]
+
+    @property
+    def weighted_score(self):
+        """Calculate weighted score (score * weight/100)."""
+        return float(self.score) * (self.weight / 100)
+
+    @property
+    def category_name(self):
+        """Return category name (localized if system, raw if user-created)."""
+        return str(self.category)
+
+    def __str__(self):
+        return f"{self.category_name}: {self.score}/10 ({self.weight}%)"
+
+
 class Example(models.Model):
     """Good or bad writing examples."""
 
@@ -323,6 +456,10 @@ class Example(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='examples')
+
+    # Genre and visibility
+    genre = models.ForeignKey(Genre, null=True, blank=True, on_delete=models.SET_NULL, related_name='examples')
+    public = models.BooleanField(default=False, db_index=True, help_text="Whether this example is publicly available")
 
     is_good = models.BooleanField(help_text="True for good example, False for bad")
     category = models.CharField(max_length=50, choices=CATEGORY_CHOICES)
@@ -340,7 +477,13 @@ class Example(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['is_good', 'category']),
+            models.Index(fields=['public', 'user']),
         ]
+
+    @property
+    def total_score(self):
+        """Calculate weighted total score from all category scores."""
+        return sum(score.weighted_score for score in self.scores.all())
 
     def __str__(self):
         quality = "Good" if self.is_good else "Bad"

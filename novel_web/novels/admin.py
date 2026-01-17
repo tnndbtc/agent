@@ -2,7 +2,9 @@
 from django.contrib import admin
 from .models import (
     NovelProject, Plot, Character, Setting,
-    ChapterOutline, Chapter, Example, GenerationTask
+    ChapterOutline, Chapter, Example, GenerationTask,
+    Genre, GenreTranslation,
+    ScoreCategory, ScoreCategoryTranslation, ExampleScore
 )
 
 
@@ -53,11 +55,51 @@ class ChapterAdmin(admin.ModelAdmin):
     search_fields = ['title', 'project__title']
 
 
+class ScoreCategoryTranslationInline(admin.TabularInline):
+    """Inline admin for ScoreCategoryTranslation."""
+    model = ScoreCategoryTranslation
+    extra = 0
+    fields = ['language_code', 'name']
+
+
+@admin.register(ScoreCategory)
+class ScoreCategoryAdmin(admin.ModelAdmin):
+    """Admin for ScoreCategory."""
+    list_display = ['id', 'name', 'public', 'is_system', 'created_by', 'default_weight', 'order', 'created_at']
+    list_filter = ['public', 'is_system']
+    search_fields = ['name', 'name_key']
+    readonly_fields = ['created_at', 'updated_at']
+    inlines = [ScoreCategoryTranslationInline]
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('name', 'public', 'created_by')
+        }),
+        ('System Category Fields', {
+            'fields': ('is_system', 'name_key', 'default_weight', 'order'),
+            'description': 'These fields are only for system-defined categories'
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+
+
+class ExampleScoreInline(admin.TabularInline):
+    """Inline admin for ExampleScore."""
+    model = ExampleScore
+    extra = 0
+    fields = ['category', 'weight', 'score', 'weighted_score']
+    readonly_fields = ['weighted_score']
+
+
 @admin.register(Example)
 class ExampleAdmin(admin.ModelAdmin):
     """Admin for Example."""
-    list_display = ['category', 'is_good', 'user', 'created_at']
-    list_filter = ['is_good', 'category']
+    list_display = ['category', 'is_good', 'genre', 'public', 'user', 'total_score', 'created_at']
+    list_filter = ['is_good', 'category', 'public', 'genre']
+    search_fields = ['content', 'description']
+    readonly_fields = ['total_score', 'created_at']
+    inlines = [ExampleScoreInline]
 
 
 @admin.register(GenerationTask)

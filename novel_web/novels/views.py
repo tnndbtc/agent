@@ -6,12 +6,14 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.db.models import Q
 
 logger = logging.getLogger(__name__)
 
 from .models import (
     NovelProject, Plot, Character, Setting,
-    ChapterOutline, Chapter, Example, GenerationTask, APIPerformanceMetric
+    ChapterOutline, Chapter, Example, GenerationTask, APIPerformanceMetric,
+    ScoreCategory, ScoreCategoryTranslation, ExampleScore
 )
 from .serializers import (
     NovelProjectSerializer, NovelProjectListSerializer,
@@ -20,7 +22,8 @@ from .serializers import (
     ExampleSerializer, GenerationTaskSerializer,
     BrainstormRequestSerializer, CreatePlotRequestSerializer,
     CreateCharacterRequestSerializer, WriteChapterRequestSerializer,
-    EditRequestSerializer, ScoreRequestSerializer
+    EditRequestSerializer, ScoreRequestSerializer,
+    ScoreCategorySerializer, ScoreCategoryTranslationSerializer, ExampleScoreSerializer
 )
 from .services import (
     BrainstormService, PlotService, CharacterService,
@@ -785,7 +788,44 @@ class ExampleViewSet(viewsets.ModelViewSet):
     serializer_class = ExampleSerializer
 
     def get_queryset(self):
-        return Example.objects.filter(user=self.request.user)
+        """Return user's own examples and all public examples."""
+        return Example.objects.filter(
+            Q(public=True) | Q(user=self.request.user)
+        ).select_related('genre', 'user').prefetch_related('scores__category').distinct()
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+
+class ScoreCategoryViewSet(viewsets.ModelViewSet):
+    """ViewSet for ScoreCategory model."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = ScoreCategorySerializer
+
+    def get_queryset(self):
+        """Return accessible categories (public + user's private)."""
+        return ScoreCategory.objects.filter(
+            Q(public=True) | Q(created_by=self.request.user)
+        ).prefetch_related('translations').distinct()
+
+    def perform_create(self, serializer):
+        """Create category with current user as creator."""
+        serializer.save(created_by=self.request.user)
+
+    def perform_update(self, serializer):
+        """Only allow users to update their own non-system categories."""
+        instance = self.get_object()
+        if instance.is_system:
+            raise serializers.ValidationError("Cannot modify system categories")
+        if instance.created_by != self.request.user:
+            raise serializers.ValidationError("Cannot modify another user's category")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        """Only allow users to delete their own non-system categories."""
+        if instance.is_system:
+            raise serializers.ValidationError("Cannot delete system categories")
+        if instance.created_by != self.request.user:
+            raise serializers.ValidationError("Cannot delete another user's category")
+        instance.delete()

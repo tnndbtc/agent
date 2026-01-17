@@ -40,8 +40,18 @@ async function apiRequest(url, options = {}) {
         const response = await fetch(url, mergedOptions);
 
         if (!response.ok) {
-            const error = await response.json().catch(() => ({ error: 'Request failed' }));
-            throw new Error(error.error || error.detail || 'Request failed');
+            const errorData = await response.json().catch(() => ({ error: 'Request failed' }));
+
+            // For validation errors (400), throw the full error object to preserve field-specific errors
+            if (response.status === 400 && (errorData.title || errorData.detail || errorData.error)) {
+                const error = new Error(errorData.detail || errorData.error || 'Validation failed');
+                // Attach the full error data for field-specific error handling
+                Object.assign(error, errorData);
+                throw error;
+            }
+
+            // For other errors, create simple error message
+            throw new Error(errorData.error || errorData.detail || 'Request failed');
         }
 
         // Handle empty responses

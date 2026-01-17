@@ -181,7 +181,7 @@
                         <div style="flex: 1;">
                             <p><strong>{% trans "Themes" %}</strong>: <span id="plotThemesText">{{ project.plot.themes }}</span></p>
                         </div>
-                        <button class="btn btn-sm btn-secondary" onclick="modifyPlotField('themes')" style="margin-left: 1rem;">
+                        <button class="btn btn-sm btn-primary" onclick="modifyPlotField('themes')" style="margin-left: 1rem;">
                             {% trans "Modify" %}
                         </button>
                     </div>
@@ -209,7 +209,7 @@
                             <p><strong>{% trans "Full Plot Structure" %}</strong>:</p>
                             <div id="plotStructureText" style="white-space: pre-wrap; line-height: 1.6; margin-top: 10px;">{{ project.plot.structure_without_title }}</div>
                         </div>
-                        <button class="btn btn-sm btn-secondary" onclick="modifyPlotField('structure')" style="margin-left: 1rem;">
+                        <button class="btn btn-sm btn-primary" onclick="modifyPlotField('structure')" style="margin-left: 1rem;">
                             {% trans "Modify" %}
                         </button>
                     </div>
@@ -251,7 +251,7 @@
                             <p><strong>{{ character.name }}</strong>: {{ character.get_role_display }}</p>
                             <p class="character-bio" id="characterBio-{{ character.id }}">{{ character.background }}</p>
                         </div>
-                        <button class="btn btn-sm btn-secondary" onclick="modifyCharacter('{{ character.id }}')" style="margin-left: 1rem;">
+                        <button class="btn btn-sm btn-primary" onclick="modifyCharacter('{{ character.id }}')" style="margin-left: 1rem;">
                             {% trans "Modify" %}
                         </button>
                     </div>

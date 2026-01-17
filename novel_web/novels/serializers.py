@@ -4,7 +4,8 @@ from django.contrib.auth.models import User
 from .models import (
     NovelProject, Plot, Character, Setting,
     ChapterOutline, Chapter, Example, GenerationTask,
-    Genre, GenreTranslation
+    Genre, GenreTranslation,
+    ScoreCategory, ScoreCategoryTranslation, ExampleScore
 )
 
 
@@ -134,6 +135,17 @@ class NovelProjectSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'user', 'chroma_collection_name', 'total_word_count', 'created_at', 'updated_at']
 
+    def validate(self, data):
+        """Custom validation for unique title per user."""
+        if self.instance is None:  # Creating new project
+            user = self.context['request'].user
+            title = data.get('title')
+            if NovelProject.objects.filter(user=user, title=title).exists():
+                raise serializers.ValidationError({
+                    'title': f'"{title}" is already taken, choose a different name'
+                })
+        return data
+
     def create(self, validated_data):
         """Override create to handle genre_text from legacy string genres."""
         # Check if genre was sent as string in the original data
@@ -163,13 +175,58 @@ class NovelProjectListSerializer(serializers.ModelSerializer):
         return obj.chapters.count()
 
 
+class ScoreCategoryTranslationSerializer(serializers.ModelSerializer):
+    """Serializer for ScoreCategoryTranslation model."""
+
+    class Meta:
+        model = ScoreCategoryTranslation
+        fields = ['id', 'language_code', 'name']
+
+
+class ScoreCategorySerializer(serializers.ModelSerializer):
+    """Serializer for ScoreCategory model."""
+
+    display_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ScoreCategory
+        fields = ['id', 'name', 'display_name', 'public', 'default_weight', 'is_system', 'created_by', 'order']
+        read_only_fields = ['id', 'is_system']
+
+    def get_display_name(self, obj):
+        """Return localized name based on current language."""
+        return str(obj)
+
+    def create(self, validated_data):
+        """Set created_by to current user if not provided."""
+        if 'created_by' not in validated_data:
+            validated_data['created_by'] = self.context['request'].user
+        return super().create(validated_data)
+
+
+class ExampleScoreSerializer(serializers.ModelSerializer):
+    """Serializer for ExampleScore model."""
+
+    category_name = serializers.ReadOnlyField()
+    weighted_score = serializers.ReadOnlyField()
+
+    class Meta:
+        model = ExampleScore
+        fields = ['id', 'category', 'category_name', 'weight', 'score', 'weighted_score']
+        read_only_fields = ['id']
+
+
 class ExampleSerializer(serializers.ModelSerializer):
     """Serializer for Example model."""
 
+    scores = ExampleScoreSerializer(many=True, read_only=True)
+    total_score = serializers.ReadOnlyField()
+
     class Meta:
         model = Example
-        fields = '__all__'
-        read_only_fields = ['id', 'user', 'created_at']
+        fields = ['id', 'user', 'genre', 'public', 'is_good', 'category', 'content',
+                  'description', 'issues', 'metadata', 'scores', 'total_score', 'created_at']
+        read_only_fields = ['id', 'user', 'created_at', 'total_score']
 
 
 class GenerationTaskSerializer(serializers.ModelSerializer):

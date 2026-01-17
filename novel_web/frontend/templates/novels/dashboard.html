@@ -88,6 +88,22 @@
     </div>
 </div>
 
+<!-- Error Modal -->
+<div class="modal" id="errorModal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>{% trans "Error" %}</h3>
+            <button class="modal-close" onclick="closeErrorModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p id="errorMessage" style="color: #dc2626; padding: 1rem 0;"></p>
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-primary" onclick="closeErrorModal()">{% trans "Close" %}</button>
+        </div>
+    </div>
+</div>
+
 <script>
 function createNewProject() {
     document.getElementById('createProjectModal').style.display = 'flex';
@@ -98,6 +114,16 @@ function closeModal() {
     // Reset form
     document.getElementById('createProjectForm').reset();
     document.getElementById('customGenreGroup').style.display = 'none';
+}
+
+function showErrorModal(message) {
+    document.getElementById('errorMessage').textContent = message;
+    document.getElementById('errorModal').style.display = 'flex';
+}
+
+function closeErrorModal() {
+    document.getElementById('errorModal').style.display = 'none';
+    document.getElementById('errorMessage').textContent = '';
 }
 
 function handleGenreChange() {
@@ -140,7 +166,19 @@ document.getElementById('createProjectForm').addEventListener('submit', async (e
         setTimeout(() => window.location.reload(), 1000);
     } catch (error) {
         hideLoading();
-        showToast('Error creating project', 'error');
+
+        // Handle unique constraint violation with custom message
+        let errorMessage;
+        if (error.title) {
+            // Server returned validation error for title field
+            errorMessage = error.title[0] || error.title;
+        } else if (error.message && (error.message.includes('unique') || error.message.includes('duplicate') || error.message.includes('already exists'))) {
+            const projectTitle = data.title;
+            errorMessage = `"${projectTitle}" is already taken, choose a different name`;
+        } else {
+            errorMessage = error.message || 'Error creating project';
+        }
+        showErrorModal(errorMessage);
     }
 });
 
@@ -158,7 +196,7 @@ function deleteProject(projectId, projectTitle) {
         setTimeout(() => window.location.reload(), 1000);
     }).catch(err => {
         hideLoading();
-        showToast('Error deleting project: ' + err.message, 'error');
+        showErrorModal('Error deleting project: ' + err.message);
     });
 }
 </script>
