@@ -3,8 +3,48 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import (
     NovelProject, Plot, Character, Setting,
-    ChapterOutline, Chapter, Example, GenerationTask
+    ChapterOutline, Chapter, Example, GenerationTask,
+    Genre, GenreTranslation
 )
+
+
+class GenreField(serializers.Field):
+    """
+    Custom field that accepts either Genre ID (int) or genre name (string).
+    For backward compatibility with old frontend code.
+    """
+
+    def to_representation(self, value):
+        """Serialize Genre to ID."""
+        if value is None:
+            return None
+        return value.id
+
+    def to_internal_value(self, data):
+        """
+        Deserialize data to Genre instance.
+        Accepts int (Genre ID) or string (genre name for legacy support).
+        """
+        if data is None or data == '':
+            return None
+
+        # If it's an integer or string that looks like an integer, treat as ID
+        if isinstance(data, int) or (isinstance(data, str) and data.isdigit()):
+            try:
+                return Genre.objects.get(pk=int(data))
+            except Genre.DoesNotExist:
+                raise serializers.ValidationError(f"Genre with ID {data} does not exist.")
+
+        # If it's a string, try to find matching Genre by translation name
+        if isinstance(data, str):
+            # Try to find a genre with this translation name in any language
+            genre_translation = GenreTranslation.objects.filter(name__iexact=data).first()
+            if genre_translation:
+                return genre_translation.genre
+            # If no match found, return None (will be stored in genre_text)
+            return None
+
+        raise serializers.ValidationError("Genre must be an integer ID or string name.")
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -82,6 +122,9 @@ class NovelProjectSerializer(serializers.ModelSerializer):
     chapter_outlines = ChapterOutlineSerializer(many=True, read_only=True)
     chapters = ChapterListSerializer(many=True, read_only=True)
 
+    # Use custom field that accepts both Genre ID and string
+    genre = GenreField(required=False, allow_null=True)
+
     class Meta:
         model = NovelProject
         fields = [
@@ -90,6 +133,19 @@ class NovelProjectSerializer(serializers.ModelSerializer):
             'plot', 'characters', 'settings', 'chapter_outlines', 'chapters'
         ]
         read_only_fields = ['id', 'user', 'chroma_collection_name', 'total_word_count', 'created_at', 'updated_at']
+
+    def create(self, validated_data):
+        """Override create to handle genre_text from legacy string genres."""
+        # Check if genre was sent as string in the original data
+        genre_value = self.initial_data.get('genre', '')
+
+        if isinstance(genre_value, str) and genre_value and not genre_value.isdigit():
+            # Store in genre_text field for legacy compatibility
+            validated_data['genre_text'] = genre_value
+            # If GenreField successfully matched to a Genre FK, genre will be set
+            # If not matched, genre will be None and genre_text will be used
+
+        return super().create(validated_data)
 
 
 class NovelProjectListSerializer(serializers.ModelSerializer):

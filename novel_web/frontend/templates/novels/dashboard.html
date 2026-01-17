@@ -27,7 +27,7 @@
                 </div>
             </div>
             <div class="project-meta">
-                <p class="genre">{{ project.genre|default:"No genre" }}</p>
+                <p class="genre">{{ project.genre_display|default:"No genre" }}</p>
                 <div class="project-stats">
                     <span>📝 {{ project.chapters.count }} {% trans "chapters" %}</span>
                     <span>📊 {{ project.total_word_count|default:0 }} {% trans "words" %}</span>

@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch, MagicMock
 from django.contrib.auth.models import User
 from django.conf import settings
 from rest_framework.test import APIClient
-from novels.models import NovelProject
+from novels.models import NovelProject, Genre, GenreTranslation
 from novels.tests.mocks.openai_responses import get_mock_response_for_prompt
 
 
@@ -70,16 +70,46 @@ def authenticated_client(api_client, test_user):
 
 
 # ============================================================================
+# Genre Fixtures
+# ============================================================================
+
+@pytest.fixture
+def test_genres(db):
+    """Create test genres with translations."""
+    genres = {}
+
+    # Create Fantasy genre
+    fantasy_genre = Genre.objects.create(name_key='fantasy', public=True)
+    GenreTranslation.objects.create(genre=fantasy_genre, language_code='en', name='Fantasy')
+    GenreTranslation.objects.create(genre=fantasy_genre, language_code='zh-hans', name='奇幻')
+    genres['fantasy'] = fantasy_genre
+
+    # Create Science Fiction genre
+    scifi_genre = Genre.objects.create(name_key='sci_fi', public=True)
+    GenreTranslation.objects.create(genre=scifi_genre, language_code='en', name='Science Fiction')
+    GenreTranslation.objects.create(genre=scifi_genre, language_code='zh-hans', name='科幻')
+    genres['sci_fi'] = scifi_genre
+
+    # Create Mystery genre
+    mystery_genre = Genre.objects.create(name_key='mystery', public=True)
+    GenreTranslation.objects.create(genre=mystery_genre, language_code='en', name='Mystery')
+    GenreTranslation.objects.create(genre=mystery_genre, language_code='zh-hans', name='悬疑')
+    genres['mystery'] = mystery_genre
+
+    return genres
+
+
+# ============================================================================
 # Project Fixtures
 # ============================================================================
 
 @pytest.fixture
-def test_project(db, test_user):
+def test_project(db, test_user, test_genres):
     """Create a test project."""
     return NovelProject.objects.create(
         user=test_user,
         title='Test Novel Project',
-        genre='Fantasy',
+        genre=test_genres['fantasy'],
         status='draft'
     )
 

@@ -53,7 +53,7 @@
 
                 <div class="form-group">
                     <label>{% trans "Genre" %}</label>
-                    <div class="genre-display">{{ project.genre|default:"Not specified" }}</div>
+                    <div class="genre-display">{{ project.genre_display|default:"Not specified" }}</div>
                 </div>
 
                 <div style="display: flex; gap: 1rem;">
@@ -87,7 +87,7 @@
         <form id="brainstormForm" class="form-card" style="display: block;">
             <div class="form-group">
                 <label>{% trans "Genre" %}</label>
-                <div class="genre-display">{{ project.genre|default:"Not specified" }}</div>
+                <div class="genre-display">{{ project.genre_display|default:"Not specified" }}</div>
             </div>
 
             <div class="form-group">
@@ -119,7 +119,7 @@
 
             <div class="form-group">
                 <label>{% trans "Genre" %}</label>
-                <div class="genre-display">{{ project.genre|default:"Not specified" }}</div>
+                <div class="genre-display">{{ project.genre_display|default:"Not specified" }}</div>
             </div>
 
             <div id="progressContainer" class="progress-container">
@@ -552,7 +552,7 @@ if (manualForm) {
     manualForm.addEventListener('submit', async function(e) {
         e.preventDefault();
 
-        const projectGenre = '{{ project.genre|default:"General"|escapejs }}';
+        const projectGenre = '{{ project.genre_display|default:"General"|escapejs }}';
         const manualIdea = {
             title: 'My Idea',
             premise: document.getElementById('manual_premise').value,
@@ -594,7 +594,7 @@ if (editForm) {
     editForm.addEventListener('submit', async function(e) {
         e.preventDefault();
 
-        const projectGenre = '{{ project.genre|default:"General"|escapejs }}';
+        const projectGenre = '{{ project.genre_display|default:"General"|escapejs }}';
         const updatedIdea = {
             title: 'My Idea',
             premise: document.getElementById('edit_premise').value,
@@ -650,7 +650,7 @@ if (brainstormForm) {
     brainstormForm.addEventListener('submit', async function(e) {
         e.preventDefault();
 
-        const projectGenre = '{{ project.genre|default:""|escapejs }}';
+        const projectGenre = '{{ project.genre_display|default:""|escapejs }}';
         if (!projectGenre) {
             showToast('Please set a genre for your project first', 'error');
             return;

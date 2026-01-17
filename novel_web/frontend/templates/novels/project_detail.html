@@ -19,19 +19,19 @@
             <h3>{% trans "Project Info" %}</h3>
             <div class="info-grid">
                 <div class="info-item">
-                    <label>{% trans "Status" %}</label>
+                    <label style="font-weight: bold;">{% trans "Status" %}</label>
                     <span class="status-badge status-{{ project.status }}">{{ project.get_status_display }}</span>
                 </div>
                 <div class="info-item">
-                    <label>{% trans "Genre" %}</label>
-                    <span>{{ project.genre|default:"Not set" }}</span>
+                    <label style="font-weight: bold;">{% trans "Genre" %}</label>
+                    <span>{{ project.genre_display|default:"Not set" }}</span>
                 </div>
                 <div class="info-item">
-                    <label>{% trans "Total Words" %}</label>
+                    <label style="font-weight: bold;">{% trans "Total Words" %}</label>
                     <span>{{ project.total_word_count|default:0 }}</span>
                 </div>
                 <div class="info-item">
-                    <label>{% trans "Chapters" %}</label>
+                    <label style="font-weight: bold;">{% trans "Chapters" %}</label>
                     <span>{{ chapters|length }}</span>
                 </div>
             </div>
@@ -50,11 +50,7 @@
                         <div class="idea-premise" style="font-size: 1rem; margin-bottom: 1rem;">
                             {% firstof idea.premise idea.description "No description" %}
                         </div>
-                        {% if idea.genre %}
-                        <div class="idea-tags">
-                            <span class="tag">{{ idea.genre }}</span>
-                        </div>
-                        {% endif %}
+                        <!-- Genre tag hidden as requested -->
                     </div>
                     {% endfor %}
                 </div>
@@ -85,10 +81,7 @@
                                   placeholder="Describe your plot idea...">{% firstof previous_ideas.0.premise previous_ideas.0.description "" %}</textarea>
                     </div>
 
-                    <div class="form-group">
-                        <label>{% trans "Genre" %}</label>
-                        <div class="genre-display">{{ project.genre|default:"Not specified" }}</div>
-                    </div>
+                    <!-- Genre field hidden as requested -->
 
                     <div style="display: flex; gap: 1rem;">
                         <button type="submit" class="btn btn-primary" style="flex: 1;">
@@ -119,10 +112,7 @@
 
             <!-- AI Generation Form -->
             <form id="brainstormForm" class="form-card" style="display: block;">
-                <div class="form-group">
-                    <label>{% trans "Genre" %}</label>
-                    <div class="genre-display">{{ project.genre|default:"Not specified" }}</div>
-                </div>
+                <!-- Genre field hidden as requested -->
 
                 <div class="form-group">
                     <label for="theme">{% trans "Theme" %} ({% trans "optional" %})</label>
@@ -158,10 +148,7 @@
                               placeholder="Describe your plot idea..."></textarea>
                 </div>
 
-                <div class="form-group">
-                    <label>{% trans "Genre" %}</label>
-                    <div class="genre-display">{{ project.genre|default:"Not specified" }}</div>
-                </div>
+                <!-- Genre field hidden as requested -->
 
                 <div id="progressContainer" class="progress-container">
                     <div class="progress-bar">
@@ -220,7 +207,7 @@
                     <div id="plotStructureDisplay" style="display: flex; justify-content: space-between; align-items: flex-start;">
                         <div style="flex: 1;">
                             <p><strong>{% trans "Full Plot Structure" %}</strong>:</p>
-                            <div id="plotStructureText" style="white-space: pre-wrap; line-height: 1.6; margin-top: 10px;">{{ project.plot.structure }}</div>
+                            <div id="plotStructureText" style="white-space: pre-wrap; line-height: 1.6; margin-top: 10px;">{{ project.plot.structure_without_title }}</div>
                         </div>
                         <button class="btn btn-sm btn-secondary" onclick="modifyPlotField('structure')" style="margin-left: 1rem;">
                             {% trans "Modify" %}
@@ -886,7 +873,7 @@ if (manualForm) {
     manualForm.addEventListener('submit', async function(e) {
         e.preventDefault();
 
-        const projectGenre = '{{ project.genre|default:"General"|escapejs }}';
+        const projectGenre = '{{ project.genre_display|default:"General"|escapejs }}';
         const manualIdea = {
             title: 'My Idea',
             premise: document.getElementById('manual_premise').value,
@@ -930,7 +917,7 @@ if (editForm) {
     editForm.addEventListener('submit', async function(e) {
         e.preventDefault();
 
-        const projectGenre = '{{ project.genre|default:"General"|escapejs }}';
+        const projectGenre = '{{ project.genre_display|default:"General"|escapejs }}';
         const updatedIdea = {
             title: 'My Idea',
             premise: document.getElementById('edit_premise').value,
@@ -986,7 +973,7 @@ if (brainstormForm) {
     brainstormForm.addEventListener('submit', async function(e) {
         e.preventDefault();
 
-        const projectGenre = '{{ project.genre|default:""|escapejs }}';
+        const projectGenre = '{{ project.genre_display|default:""|escapejs }}';
         if (!projectGenre) {
             showToast('Please set a genre for your project first', 'error');
             return;
@@ -1831,6 +1818,21 @@ function cancelPlotEdit(field) {
     }
 }
 
+// Helper function to remove title line from structure text
+function removeStructureTitle(text) {
+    if (!text) return '';
+    const lines = text.split('\n');
+    // Remove first line if it starts with "**Title:"
+    if (lines.length > 0 && lines[0].trim().startsWith('**Title:')) {
+        // Also remove the following empty line if present
+        if (lines.length > 1 && lines[1].trim() === '') {
+            return lines.slice(2).join('\n');
+        }
+        return lines.slice(1).join('\n');
+    }
+    return text;
+}
+
 async function savePlotField(field) {
     const inputElement = document.getElementById(`edit${field.charAt(0).toUpperCase() + field.slice(1)}Input`);
     const newValue = inputElement.value.trim();
@@ -1852,7 +1854,9 @@ async function savePlotField(field) {
         if (field === 'themes') {
             document.getElementById('plotThemesText').textContent = newValue;
         } else if (field === 'structure') {
-            document.getElementById('plotStructureText').textContent = newValue;
+            // Remove title line before displaying
+            const displayValue = removeStructureTitle(newValue);
+            document.getElementById('plotStructureText').textContent = displayValue;
         }
 
         cancelPlotEdit(field);

@@ -68,22 +68,23 @@ class TestUserAuthentication:
 class TestProjectCreation:
     """Test project creation functionality."""
 
-    def test_create_project_via_api(self, authenticated_client, test_user):
+    def test_create_project_via_api(self, authenticated_client, test_user, test_genres):
         """Test creating a project via API endpoint."""
         response = authenticated_client.post('/api/projects/', {
             'title': 'My Test Novel',
-            'genre': 'Science Fiction',
+            'genre': test_genres['sci_fi'].id,
         })
 
         assert response.status_code == 201
         assert 'id' in response.data
         assert response.data['title'] == 'My Test Novel'
-        assert response.data['genre'] == 'Science Fiction'
+        assert response.data['genre'] == test_genres['sci_fi'].id
 
         # Verify project was created in database
         project = NovelProject.objects.get(id=response.data['id'])
         assert project.user == test_user
         assert project.title == 'My Test Novel'
+        assert project.genre == test_genres['sci_fi']
         assert project.chroma_collection_name is not None
 
     def test_create_project_unauthenticated(self, api_client):
@@ -420,7 +421,7 @@ class TestChapterGeneration:
 class TestCompleteWorkflow:
     """Test the complete novel creation workflow from start to finish."""
 
-    def test_complete_novel_workflow(self, client, api_client, mock_all_openai):
+    def test_complete_novel_workflow(self, client, api_client, mock_all_openai, test_genres):
         """
         Test complete workflow:
         1. User registration/login
@@ -446,13 +447,13 @@ class TestCompleteWorkflow:
         # Step 2: Create project
         project_response = api_client.post('/api/projects/', {
             'title': 'My Complete Novel',
-            'genre': 'Fantasy',
+            'genre': test_genres['fantasy'].id,
         })
         assert project_response.status_code == 201
         project_id = project_response.data['id']
         project = NovelProject.objects.get(id=project_id)
 
-        # Step 3: Brainstorm idea
+        # Step 3: Brainstorm idea (genre is a text field in brainstorm requests, not affected by Genre model)
         brainstorm_response = api_client.post(
             f'/api/projects/{project_id}/brainstorm/',
             {
@@ -524,13 +525,13 @@ class TestCompleteWorkflow:
         assert ChapterOutline.objects.filter(project=project).count() == 3
         assert Chapter.objects.filter(project=project).count() == 3
 
-    def test_workflow_maintains_consistency(self, authenticated_client, test_user, mock_all_openai):
+    def test_workflow_maintains_consistency(self, authenticated_client, test_user, mock_all_openai, test_genres):
         """Test that the workflow maintains data consistency throughout."""
         # Create project
         project = NovelProject.objects.create(
             user=test_user,
             title='Consistency Test Novel',
-            genre='Mystery'
+            genre=test_genres['mystery']
         )
 
         # Create plot

@@ -2,7 +2,62 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.utils.translation import get_language, gettext_lazy as _
 import uuid
+
+
+class Genre(models.Model):
+    """Genre model with multi-language support."""
+
+    id = models.AutoField(primary_key=True)
+    name_key = models.CharField(max_length=50, unique=True, help_text="Translation key for genre (e.g., 'fantasy', 'sci_fi')")
+    public = models.BooleanField(default=True, help_text="Whether this genre is publicly available")
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['name_key']
+        indexes = [
+            models.Index(fields=['public']),
+        ]
+
+    def __str__(self):
+        """Return translated genre name based on current language."""
+        current_lang = get_language() or 'en'
+        translation = self.translations.filter(language_code=current_lang).first()
+        if translation:
+            return translation.name
+        # Fallback to English
+        en_translation = self.translations.filter(language_code='en').first()
+        if en_translation:
+            return en_translation.name
+        return self.name_key
+
+    def get_translation(self, language_code):
+        """Get translation for specific language."""
+        translation = self.translations.filter(language_code=language_code).first()
+        return translation.name if translation else self.name_key
+
+
+class GenreTranslation(models.Model):
+    """Translation model for Genre names."""
+
+    LANGUAGE_CHOICES = [
+        ('en', 'English'),
+        ('zh-hans', 'Simplified Chinese'),
+    ]
+
+    genre = models.ForeignKey(Genre, on_delete=models.CASCADE, related_name='translations')
+    language_code = models.CharField(max_length=10, choices=LANGUAGE_CHOICES)
+    name = models.CharField(max_length=100, help_text="Translated genre name")
+
+    class Meta:
+        unique_together = [['genre', 'language_code']]
+        indexes = [
+            models.Index(fields=['language_code']),
+        ]
+
+    def __str__(self):
+        return f"{self.genre.name_key} - {self.language_code}: {self.name}"
 
 
 class NovelProject(models.Model):
@@ -19,7 +74,8 @@ class NovelProject(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='novel_projects')
     title = models.CharField(max_length=255)
-    genre = models.CharField(max_length=100, blank=True)
+    genre_text = models.CharField(max_length=100, blank=True, help_text="Legacy genre text - will be migrated to Genre model")
+    genre = models.ForeignKey(Genre, on_delete=models.SET_NULL, null=True, blank=True, related_name='projects')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
 
     # ChromaDB collection name (unique per project)
@@ -39,6 +95,18 @@ class NovelProject(models.Model):
     def __str__(self):
         return f"{self.title} by {self.user.username}"
 
+    @property
+    def genre_display(self):
+        """Return the genre display string (localized if using Genre model, or genre_text for legacy)."""
+        if self.genre:
+            # Use Genre model's __str__ which returns translated name
+            return str(self.genre)
+        elif self.genre_text:
+            # Use legacy genre_text field
+            return self.genre_text
+        else:
+            return None
+
     def save(self, *args, **kwargs):
         if not self.chroma_collection_name:
             self.chroma_collection_name = f"project_{self.id.hex[:16]}"
@@ -52,7 +120,8 @@ class Plot(models.Model):
 
     # Basic plot elements
     premise = models.TextField(help_text="One-paragraph premise")
-    genre = models.CharField(max_length=100, blank=True)
+    genre_text = models.CharField(max_length=100, blank=True, help_text="Legacy genre text - will be migrated to Genre model")
+    genre = models.ForeignKey(Genre, on_delete=models.SET_NULL, null=True, blank=True, related_name='plots')
     themes = models.TextField(blank=True, help_text="Main themes, comma-separated")
     conflict = models.TextField(blank=True, help_text="Central conflict")
 
@@ -69,6 +138,21 @@ class Plot(models.Model):
 
     def __str__(self):
         return f"Plot for {self.project.title}"
+
+    @property
+    def structure_without_title(self):
+        """Return plot structure with the title line removed."""
+        if not self.structure:
+            return ''
+
+        lines = self.structure.split('\n')
+        # Remove first line if it starts with "**Title:"
+        if lines and lines[0].strip().startswith('**Title:'):
+            # Also remove the following empty line if present
+            if len(lines) > 1 and lines[1].strip() == '':
+                return '\n'.join(lines[2:])
+            return '\n'.join(lines[1:])
+        return self.structure
 
 
 class Character(models.Model):

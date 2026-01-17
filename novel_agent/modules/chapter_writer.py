@@ -73,6 +73,10 @@ class ChapterWriter:
         scenes = self._generate_scene_breakdown(chapter_outline)
         chapter_content = []
 
+        # Calculate words per scene to meet target word count
+        num_scenes = len(scenes)
+        words_per_scene = target_word_count // num_scenes if num_scenes > 0 else target_word_count
+
         for i, scene in enumerate(scenes):
             scene_content = self._write_scene(
                 scene,
@@ -81,6 +85,7 @@ class ChapterWriter:
                 example_context,
                 writing_style,
                 language,
+                target_words=words_per_scene,
                 is_first=i == 0,
                 is_last=i == len(scenes) - 1
             )
@@ -275,6 +280,7 @@ SCENE [number]: [brief description]"""
         example_context: str,
         writing_style: str,
         language: str,
+        target_words: int = 600,
         is_first: bool = False,
         is_last: bool = False
     ) -> str:
@@ -288,7 +294,10 @@ Write engaging, vivid prose with:
 - Character-driven narrative
 - Natural pacing
 
-Show, don't tell. Make the reader feel present in the scene."""
+Show, don't tell. Make the reader feel present in the scene.
+
+CRITICAL: You MUST write EXACTLY around {target_words} words. Not more, not less.
+Count your words carefully and stop when you reach approximately {target_words} words."""
 
         user_prompt = f"""Write this scene:
 
@@ -308,7 +317,11 @@ Story context:
 {'This is the opening scene of the chapter. Create a strong hook.' if is_first else ''}
 {'This is the closing scene of the chapter. End with impact or a cliffhanger.' if is_last else ''}
 
-Write 3-5 paragraphs of polished prose."""
+WORD COUNT REQUIREMENT: Write EXACTLY {target_words} words (±10 words tolerance).
+This is NOT a suggestion - it is a strict requirement.
+After writing, count your words and adjust if needed to meet this target.
+
+Write polished prose that meets the {target_words}-word target."""
 
         messages = [
             SystemMessage(content=system_message),

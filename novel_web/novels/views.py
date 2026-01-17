@@ -143,16 +143,23 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         plot_data = PlotService.create_full_plot(project, serializer.validated_data['idea_data'], user_language=user_language)
 
         # Save to database
+        # Note: genre is now a ForeignKey to Genre model, not a text field
+        # If project has a genre, copy it to the plot; otherwise leave as None
+        defaults = {
+            'premise': plot_data.get('premise', ''),
+            'themes': plot_data.get('themes', ''),
+            'conflict': plot_data.get('conflict', ''),
+            'structure': plot_data.get('structure', ''),
+            'arc': plot_data.get('arc', '')
+        }
+
+        # Only set genre if project has one
+        if project.genre:
+            defaults['genre'] = project.genre
+
         plot, created = Plot.objects.update_or_create(
             project=project,
-            defaults={
-                'premise': plot_data.get('premise', ''),
-                'genre': plot_data.get('genre', ''),
-                'themes': plot_data.get('themes', ''),
-                'conflict': plot_data.get('conflict', ''),
-                'structure': plot_data.get('structure', ''),
-                'arc': plot_data.get('arc', '')
-            }
+            defaults=defaults
         )
 
         # Auto-generate protagonist character
