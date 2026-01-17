@@ -48,6 +48,29 @@ class GenreField(serializers.Field):
         raise serializers.ValidationError("Genre must be an integer ID or string name.")
 
 
+class GenreTranslationSerializer(serializers.ModelSerializer):
+    """Serializer for GenreTranslation model."""
+
+    class Meta:
+        model = GenreTranslation
+        fields = ['id', 'language_code', 'name']
+
+
+class GenreSerializer(serializers.ModelSerializer):
+    """Serializer for Genre model with localized display name."""
+
+    display_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Genre
+        fields = ['id', 'name_key', 'public', 'display_name']
+        read_only_fields = ['id']
+
+    def get_display_name(self, obj):
+        """Return localized name based on current language."""
+        return str(obj)
+
+
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for User model."""
 

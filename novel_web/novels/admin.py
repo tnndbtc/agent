@@ -55,6 +55,31 @@ class ChapterAdmin(admin.ModelAdmin):
     search_fields = ['title', 'project__title']
 
 
+class GenreTranslationInline(admin.TabularInline):
+    """Inline admin for GenreTranslation."""
+    model = GenreTranslation
+    extra = 0
+    fields = ['language_code', 'name']
+
+
+@admin.register(Genre)
+class GenreAdmin(admin.ModelAdmin):
+    """Admin for Genre."""
+    list_display = ['id', 'name_key', 'public', 'created_at']
+    list_filter = ['public']
+    search_fields = ['name_key']
+    readonly_fields = ['created_at']
+    inlines = [GenreTranslationInline]
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('name_key', 'public')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at',)
+        }),
+    )
+
+
 class ScoreCategoryTranslationInline(admin.TabularInline):
     """Inline admin for ScoreCategoryTranslation."""
     model = ScoreCategoryTranslation

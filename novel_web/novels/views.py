@@ -4,6 +4,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django_filters.rest_framework import DjangoFilterBackend
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db.models import Q
@@ -13,7 +14,8 @@ logger = logging.getLogger(__name__)
 from .models import (
     NovelProject, Plot, Character, Setting,
     ChapterOutline, Chapter, Example, GenerationTask, APIPerformanceMetric,
-    ScoreCategory, ScoreCategoryTranslation, ExampleScore
+    ScoreCategory, ScoreCategoryTranslation, ExampleScore,
+    Genre, GenreTranslation
 )
 from .serializers import (
     NovelProjectSerializer, NovelProjectListSerializer,
@@ -23,7 +25,8 @@ from .serializers import (
     BrainstormRequestSerializer, CreatePlotRequestSerializer,
     CreateCharacterRequestSerializer, WriteChapterRequestSerializer,
     EditRequestSerializer, ScoreRequestSerializer,
-    ScoreCategorySerializer, ScoreCategoryTranslationSerializer, ExampleScoreSerializer
+    ScoreCategorySerializer, ScoreCategoryTranslationSerializer, ExampleScoreSerializer,
+    GenreSerializer, GenreTranslationSerializer
 )
 from .services import (
     BrainstormService, PlotService, CharacterService,
@@ -869,11 +872,24 @@ class GenerationTaskViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(stats)
 
 
+class GenreViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for Genre model - read-only access to available genres."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = GenreSerializer
+
+    def get_queryset(self):
+        """Return all public genres with translations."""
+        return Genre.objects.filter(public=True).prefetch_related('translations').order_by('name_key')
+
+
 class ExampleViewSet(viewsets.ModelViewSet):
     """ViewSet for Example model."""
 
     permission_classes = [IsAuthenticated]
     serializer_class = ExampleSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['genre', 'public', 'is_good', 'category']
 
     def get_queryset(self):
         """Return user's own examples and all public examples."""
