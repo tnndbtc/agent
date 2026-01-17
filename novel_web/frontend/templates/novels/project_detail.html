@@ -306,24 +306,44 @@
                 <h4>{% trans "Chapter Outlines" %}</h4>
                 <div class="outlines-list">
                     {% for outline in outlines %}
-                    <div class="outline-card">
+                    <div class="outline-card" id="outline-card-{{ outline.id }}">
                         <div class="outline-header">
                             <span class="outline-number">{{ outline.number }}</span>
                             <h5>{{ outline.title }}</h5>
                         </div>
-                        <div class="outline-details">
+                        <div class="outline-details" id="outline-details-{{ outline.id }}">
                             {% if outline.pov %}
                             <p><strong>{% trans "POV:" %}</strong> {{ outline.pov }}</p>
                             {% endif %}
                             {% if outline.setting %}
-                            <p><strong>{% trans "Setting:" %}</strong> {{ outline.setting }}</p>
+                            <p><strong>{% trans "Setting:" %}</strong> <span id="outline-setting-text-{{ outline.id }}">{{ outline.setting }}</span></p>
                             {% endif %}
                             {% if outline.events %}
-                            <p><strong>{% trans "Events:" %}</strong> {{ outline.events|truncatewords:30 }}</p>
+                            <p><strong>{% trans "Events:" %}</strong> <span id="outline-events-text-{{ outline.id }}">{{ outline.events|truncatewords:30 }}</span></p>
                             {% endif %}
                             {% if outline.pacing %}
-                            <p><strong>{% trans "Pacing:" %}</strong> {{ outline.pacing }}</p>
+                            <p><strong>{% trans "Pacing:" %}</strong> <span id="outline-pacing-text-{{ outline.id }}">{{ outline.pacing }}</span></p>
                             {% endif %}
+                        </div>
+
+                        <!-- Edit Form - Hidden by default -->
+                        <div id="edit-outline-{{ outline.id }}" style="display: none; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label for="edit-outline-setting-{{ outline.id }}">{% trans "Setting" %}</label>
+                                <textarea id="edit-outline-setting-{{ outline.id }}" class="form-control" rows="2">{{ outline.setting }}</textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-outline-events-{{ outline.id }}">{% trans "Events" %}</label>
+                                <textarea id="edit-outline-events-{{ outline.id }}" class="form-control" rows="4">{{ outline.events }}</textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-outline-pacing-{{ outline.id }}">{% trans "Pacing" %}</label>
+                                <input type="text" id="edit-outline-pacing-{{ outline.id }}" class="form-control" value="{{ outline.pacing }}">
+                            </div>
+                            <div style="margin-top: 0.5rem;">
+                                <button class="btn btn-sm btn-primary" onclick="saveOutline('{{ outline.id }}')">{% trans "Save" %}</button>
+                                <button class="btn btn-sm btn-secondary" onclick="cancelOutlineEdit('{{ outline.id }}')">{% trans "Cancel" %}</button>
+                            </div>
                         </div>
 
                         {% if outline.chapter %}
@@ -365,6 +385,9 @@
                             <div id="regenerateProgressText-{{ outline.number }}" class="progress-text">Saving idea and creating plot & characters...</div>
                         </div>
                         <div class="outline-actions">
+                            <button class="btn btn-sm btn-primary" onclick="modifyOutline('{{ outline.id }}')">
+                                {% trans "Modify" %}
+                            </button>
                             <button class="btn btn-sm btn-primary" onclick="writeChapterFromOutline('{{ outline.id }}')" id="writeChapterBtn-{{ outline.id }}">
                                 {% trans "Write This Chapter" %}
                             </button>
@@ -1926,6 +1949,65 @@ async function saveCharacter(characterId) {
         showToast('Character updated successfully', 'success');
     } catch (err) {
         showToast('Error updating character: ' + err.message, 'error');
+    }
+}
+
+// Outline editing functions
+function modifyOutline(outlineId) {
+    const detailsDiv = document.getElementById(`outline-details-${outlineId}`);
+    const editDiv = document.getElementById(`edit-outline-${outlineId}`);
+
+    if (detailsDiv && editDiv) {
+        detailsDiv.style.display = 'none';
+        editDiv.style.display = 'block';
+    }
+}
+
+function cancelOutlineEdit(outlineId) {
+    const detailsDiv = document.getElementById(`outline-details-${outlineId}`);
+    const editDiv = document.getElementById(`edit-outline-${outlineId}`);
+
+    if (detailsDiv && editDiv) {
+        detailsDiv.style.display = 'block';
+        editDiv.style.display = 'none';
+    }
+}
+
+async function saveOutline(outlineId) {
+    const settingInput = document.getElementById(`edit-outline-setting-${outlineId}`);
+    const eventsInput = document.getElementById(`edit-outline-events-${outlineId}`);
+    const pacingInput = document.getElementById(`edit-outline-pacing-${outlineId}`);
+
+    const newSetting = settingInput.value.trim();
+    const newEvents = eventsInput.value.trim();
+    const newPacing = pacingInput.value.trim();
+
+    try {
+        showLoading('Saving outline...');
+        const response = await apiRequest(`/api/projects/${projectId}/update_outline/${outlineId}/`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+                setting: newSetting,
+                events: newEvents,
+                pacing: newPacing
+            })
+        });
+
+        // Update the display
+        const settingText = document.getElementById(`outline-setting-text-${outlineId}`);
+        const eventsText = document.getElementById(`outline-events-text-${outlineId}`);
+        const pacingText = document.getElementById(`outline-pacing-text-${outlineId}`);
+
+        if (settingText) settingText.textContent = newSetting;
+        if (eventsText) eventsText.textContent = newEvents;
+        if (pacingText) pacingText.textContent = newPacing;
+
+        hideLoading();
+        cancelOutlineEdit(outlineId);
+        showToast('Outline updated successfully', 'success');
+    } catch (err) {
+        hideLoading();
+        showToast('Error updating outline: ' + err.message, 'error');
     }
 }
 </script>

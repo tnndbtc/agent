@@ -348,6 +348,24 @@ def create_outline_task(self, task_id, project_id, num_chapters=1, user_language
             'arc': project.plot.arc
         }
 
+        # Retrieve the original brainstorm idea for richer context
+        idea_data = None
+        try:
+            brainstorm_tasks = GenerationTask.objects.filter(
+                project=project,
+                task_type='brainstorm',
+                status='completed'
+            ).order_by('-created_at')
+
+            if brainstorm_tasks.exists():
+                result = brainstorm_tasks.first().result_data
+                if result and 'ideas' in result and len(result['ideas']) > 0:
+                    # Use the first idea (or the one that was selected for plot creation)
+                    idea_data = result['ideas'][0]
+                    logger.info(f"Retrieved original brainstorm idea for outline generation: {idea_data.get('title', 'Untitled')}")
+        except Exception as e:
+            logger.warning(f"Failed to retrieve original brainstorm idea: {e}")
+
         update_task_progress(task_id, 17, f"Generating {num_chapters} chapter outline...")
 
         # Start incremental progress updates (17% -> 75%, +5% every 2 seconds)
@@ -355,7 +373,7 @@ def create_outline_task(self, task_id, project_id, num_chapters=1, user_language
         progress_updater.start(f"Generating {num_chapters} chapter outline...")
 
         try:
-            outline = OutlineService.create_outline(project, plot_data, num_chapters, user_language=user_language)
+            outline = OutlineService.create_outline(project, plot_data, num_chapters, user_language=user_language, idea_data=idea_data)
             logger.info(f"Create Outline task generated outline with {len(outline.get('chapters', []))} chapters")
         finally:
             progress_updater.stop()

@@ -303,10 +303,10 @@ class OutlineService:
     """Service for outline operations."""
 
     @staticmethod
-    def create_outline(project, plot_data, num_chapters=1, user_language='en'):
-        """Create chapter outline."""
+    def create_outline(project, plot_data, num_chapters=1, user_language='en', idea_data=None):
+        """Create chapter outline with optional original idea data for richer context."""
         logger.info(f"OutlineService.create_outline - project: {project.id}, num_chapters: {num_chapters}, "
-                   f"user_language: {user_language}")
+                   f"user_language: {user_language}, has_idea_data: {idea_data is not None}")
 
         service = ProjectService(project)
         outliner = service.get_outliner()
@@ -314,7 +314,16 @@ class OutlineService:
         target_language = get_language_name(user_language)
         logger.info(f"OutlineService - target_language: {target_language}")
 
-        outline = outliner.create_chapter_outline(plot_data, num_chapters, language=target_language)
+        # If idea_data is provided, enrich plot_data with original premise details
+        if idea_data:
+            enriched_plot_data = plot_data.copy()
+            enriched_plot_data['original_premise'] = idea_data.get('premise') or idea_data.get('description', '')
+            enriched_plot_data['original_title'] = idea_data.get('title', '')
+            logger.info(f"OutlineService - Enriching plot data with original idea: {enriched_plot_data.get('original_title', 'Untitled')}")
+        else:
+            enriched_plot_data = plot_data
+
+        outline = outliner.create_chapter_outline(enriched_plot_data, num_chapters, language=target_language)
         logger.info(f"OutlineService created outline with language parameter, chapters: {len(outline.get('chapters', []))}")
 
         return outline

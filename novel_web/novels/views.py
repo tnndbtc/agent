@@ -28,10 +28,12 @@ from .serializers import (
 from .services import (
     BrainstormService, PlotService, CharacterService,
     SettingService, OutlineService, WritingService,
-    EditingService, ConsistencyService, ScoringService, ExportService
+    EditingService, ConsistencyService, ScoringService, ExportService,
+    get_language_name, ProjectService
 )
 from .tasks import brainstorm_ideas_task, write_chapter_task, create_outline_task, score_novel_task
 from .permissions import IsOwner
+from .ai_client import generate_theme_from_idea
 
 
 class NovelProjectViewSet(viewsets.ModelViewSet):
@@ -145,12 +147,18 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
 
         plot_data = PlotService.create_full_plot(project, serializer.validated_data['idea_data'], user_language=user_language)
 
+        # Generate one-sentence theme from the idea
+        target_language = get_language_name(user_language)
+        logger.info(f"Generating one-sentence theme - user_language: {user_language}, target_language: {target_language}")
+        theme_sentence = generate_theme_from_idea(serializer.validated_data['idea_data'], language=target_language)
+        logger.info(f"Generated theme: {theme_sentence}")
+
         # Save to database
         # Note: genre is now a ForeignKey to Genre model, not a text field
         # If project has a genre, copy it to the plot; otherwise leave as None
         defaults = {
             'premise': plot_data.get('premise', ''),
-            'themes': plot_data.get('themes', ''),
+            'themes': theme_sentence,  # Use generated one-sentence theme instead of plot_data themes
             'conflict': plot_data.get('conflict', ''),
             'structure': plot_data.get('structure', ''),
             'arc': plot_data.get('arc', '')
@@ -164,6 +172,22 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             project=project,
             defaults=defaults
         )
+
+        # Store plot in ChromaDB memory for outline generation
+        try:
+            service = ProjectService(project)
+            service.memory.store_plot({
+                'title': plot.premise,
+                'genre': str(plot.genre) if plot.genre else '',
+                'premise': plot.premise,
+                'conflict': plot.conflict,
+                'theme': plot.themes,
+                'arc': plot.arc,
+                'structure': plot.structure
+            })
+            logger.info(f"Stored plot in ChromaDB memory for project {project.id}")
+        except Exception as e:
+            logger.warning(f"Failed to store plot in ChromaDB memory: {e}")
 
         # Auto-generate protagonist character
         character_plot_data = {
@@ -195,6 +219,25 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
                 relationships=protagonist_data.get('relationships', '')
             )
 
+            # Store protagonist in ChromaDB memory for outline generation
+            try:
+                service = ProjectService(project)
+                service.memory.store_character({
+                    'name': protagonist_db.name,
+                    'age': protagonist_db.age,
+                    'role': protagonist_db.role,
+                    'personality': protagonist_db.personality,
+                    'background': protagonist_db.background,
+                    'appearance': protagonist_db.appearance,
+                    'motivations': protagonist_db.motivation,
+                    'flaw': protagonist_db.flaw,
+                    'arc': protagonist_db.arc,
+                    'relationships': protagonist_db.relationships
+                })
+                logger.info(f"Stored protagonist '{protagonist_db.name}' in ChromaDB memory for project {project.id}")
+            except Exception as e:
+                logger.warning(f"Failed to store protagonist in ChromaDB memory: {e}")
+
         # Auto-generate antagonist character
         antagonist_db = None
         if protagonist_db:
@@ -223,6 +266,25 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
                     appearance=antagonist_data.get('appearance') or antagonist_data.get('physical_description', ''),
                     relationships=antagonist_data.get('relationships', '')
                 )
+
+                # Store antagonist in ChromaDB memory for outline generation
+                try:
+                    service = ProjectService(project)
+                    service.memory.store_character({
+                        'name': antagonist_db.name,
+                        'age': antagonist_db.age,
+                        'role': antagonist_db.role,
+                        'personality': antagonist_db.personality,
+                        'background': antagonist_db.background,
+                        'appearance': antagonist_db.appearance,
+                        'motivations': antagonist_db.motivation,
+                        'flaw': antagonist_db.flaw,
+                        'arc': antagonist_db.arc,
+                        'relationships': antagonist_db.relationships
+                    })
+                    logger.info(f"Stored antagonist '{antagonist_db.name}' in ChromaDB memory for project {project.id}")
+                except Exception as e:
+                    logger.warning(f"Failed to store antagonist in ChromaDB memory: {e}")
 
         # Track API performance
         end_time = timezone.now()
@@ -448,6 +510,32 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
                 outline.save(update_fields=['number'])
 
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['patch'], url_path='update_outline/(?P<outline_id>[^/.]+)')
+    def update_outline(self, request, pk=None, outline_id=None):
+        """Update chapter outline fields (setting, events, pacing)."""
+        project = self.get_object()
+        outline = get_object_or_404(ChapterOutline, id=outline_id, project=project)
+
+        # Update fields if provided
+        if 'setting' in request.data:
+            outline.setting = request.data['setting']
+        if 'events' in request.data:
+            outline.events = request.data['events']
+        if 'pacing' in request.data:
+            outline.pacing = request.data['pacing']
+
+        outline.save()
+
+        logger.info(f"Updated outline {outline_id} for project {project.id}")
+
+        return Response({
+            'id': str(outline.id),
+            'setting': outline.setting,
+            'events': outline.events,
+            'pacing': outline.pacing,
+            'message': 'Outline updated successfully'
+        }, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
     def write_chapter(self, request, pk=None):
