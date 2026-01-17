@@ -317,7 +317,7 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
 
 
 @shared_task(bind=True, max_retries=3, time_limit=180, soft_time_limit=150)
-def create_outline_task(self, task_id, project_id, num_chapters=20, user_language='en'):
+def create_outline_task(self, task_id, project_id, num_chapters=1, user_language='en'):
     """Create chapter outline asynchronously.
 
     Time limits: 150s soft limit (raises exception), 180s hard limit (kills task).
@@ -372,7 +372,11 @@ def create_outline_task(self, task_id, project_id, num_chapters=20, user_languag
 
         # Save chapter outlines to database with progress updates
         total_chapters = len(outline['chapters'])
+        logger.info(f"Create Outline task - Saving {total_chapters} chapters to database (requested: {num_chapters})")
+
         for i, chapter_data in enumerate(outline['chapters'], 1):
+            chapter_title = chapter_data.get('title', f"Chapter {chapter_data['number']}")
+            logger.debug(f"Create Outline task - Saving chapter {i}/{total_chapters}: {chapter_title}")
             ChapterOutline.objects.create(
                 project=project,
                 number=chapter_data['number'],

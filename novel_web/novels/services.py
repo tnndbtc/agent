@@ -303,7 +303,7 @@ class OutlineService:
     """Service for outline operations."""
 
     @staticmethod
-    def create_outline(project, plot_data, num_chapters=20, user_language='en'):
+    def create_outline(project, plot_data, num_chapters=1, user_language='en'):
         """Create chapter outline."""
         logger.info(f"OutlineService.create_outline - project: {project.id}, num_chapters: {num_chapters}, "
                    f"user_language: {user_language}")

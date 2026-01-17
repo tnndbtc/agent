@@ -117,6 +117,15 @@ Story Beats: [which major plot points]
         chapters = self._parse_chapter_outline(response.content)
         logger.info(f"OutlinerModule - Parsed {len(chapters)} chapters from response (requested: {num_chapters})")
 
+        # Validate and limit chapters to requested number
+        if len(chapters) > num_chapters:
+            logger.warning(f"OutlinerModule - AI generated {len(chapters)} chapters but only {num_chapters} were requested. Truncating to {num_chapters}.")
+            chapters = chapters[:num_chapters]
+        elif len(chapters) < num_chapters:
+            logger.warning(f"OutlinerModule - AI generated only {len(chapters)} chapters but {num_chapters} were requested.")
+
+        logger.info(f"OutlinerModule - Final chapter count after validation: {len(chapters)}")
+
         outline = {
             'title': plot.get('title', 'Untitled'),
             'num_chapters': num_chapters,

@@ -44,7 +44,6 @@
             <!-- Previously Saved Ideas - Show when idea exists -->
             {% if previous_ideas %}
             <div class="saved-ideas-section" style="margin-top: 1rem;">
-                <h4 style="margin-bottom: 1rem;">My Idea</h4>
                 <div class="ideas-container">
                     {% for idea in previous_ideas|slice:":1" %}
                     <div class="idea-card current-idea">
@@ -204,6 +203,18 @@
                     <label>{% trans "Conflict" %}</label>
                     <p>{{ project.plot.conflict }}</p>
                 </div>
+                {% if project.plot.structure %}
+                <div class="plot-field">
+                    <label>{% trans "Full Plot Structure" %}</label>
+                    <div style="white-space: pre-wrap; line-height: 1.6; margin-top: 10px;">{{ project.plot.structure }}</div>
+                </div>
+                {% endif %}
+                {% if project.plot.arc %}
+                <div class="plot-field">
+                    <label>{% trans "Story Arc" %}</label>
+                    <p style="white-space: pre-wrap; line-height: 1.6;">{{ project.plot.arc }}</p>
+                </div>
+                {% endif %}
             </div>
             {% else %}
             <div class="empty-state">

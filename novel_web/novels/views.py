@@ -124,6 +124,19 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         logger.info(f"Create Plot API called - User: {request.user.username}, Project: {project.id}, "
                    f"Language: {user_language}, Input: {serializer.validated_data}")
 
+        # Delete old plot and characters first
+        try:
+            if hasattr(project, 'plot'):
+                project.plot.delete()
+                logger.info(f"Deleted old plot for project {project.id}")
+        except Exception as e:
+            logger.warning(f"Error deleting old plot: {e}")
+
+        # Delete all existing characters for this project
+        deleted_count = project.characters.all().delete()[0]
+        if deleted_count > 0:
+            logger.info(f"Deleted {deleted_count} old characters for project {project.id}")
+
         # Track API performance
         start_time = timezone.now()
 
@@ -339,7 +352,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         logger.info(f"Create Outline API called - User: {request.user.username}, Project: {project.id}, "
                    f"Language: {user_language}, Raw request.data: {request.data}")
 
-        num_chapters = int(request.data.get('num_chapters', 20))
+        num_chapters = int(request.data.get('num_chapters', 1))  # Default to 1 chapter if not specified
 
         logger.info(f"Create Outline - num_chapters parsed: {num_chapters}")
 

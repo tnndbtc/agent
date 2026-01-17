@@ -55,6 +55,8 @@ Conflict: {plot_idea.get('conflict', '')}
 Genre: {plot_idea.get('genre', 'General Fiction')}
 Themes: {plot_idea.get('themes', '')}
 
+IMPORTANT: The plot structure must be AT LEAST 2 paragraphs or 200 words in total length.
+
 Create a detailed structure with:
 
 ACT 1 - SETUP (25% of story):
@@ -74,7 +76,8 @@ ACT 3 - RESOLUTION (25% of story):
 - Resolution
 - Denouement
 
-For each section, provide 2-3 sentences of specific plot details."""
+For each section, provide 2-3 sentences of specific plot details.
+Ensure the entire plot structure is comprehensive and detailed, with at least 200 words total."""
 
         # Add language instruction if specified
         if language and language != 'English':
