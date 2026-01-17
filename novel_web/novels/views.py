@@ -602,6 +602,66 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             'chapter_count': len(novel_data['chapters'])
         }, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=['patch'], url_path='update_plot')
+    def update_plot(self, request, pk=None):
+        """Update plot fields."""
+        project = self.get_object()
+
+        # Check if plot exists
+        if not hasattr(project, 'plot'):
+            return Response(
+                {'error': 'No plot exists for this project'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        plot = project.plot
+
+        # Update allowed fields
+        allowed_fields = ['themes', 'structure', 'premise', 'conflict']
+        updated = False
+
+        for field in allowed_fields:
+            if field in request.data:
+                setattr(plot, field, request.data[field])
+                updated = True
+
+        if updated:
+            plot.save()
+            logger.info(f"Updated plot for project {project.id}: {list(request.data.keys())}")
+            return Response({'message': 'Plot updated successfully'}, status=status.HTTP_200_OK)
+
+        return Response(
+            {'error': 'No valid fields provided for update'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    @action(detail=True, methods=['patch'], url_path='update_character/(?P<character_id>[^/.]+)')
+    def update_character(self, request, pk=None, character_id=None):
+        """Update character fields."""
+        project = self.get_object()
+
+        # Get the character
+        character = get_object_or_404(Character, id=character_id, project=project)
+
+        # Update allowed fields
+        allowed_fields = ['name', 'background', 'personality', 'motivations', 'relationships']
+        updated = False
+
+        for field in allowed_fields:
+            if field in request.data:
+                setattr(character, field, request.data[field])
+                updated = True
+
+        if updated:
+            character.save()
+            logger.info(f"Updated character {character.id} for project {project.id}: {list(request.data.keys())}")
+            return Response(CharacterSerializer(character).data, status=status.HTTP_200_OK)
+
+        return Response(
+            {'error': 'No valid fields provided for update'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
 
 class ChapterViewSet(viewsets.ModelViewSet):
     """ViewSet for Chapter model."""

@@ -187,32 +187,61 @@
             <h3>{% trans "Plot Structure" %}</h3>
             {% if has_plot %}
             <div class="plot-display">
+                <!-- Premise hidden as requested -->
+                <!-- Genre section hidden as requested -->
                 <div class="plot-field">
-                    <label>{% trans "Premise" %}</label>
-                    <p>{{ project.plot.premise }}</p>
-                </div>
-                <div class="plot-field">
-                    <label>{% trans "Genre" %}</label>
-                    <p>{{ project.plot.genre }}</p>
-                </div>
-                <div class="plot-field">
-                    <label>{% trans "Themes" %}</label>
-                    <p>{{ project.plot.themes }}</p>
-                </div>
-                <div class="plot-field">
-                    <label>{% trans "Conflict" %}</label>
-                    <p>{{ project.plot.conflict }}</p>
+                    <div id="plotThemesDisplay" style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div style="flex: 1;">
+                            <p><strong>{% trans "Themes" %}</strong>: <span id="plotThemesText">{{ project.plot.themes }}</span></p>
+                        </div>
+                        <button class="btn btn-sm btn-secondary" onclick="modifyPlotField('themes')" style="margin-left: 1rem;">
+                            {% trans "Modify" %}
+                        </button>
+                    </div>
+                    <div id="editThemesSection" style="display: none; margin-top: 1rem;">
+                        <form class="form-card">
+                            <div class="form-group">
+                                <label for="editThemesInput">{% trans "Themes" %}</label>
+                                <textarea id="editThemesInput" name="themes" class="form-control" rows="4" placeholder="{% trans 'Enter the themes...' %}">{{ project.plot.themes }}</textarea>
+                            </div>
+                            <div style="display: flex; gap: 1rem;">
+                                <button type="button" class="btn btn-primary" style="flex: 1;" onclick="savePlotField('themes')">
+                                    💾 {% trans "Save Changes" %}
+                                </button>
+                                <button type="button" class="btn btn-secondary" onclick="cancelPlotEdit('themes')">
+                                    {% trans "Cancel" %}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
                 {% if project.plot.structure %}
                 <div class="plot-field">
-                    <label>{% trans "Full Plot Structure" %}</label>
-                    <div style="white-space: pre-wrap; line-height: 1.6; margin-top: 10px;">{{ project.plot.structure }}</div>
-                </div>
-                {% endif %}
-                {% if project.plot.arc %}
-                <div class="plot-field">
-                    <label>{% trans "Story Arc" %}</label>
-                    <p style="white-space: pre-wrap; line-height: 1.6;">{{ project.plot.arc }}</p>
+                    <div id="plotStructureDisplay" style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div style="flex: 1;">
+                            <p><strong>{% trans "Full Plot Structure" %}</strong>:</p>
+                            <div id="plotStructureText" style="white-space: pre-wrap; line-height: 1.6; margin-top: 10px;">{{ project.plot.structure }}</div>
+                        </div>
+                        <button class="btn btn-sm btn-secondary" onclick="modifyPlotField('structure')" style="margin-left: 1rem;">
+                            {% trans "Modify" %}
+                        </button>
+                    </div>
+                    <div id="editStructureSection" style="display: none; margin-top: 1rem;">
+                        <div class="chapter-edit-container">
+                            <div class="edit-header">
+                                <h4>{% trans "Edit Plot Structure" %}</h4>
+                            </div>
+                            <textarea id="editStructureInput" class="form-control chapter-edit-textarea" rows="20" style="width: 100%; min-height: 400px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6;">{{ project.plot.structure }}</textarea>
+                            <div class="edit-actions" style="margin-top: 1rem; display: flex; gap: 1rem;">
+                                <button class="btn btn-primary" onclick="savePlotField('structure')">
+                                    💾 {% trans "Save" %}
+                                </button>
+                                <button class="btn btn-secondary" onclick="cancelPlotEdit('structure')">
+                                    ← {% trans "Back" %}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 {% endif %}
             </div>
@@ -229,12 +258,30 @@
             {% if characters %}
             <div class="characters-list">
                 {% for character in characters %}
-                <div class="character-card">
-                    <div class="character-header">
-                        <h4>{{ character.name }}</h4>
-                        <span class="role-badge">{{ character.get_role_display }}</span>
+                <div class="character-card" id="character-{{ character.id }}">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div style="flex: 1;">
+                            <p><strong>{{ character.name }}</strong>: {{ character.get_role_display }}</p>
+                            <p class="character-bio" id="characterBio-{{ character.id }}">{{ character.background }}</p>
+                        </div>
+                        <button class="btn btn-sm btn-secondary" onclick="modifyCharacter('{{ character.id }}')" style="margin-left: 1rem;">
+                            {% trans "Modify" %}
+                        </button>
                     </div>
-                    <p class="character-bio">{{ character.background|truncatewords:30 }}</p>
+                    <div id="editCharacter-{{ character.id }}" style="display: none; margin-top: 1rem;">
+                        <div class="form-group">
+                            <label>{% trans "Name" %}</label>
+                            <input type="text" id="editCharacterName-{{ character.id }}" class="form-control" value="{{ character.name }}">
+                        </div>
+                        <div class="form-group">
+                            <label>{% trans "Background" %}</label>
+                            <textarea id="editCharacterBio-{{ character.id }}" class="form-control" rows="4">{{ character.background }}</textarea>
+                        </div>
+                        <div style="margin-top: 0.5rem;">
+                            <button class="btn btn-sm btn-primary" onclick="saveCharacter('{{ character.id }}')">{% trans "Save" %}</button>
+                            <button class="btn btn-sm btn-secondary" onclick="cancelCharacterEdit('{{ character.id }}')">{% trans "Cancel" %}</button>
+                        </div>
+                    </div>
                 </div>
                 {% endfor %}
             </div>
@@ -253,8 +300,7 @@
                 <h3>{% trans "Chapters" %}</h3>
                 <div class="button-group">
                     {% if outlines %}
-                    <button class="btn btn-secondary" onclick="createOutline()">{% trans "Add Outline" %}</button>
-                    <button class="btn btn-primary" onclick="writeNextChapter()">{% trans "Write Chapter" %}</button>
+                    <button class="btn btn-primary" onclick="createOutline()">{% trans "Add Outline" %}</button>
                     {% else %}
                     <button class="btn btn-primary" onclick="createOutline()">{% trans "Create Outline" %}</button>
                     {% endif %}
@@ -1763,5 +1809,120 @@ window.addEventListener('DOMContentLoaded', function() {
 window.addEventListener('beforeunload', function() {
     closeNovelTextModal();
 });
+
+// Plot editing functions
+function modifyPlotField(field) {
+    const editSection = document.getElementById(`edit${field.charAt(0).toUpperCase() + field.slice(1)}Section`);
+    const displayDiv = field === 'themes' ? document.getElementById('plotThemesDisplay') : document.getElementById('plotStructureDisplay');
+
+    if (editSection && displayDiv) {
+        editSection.style.display = 'block';
+        displayDiv.style.display = 'none';
+    }
+}
+
+function cancelPlotEdit(field) {
+    const editSection = document.getElementById(`edit${field.charAt(0).toUpperCase() + field.slice(1)}Section`);
+    const displayDiv = field === 'themes' ? document.getElementById('plotThemesDisplay') : document.getElementById('plotStructureDisplay');
+
+    if (editSection && displayDiv) {
+        editSection.style.display = 'none';
+        displayDiv.style.display = 'flex';
+    }
+}
+
+async function savePlotField(field) {
+    const inputElement = document.getElementById(`edit${field.charAt(0).toUpperCase() + field.slice(1)}Input`);
+    const newValue = inputElement.value.trim();
+
+    if (!newValue) {
+        showToast(`${field.charAt(0).toUpperCase() + field.slice(1)} cannot be empty`, 'error');
+        return;
+    }
+
+    try {
+        const response = await apiRequest(`/api/projects/${projectId}/update_plot/`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+                [field]: newValue
+            })
+        });
+
+        // Update the display
+        if (field === 'themes') {
+            document.getElementById('plotThemesText').textContent = newValue;
+        } else if (field === 'structure') {
+            document.getElementById('plotStructureText').textContent = newValue;
+        }
+
+        cancelPlotEdit(field);
+        showToast('Plot updated successfully', 'success');
+    } catch (err) {
+        showToast('Error updating plot: ' + err.message, 'error');
+    }
+}
+
+// Character editing functions
+function modifyCharacter(characterId) {
+    const editSection = document.getElementById(`editCharacter-${characterId}`);
+    const characterCard = document.getElementById(`character-${characterId}`);
+
+    if (editSection && characterCard) {
+        editSection.style.display = 'block';
+        const displayDiv = characterCard.querySelector('div:first-child');
+        if (displayDiv) {
+            displayDiv.style.display = 'none';
+        }
+    }
+}
+
+function cancelCharacterEdit(characterId) {
+    const editSection = document.getElementById(`editCharacter-${characterId}`);
+    const characterCard = document.getElementById(`character-${characterId}`);
+
+    if (editSection && characterCard) {
+        editSection.style.display = 'none';
+        const displayDiv = characterCard.querySelector('div:first-child');
+        if (displayDiv) {
+            displayDiv.style.display = 'flex';
+        }
+    }
+}
+
+async function saveCharacter(characterId) {
+    const nameInput = document.getElementById(`editCharacterName-${characterId}`);
+    const bioInput = document.getElementById(`editCharacterBio-${characterId}`);
+
+    const newName = nameInput.value.trim();
+    const newBio = bioInput.value.trim();
+
+    if (!newName || !newBio) {
+        showToast('Name and background cannot be empty', 'error');
+        return;
+    }
+
+    try {
+        const response = await apiRequest(`/api/projects/${projectId}/update_character/${characterId}/`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+                name: newName,
+                background: newBio
+            })
+        });
+
+        // Update the display
+        const characterCard = document.getElementById(`character-${characterId}`);
+        const nameElement = characterCard.querySelector('strong');
+        const bioElement = document.getElementById(`characterBio-${characterId}`);
+
+        if (nameElement) nameElement.textContent = newName;
+        if (bioElement) bioElement.textContent = newBio;
+
+        cancelCharacterEdit(characterId);
+        showToast('Character updated successfully', 'success');
+    } catch (err) {
+        showToast('Error updating character: ' + err.message, 'error');
+    }
+}
 </script>
 {% endblock %}
