@@ -24,13 +24,27 @@ class Genre(models.Model):
     def __str__(self):
         """Return translated genre name based on current language."""
         current_lang = get_language() or 'en'
-        translation = self.translations.filter(language_code=current_lang).first()
-        if translation:
-            return translation.name
-        # Fallback to English
-        en_translation = self.translations.filter(language_code='en').first()
-        if en_translation:
-            return en_translation.name
+
+        # Use prefetched translations if available to avoid N+1 queries
+        if hasattr(self, '_prefetched_objects_cache') and 'translations' in self._prefetched_objects_cache:
+            # Iterate through prefetched translations
+            for translation in self.translations.all():
+                if translation.language_code == current_lang:
+                    return translation.name
+            # Fallback to English
+            for translation in self.translations.all():
+                if translation.language_code == 'en':
+                    return translation.name
+        else:
+            # No prefetch available, use filter (backwards compatibility)
+            translation = self.translations.filter(language_code=current_lang).first()
+            if translation:
+                return translation.name
+            # Fallback to English
+            en_translation = self.translations.filter(language_code='en').first()
+            if en_translation:
+                return en_translation.name
+
         return self.name_key
 
     def get_translation(self, language_code):
@@ -446,12 +460,12 @@ class Example(models.Model):
     """Good or bad writing examples."""
 
     CATEGORY_CHOICES = [
-        ('writing', 'General Writing'),
+        ('opening', 'Opening'),
         ('dialogue', 'Dialogue'),
         ('description', 'Description'),
-        ('exposition', 'Exposition'),
         ('action', 'Action'),
-        ('pacing', 'Pacing'),
+        ('transition', 'Transition'),
+        ('ending', 'Ending'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -462,9 +476,9 @@ class Example(models.Model):
     public = models.BooleanField(default=False, db_index=True, help_text="Whether this example is publicly available")
 
     is_good = models.BooleanField(help_text="True for good example, False for bad")
-    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES)
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, blank=True, null=True)
     content = models.TextField()
-    description = models.TextField(help_text="Why this is a good/bad example")
+    description = models.TextField(help_text="Why this is a good/bad example", blank=True)
 
     # For bad examples
     issues = models.JSONField(default=list, blank=True, help_text="List of issues")
@@ -508,10 +522,11 @@ class GenerationTask(models.Model):
         ('chapter', 'Chapter Writing'),
         ('edit', 'Editing'),
         ('score', 'Scoring'),
+        ('example_scoring', 'Example Scoring'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    project = models.ForeignKey(NovelProject, on_delete=models.CASCADE, related_name='tasks')
+    project = models.ForeignKey(NovelProject, on_delete=models.CASCADE, related_name='tasks', null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
 
     task_type = models.CharField(max_length=20, choices=TASK_TYPE_CHOICES)

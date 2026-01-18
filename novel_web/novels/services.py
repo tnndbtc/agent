@@ -465,3 +465,79 @@ class ExportService:
 
         files = exporter.export_complete_package(novel_data, language)
         return files
+
+
+class ExampleScoringService:
+    """Service for AI-powered example scoring."""
+
+    @staticmethod
+    def generate_scores(content, category=None, user_language='en'):
+        """
+        Generate AI scores for example content across all score categories.
+
+        Args:
+            content: The example text to evaluate
+            category: Optional category hint (dialogue, action, description, etc.)
+            user_language: User's language for response
+
+        Returns:
+            dict: {category_id: score_value} for each score category
+        """
+        from .models import ScoreCategory
+        from novel_agent.output import ExampleScorer
+
+        logger.info(f"Generating scores for content (length: {len(content)}, category: {category})")
+
+        # Get all public score categories from Django DB
+        categories = ScoreCategory.objects.filter(public=True).order_by('order')
+
+        if not categories.exists():
+            logger.warning("No score categories found")
+            return {}
+
+        # Build category mapping for novel_agent scorer
+        category_descriptions = {
+            'Story/Plot': 'Plot structure, pacing, narrative flow, and story development',
+            'Character Development': 'Character depth, growth, believability, and complexity',
+            'World Building': 'Setting details, atmosphere, immersion, and environmental description',
+            'Writing Style': 'Prose quality, voice, readability, and technical execution',
+            'Dialogue': 'Natural conversation, character voice, and realistic exchanges',
+            'Emotional Impact': 'Emotional resonance, reader engagement, and evocative writing'
+        }
+
+        # Create mapping of category names to descriptions for categories that exist in DB
+        scorer_categories = {}
+        for cat in categories:
+            cat_name = str(cat)
+            desc = category_descriptions.get(cat_name, 'General quality in this dimension')
+            scorer_categories[cat_name] = desc
+
+        # Get the example scorer from novel_agent
+        scorer = ExampleScorer()
+
+        try:
+            # Call novel_agent scorer
+            scores_by_name = scorer.score_example(
+                content=content,
+                categories=scorer_categories,
+                category_hint=category
+            )
+
+            logger.info(f"AI returned scores: {scores_by_name}")
+
+            # Map category names to IDs for Django
+            scores_dict = {}
+            for cat in categories:
+                cat_name = str(cat)
+                # Case-insensitive match
+                for score_cat_name, score_value in scores_by_name.items():
+                    if score_cat_name.lower() == cat_name.lower():
+                        scores_dict[cat.id] = score_value
+                        break
+
+            logger.info(f"Mapped scores to IDs: {scores_dict}")
+            return scores_dict
+
+        except Exception as e:
+            logger.error(f"Error generating scores: {e}", exc_info=True)
+            raise

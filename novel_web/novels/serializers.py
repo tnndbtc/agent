@@ -250,6 +250,9 @@ class ExampleSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'genre', 'public', 'is_good', 'category', 'content',
                   'description', 'issues', 'metadata', 'scores', 'total_score', 'created_at']
         read_only_fields = ['id', 'user', 'created_at', 'total_score']
+        extra_kwargs = {
+            'category': {'allow_null': True, 'required': False},
+        }
 
 
 class GenerationTaskSerializer(serializers.ModelSerializer):

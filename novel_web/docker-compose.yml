@@ -39,6 +39,7 @@ services:
     command: daphne -b 0.0.0.0 -p 8000 novel_web.asgi:application
     volumes:
       - .:/app
+      - ../novel_agent:/tmp/novel_agent
       - media_data:/app/media
       - static_data:/app/staticfiles
     ports:
@@ -74,6 +75,7 @@ services:
     command: celery -A novel_web worker -l info --concurrency=2
     volumes:
       - .:/app
+      - ../novel_agent:/tmp/novel_agent
       - media_data:/app/media
     environment:
       - DEBUG=${DEBUG:-False}
@@ -103,6 +105,7 @@ services:
     command: celery -A novel_web beat -l info
     volumes:
       - .:/app
+      - ../novel_agent:/tmp/novel_agent
     environment:
       - DEBUG=${DEBUG:-False}
       - SECRET_KEY=${SECRET_KEY}

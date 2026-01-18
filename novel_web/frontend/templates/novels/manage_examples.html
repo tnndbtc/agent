@@ -1,0 +1,786 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Manage Examples" %} - {% trans "Novel Writing Agent" %}{% endblock %}
+{% block nav_title %}{% trans "Manage Examples" %}{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <div class="dashboard-header">
+        <h2>{% trans "Manage Examples" %}</h2>
+        <div style="display: flex; gap: 1rem;">
+            <select id="genreFilter" class="form-control" style="width: 200px;" onchange="filterByGenre()">
+                <option value="">{% trans "All Genres" %}</option>
+                {% for genre in genres %}
+                <option value="{{ genre.id }}">{{ genre }}</option>
+                {% endfor %}
+            </select>
+            <button class="btn btn-primary" onclick="openCreateModal()">
+                ➕ {% trans "Create Example" %}
+            </button>
+        </div>
+    </div>
+
+    <!-- Public Examples Section -->
+    <div class="examples-section">
+        <h3>{% trans "Public Examples" %}</h3>
+        {% if public_examples %}
+        <div class="examples-grid" id="publicExamplesGrid">
+            {% for example in public_examples %}
+            <div class="example-card" data-genre="{{ example.genre.id|default:'' }}" data-example-id="{{ example.id }}">
+                <div class="example-header">
+                    {% if example.genre %}
+                    <span class="genre-badge">{{ example.genre }}</span>
+                    {% endif %}
+                    <span class="category-badge category-{{ example.category }}">{{ example.get_category_display }}</span>
+                    <span class="quality-badge {% if example.is_good %}good{% else %}bad{% endif %}">
+                        {% if example.is_good %}✓ {% trans "Good" %}{% else %}✗ {% trans "Bad" %}{% endif %}
+                    </span>
+                </div>
+                <div class="example-content">
+                    <p>{{ example.content|truncatewords:50 }}</p>
+                    {% if example.description %}
+                    <p class="example-description"><strong>{% trans "Description" %}:</strong> {{ example.description }}</p>
+                    {% endif %}
+                </div>
+                <div class="example-scores">
+                    <strong>{% trans "Score" %}:</strong> {{ example.total_score|floatformat:1 }}
+                    {% if example.scores.all %}
+                    <div class="score-breakdown">
+                        {% for score in example.scores.all %}
+                        <span class="score-item">{{ score.category_name }}: {{ score.score }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="example-meta">
+                    <small>{% trans "By" %} {{ example.user.username }} • {{ example.created_at|timesince }} {% trans "ago" %}</small>
+                </div>
+                {% if example.user == user %}
+                <div class="example-actions">
+                    <button class="btn btn-sm btn-primary" onclick="editExample('{{ example.id }}')">
+                        {% trans "Edit" %}
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteExample('{{ example.id }}')">
+                        {% trans "Delete" %}
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>{% trans "No public examples yet" %}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Private Examples Section -->
+    <div class="examples-section" style="margin-top: 2rem;">
+        <h3>{% trans "My Private Examples" %}</h3>
+        {% if private_examples %}
+        <div class="examples-grid" id="privateExamplesGrid">
+            {% for example in private_examples %}
+            <div class="example-card" data-genre="{{ example.genre.id|default:'' }}" data-example-id="{{ example.id }}">
+                <div class="example-header">
+                    {% if example.genre %}
+                    <span class="genre-badge">{{ example.genre }}</span>
+                    {% endif %}
+                    <span class="category-badge category-{{ example.category }}">{{ example.get_category_display }}</span>
+                    <span class="quality-badge {% if example.is_good %}good{% else %}bad{% endif %}">
+                        {% if example.is_good %}✓ {% trans "Good" %}{% else %}✗ {% trans "Bad" %}{% endif %}
+                    </span>
+                </div>
+                <div class="example-content">
+                    <p>{{ example.content|truncatewords:50 }}</p>
+                    {% if example.description %}
+                    <p class="example-description"><strong>{% trans "Description" %}:</strong> {{ example.description }}</p>
+                    {% endif %}
+                </div>
+                <div class="example-scores">
+                    <strong>{% trans "Score" %}:</strong> {{ example.total_score|floatformat:1 }}
+                    {% if example.scores.all %}
+                    <div class="score-breakdown">
+                        {% for score in example.scores.all %}
+                        <span class="score-item">{{ score.category_name }}: {{ score.score }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="example-meta">
+                    <small>{{ example.created_at|timesince }} {% trans "ago" %}</small>
+                </div>
+                <div class="example-actions">
+                    <button class="btn btn-sm btn-primary" onclick="editExample('{{ example.id }}')">
+                        {% trans "Edit" %}
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteExample('{{ example.id }}')">
+                        {% trans "Delete" %}
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>{% trans "No private examples yet" %}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Create/Edit Example Modal -->
+<div class="modal" id="exampleModal" style="display: none;">
+    <div class="modal-content" style="max-width: 800px;">
+        <div class="modal-header">
+            <h3 id="modalTitle">{% trans "Create Example" %}</h3>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <form id="exampleForm" class="modal-form">
+            <input type="hidden" id="exampleId" value="">
+
+            <div class="form-group">
+                <label for="content">{% trans "Content" %} *</label>
+                <textarea id="content" name="content" class="form-control" rows="5" required></textarea>
+            </div>
+
+            <div class="form-group" style="display: none;">
+                <label for="description">{% trans "Description" %}</label>
+                <textarea id="description" name="description" class="form-control" rows="2"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="category">{% trans "Category" %}</label>
+                <select id="category" name="category" class="form-control">
+                    <option value="">{% trans "Select a category..." %}</option>
+                    <option value="opening">{% trans "Opening" %}</option>
+                    <option value="dialogue">{% trans "Dialogue" %}</option>
+                    <option value="description">{% trans "Description" %}</option>
+                    <option value="action">{% trans "Action" %}</option>
+                    <option value="transition">{% trans "Transition" %}</option>
+                    <option value="ending">{% trans "Ending" %}</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="genre">{% trans "Genre" %}</label>
+                <select id="genre" name="genre" class="form-control" onchange="handleGenreChange()">
+                    <option value="">{% trans "No specific genre" %}</option>
+                    {% for genre in genres %}
+                    <option value="{{ genre.id }}">{{ genre }}</option>
+                    {% endfor %}
+                    <option value="Custom">{% trans "Custom (Enter your own)" %}</option>
+                </select>
+            </div>
+            <div class="form-group" id="customGenreGroup" style="display: none;">
+                <label for="customGenre">{% trans "Custom Genre" %}</label>
+                <input type="text" id="customGenre" name="customGenre" class="form-control" placeholder="{% trans "Enter custom genre..." %}">
+            </div>
+
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="isGood" name="is_good" checked>
+                    {% trans "This is a good example" %}
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="public" name="public">
+                    {% trans "Make this example public" %}
+                </label>
+            </div>
+
+            <!-- Score Categories -->
+            <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <label style="margin: 0;">{% trans "Scores" %}</label>
+                    <button type="button" class="btn btn-sm btn-primary" id="generateScoresBtn" disabled>
+                        ✨ {% trans "Generate Scores" %}
+                    </button>
+                </div>
+
+                <!-- Progress bar for AI generation -->
+                <div id="scoreProgressContainer" class="progress-container" style="display: none; margin-bottom: 1rem;">
+                    <div class="progress-bar">
+                        <div id="scoreProgressBarFill" class="progress-bar-fill" style="width: 0%;">0%</div>
+                    </div>
+                    <div id="scoreProgressText" class="progress-text">Analyzing example...</div>
+                </div>
+
+                <div id="scoreInputs">
+                    {% for cat in score_categories %}
+                    <div class="score-input-row">
+                        <label for="score_{{ cat.id }}" style="font-weight: 600; margin-bottom: 0.5rem;">{{ cat }}</label>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <div style="flex: 1;">
+                                <small style="display: block; color: #6b7280; font-size: 0.75rem; margin-bottom: 0.25rem;">{% trans "Score" %}</small>
+                                <input type="number" id="score_cat_{{ cat.id }}" data-category-id="{{ cat.id }}"
+                                       class="score-input form-control" min="0" max="10" step="0.1" value="0">
+                            </div>
+                            <div style="flex: 1;">
+                                <small style="display: block; color: #6b7280; font-size: 0.75rem; margin-bottom: 0.25rem;">{% trans "Weight" %} (%)</small>
+                                <input type="number" id="weight_cat_{{ cat.id }}" data-category-id="{{ cat.id }}"
+                                       class="weight-input form-control" min="0" max="100" value="{{ cat.default_weight }}"
+                                       placeholder="Weight">
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">{% trans "Cancel" %}</button>
+                <button type="submit" class="btn btn-primary" id="saveExampleBtn" disabled>{% trans "Save" %}</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.examples-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.example-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+    transition: box-shadow 0.2s;
+}
+
+.example-card:hover {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.example-header {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.genre-badge {
+    background: #3b82f6;
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.875rem;
+}
+
+.category-badge {
+    background: #10b981;
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.875rem;
+}
+
+.quality-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.875rem;
+}
+
+.quality-badge.good {
+    background: #22c55e;
+    color: white;
+}
+
+.quality-badge.bad {
+    background: #ef4444;
+    color: white;
+}
+
+.example-content {
+    margin-bottom: 1rem;
+    color: #374151;
+}
+
+.example-description {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-top: 0.5rem;
+}
+
+.example-scores {
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.score-breakdown {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.score-item {
+    background: #f3f4f6;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+}
+
+.example-meta {
+    color: #9ca3af;
+    font-size: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.example-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.score-input-row {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+}
+
+.score-input-row label {
+    margin: 0;
+}
+
+.score-input, .weight-input {
+    padding: 0.5rem !important;
+    font-size: 0.875rem !important;
+}
+
+.examples-section {
+    margin-bottom: 2rem;
+}
+
+/* Progress bar styles */
+.progress-container {
+    width: 100%;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 30px;
+    background-color: #e5e7eb;
+    border-radius: 15px;
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%);
+    transition: width 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.progress-text {
+    margin-top: 0.5rem;
+    text-align: center;
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+/* Disabled button styles */
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+</style>
+
+<script>
+let currentExampleId = null;
+let existingScores = {}; // Map of category_id -> score_id for editing
+
+function openCreateModal() {
+    currentExampleId = null;
+    existingScores = {};
+    document.getElementById('modalTitle').textContent = '{% trans "Create Example" %}';
+    document.getElementById('exampleForm').reset();
+    document.getElementById('exampleId').value = '';
+    document.getElementById('exampleModal').style.display = 'flex';
+
+    // Reset scores to 0
+    document.querySelectorAll('.score-input').forEach(input => input.value = 0);
+
+    // Disable buttons
+    document.getElementById('generateScoresBtn').disabled = true;
+    document.getElementById('saveExampleBtn').disabled = true;
+
+    // Hide progress
+    document.getElementById('scoreProgressContainer').style.display = 'none';
+    document.getElementById('customGenreGroup').style.display = 'none';
+}
+
+function closeModal() {
+    document.getElementById('exampleModal').style.display = 'none';
+    currentExampleId = null;
+    document.getElementById('customGenreGroup').style.display = 'none';
+    document.getElementById('scoreProgressContainer').style.display = 'none';
+}
+
+function handleGenreChange() {
+    const genreSelect = document.getElementById('genre');
+    const customGenreGroup = document.getElementById('customGenreGroup');
+
+    if (genreSelect.value === 'Custom') {
+        customGenreGroup.style.display = 'block';
+    } else {
+        customGenreGroup.style.display = 'none';
+    }
+}
+
+async function editExample(exampleId) {
+    try {
+        showLoading('Loading example...');
+        const response = await apiRequest(`/api/examples/${exampleId}/`);
+        hideLoading();
+
+        currentExampleId = exampleId;
+        existingScores = {}; // Reset existing scores map
+
+        document.getElementById('modalTitle').textContent = '{% trans "Edit Example" %}';
+        document.getElementById('exampleId').value = exampleId;
+        document.getElementById('content').value = response.content || '';
+        document.getElementById('description').value = response.description || '';
+        document.getElementById('category').value = response.category || '';
+
+        // Handle genre - check if it's a predefined genre ID or custom text
+        const genreSelect = document.getElementById('genre');
+        const customGenreGroup = document.getElementById('customGenreGroup');
+        const customGenreInput = document.getElementById('customGenre');
+
+        if (response.genre) {
+            // Check if the genre value exists in the select options
+            const optionExists = Array.from(genreSelect.options).some(option => option.value == response.genre);
+            if (optionExists) {
+                genreSelect.value = response.genre;
+                customGenreGroup.style.display = 'none';
+            } else {
+                // It's a custom genre
+                genreSelect.value = 'Custom';
+                customGenreInput.value = response.genre;
+                customGenreGroup.style.display = 'block';
+            }
+        } else {
+            genreSelect.value = '';
+            customGenreGroup.style.display = 'none';
+        }
+
+        document.getElementById('isGood').checked = response.is_good || false;
+        document.getElementById('public').checked = response.public || false;
+
+        // Load scores and populate existingScores map
+        if (response.scores && response.scores.length > 0) {
+            response.scores.forEach(score => {
+                // Store existing score ID for later update
+                existingScores[score.category] = score.id;
+
+                const scoreInput = document.getElementById(`score_cat_${score.category}`);
+                const weightInput = document.getElementById(`weight_cat_${score.category}`);
+                if (scoreInput) scoreInput.value = score.score;
+                if (weightInput) weightInput.value = score.weight;
+            });
+
+            // Enable Save button if scores are available
+            document.getElementById('saveExampleBtn').disabled = false;
+        }
+
+        // Enable Save button when category changes in edit mode
+        const categoryField = document.getElementById('category');
+        categoryField.addEventListener('change', function() {
+            if (currentExampleId) {
+                document.getElementById('saveExampleBtn').disabled = false;
+            }
+        });
+
+        document.getElementById('exampleModal').style.display = 'flex';
+    } catch (err) {
+        hideLoading();
+        showToast('Error loading example: ' + err.message, 'error');
+    }
+}
+
+document.getElementById('exampleForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    // Determine the final genre value
+    const genreSelect = document.getElementById('genre').value;
+    let genre = null;
+    if (genreSelect === 'Custom') {
+        const customGenreValue = document.getElementById('customGenre').value.trim();
+        genre = customGenreValue || null;
+    } else if (genreSelect) {
+        genre = genreSelect;
+    }
+
+    const categoryValue = document.getElementById('category').value;
+    const data = {
+        content: document.getElementById('content').value,
+        description: document.getElementById('description').value,
+        category: categoryValue || null,
+        genre: genre,
+        is_good: document.getElementById('isGood').checked,
+        public: document.getElementById('public').checked
+    };
+
+    try {
+        showLoading(currentExampleId ? 'Updating example...' : 'Creating example...');
+
+        let response;
+        if (currentExampleId) {
+            response = await apiRequest(`/api/examples/${currentExampleId}/`, {
+                method: 'PATCH',
+                body: JSON.stringify(data)
+            });
+        } else {
+            response = await apiRequest('/api/examples/', {
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+        }
+
+        // Save scores - update existing or create new
+        const scoreInputs = document.querySelectorAll('.score-input');
+        for (const input of scoreInputs) {
+            const categoryId = input.dataset.categoryId;
+            const score = parseFloat(input.value);
+            const weightInput = document.getElementById(`weight_cat_${categoryId}`);
+            const weight = parseInt(weightInput.value);
+
+            if (score > 0) {
+                // Check if this score already exists for this example
+                if (existingScores[categoryId]) {
+                    // Update existing score with PATCH via /api/example-scores/{id}/
+                    await apiRequest(`/api/example-scores/${existingScores[categoryId]}/`, {
+                        method: 'PATCH',
+                        body: JSON.stringify({
+                            score: score,
+                            weight: weight
+                        })
+                    });
+                } else {
+                    // Create new score with POST via /api/examples/{id}/scores/
+                    await apiRequest(`/api/examples/${response.id}/scores/`, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            category: categoryId,
+                            score: score,
+                            weight: weight
+                        })
+                    });
+                }
+            }
+        }
+
+        hideLoading();
+        showToast(currentExampleId ? 'Example updated successfully!' : 'Example created successfully!', 'success');
+        closeModal();
+        setTimeout(() => window.location.reload(), 1000);
+    } catch (err) {
+        hideLoading();
+        showToast('Error saving example: ' + err.message, 'error');
+    }
+});
+
+async function deleteExample(exampleId) {
+    if (!confirm('{% trans "Are you sure you want to delete this example?" %}')) {
+        return;
+    }
+
+    try {
+        showLoading('Deleting example...');
+        await apiRequest(`/api/examples/${exampleId}/`, {
+            method: 'DELETE'
+        });
+        hideLoading();
+        showToast('Example deleted successfully!', 'success');
+        setTimeout(() => window.location.reload(), 1000);
+    } catch (err) {
+        hideLoading();
+        showToast('Error deleting example: ' + err.message, 'error');
+    }
+}
+
+function filterByGenre() {
+    const genreId = document.getElementById('genreFilter').value;
+    const allCards = document.querySelectorAll('.example-card');
+
+    allCards.forEach(card => {
+        const cardGenre = card.dataset.genre;
+        if (!genreId || cardGenre === genreId) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+// Enable Generate Scores button when content is entered
+document.getElementById('content').addEventListener('input', function() {
+    const hasContent = this.value.trim().length > 0;
+    document.getElementById('generateScoresBtn').disabled = !hasContent;
+});
+
+// Generate Scores with AI
+document.getElementById('generateScoresBtn').addEventListener('click', async function() {
+    const content = document.getElementById('content').value.trim();
+    const category = document.getElementById('category').value;
+
+    if (!content) {
+        showToast('{% trans "Please enter content first" %}', 'error');
+        return;
+    }
+
+    try {
+        // Disable button during generation
+        this.disabled = true;
+        this.textContent = '{% trans "Generating..." %}';
+
+        // Show progress bar
+        const progressContainer = document.getElementById('scoreProgressContainer');
+        const progressBarFill = document.getElementById('scoreProgressBarFill');
+        const progressText = document.getElementById('scoreProgressText');
+        progressContainer.style.display = 'block';
+        progressBarFill.style.width = '0%';
+        progressBarFill.textContent = '0%';
+
+        // Start API request
+        const response = await apiRequest('/api/examples/generate-scores/', {
+            method: 'POST',
+            body: JSON.stringify({
+                content: content,
+                category: category
+            })
+        });
+
+        const taskId = response.task_id;
+
+        // Connect to WebSocket for progress updates
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/generate/${taskId}/`;
+        const socket = new WebSocket(wsUrl);
+
+        socket.onopen = () => {
+            console.log('WebSocket connected for score generation');
+        };
+
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            if (data.type === 'progress') {
+                // Update progress bar
+                progressBarFill.style.width = `${data.progress}%`;
+                progressBarFill.textContent = `${Math.round(data.progress)}%`;
+                progressText.textContent = data.message || '{% trans "Analyzing..." %}';
+
+                // Check if completed
+                if (data.status === 'completed' || data.progress >= 100) {
+                    socket.close();
+                    fetchTaskResult(taskId);
+                }
+            } else if (data.type === 'complete') {
+                socket.close();
+                fetchTaskResult(taskId);
+            } else if (data.type === 'error') {
+                socket.close();
+                progressContainer.style.display = 'none';
+                showToast('{% trans "Error generating scores: " %}' + data.error, 'error');
+                resetGenerateButton();
+            }
+        };
+
+        socket.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            showToast('{% trans "Connection error during score generation" %}', 'error');
+            progressContainer.style.display = 'none';
+            resetGenerateButton();
+        };
+
+        socket.onclose = () => {
+            console.log('WebSocket closed');
+        };
+
+    } catch (error) {
+        console.error('Error starting score generation:', error);
+        showToast('{% trans "Error: " %}' + error.message, 'error');
+        resetGenerateButton();
+        document.getElementById('scoreProgressContainer').style.display = 'none';
+    }
+});
+
+async function fetchTaskResult(taskId) {
+    try {
+        const taskData = await apiRequest(`/api/tasks/${taskId}/`);
+
+        if (taskData.status === 'completed' && taskData.result_data && taskData.result_data.scores) {
+            const scores = taskData.result_data.scores;
+
+            // Populate score inputs
+            for (const [categoryId, scoreValue] of Object.entries(scores)) {
+                const scoreInput = document.getElementById(`score_cat_${categoryId}`);
+                if (scoreInput) {
+                    scoreInput.value = scoreValue;
+
+                    // Add animation to highlight changed value
+                    scoreInput.style.background = '#dcfce7';
+                    setTimeout(() => {
+                        scoreInput.style.background = '';
+                    }, 1000);
+                }
+            }
+
+            // Hide progress, enable save button
+            document.getElementById('scoreProgressContainer').style.display = 'none';
+            document.getElementById('saveExampleBtn').disabled = false;
+
+            // Reset generate button
+            resetGenerateButton();
+
+            showToast('{% trans "Scores generated successfully!" %}', 'success');
+        } else if (taskData.status === 'failed') {
+            throw new Error(taskData.error_message || '{% trans "Task failed" %}');
+        }
+    } catch (error) {
+        console.error('Error fetching task result:', error);
+        showToast('{% trans "Error retrieving scores: " %}' + error.message, 'error');
+        document.getElementById('scoreProgressContainer').style.display = 'none';
+        resetGenerateButton();
+    }
+}
+
+function resetGenerateButton() {
+    const btn = document.getElementById('generateScoresBtn');
+    const hasContent = document.getElementById('content').value.trim().length > 0;
+    btn.disabled = !hasContent;
+    btn.textContent = '✨ {% trans "Generate Scores" %}';
+}
+
+// Enable save button when any score is manually entered
+document.querySelectorAll('.score-input').forEach(input => {
+    input.addEventListener('input', function() {
+        // Check if at least one score is > 0
+        const hasAnyScore = Array.from(document.querySelectorAll('.score-input'))
+            .some(inp => parseFloat(inp.value) > 0);
+
+        if (hasAnyScore) {
+            document.getElementById('saveExampleBtn').disabled = false;
+        }
+    });
+});
+</script>
+{% endblock %}

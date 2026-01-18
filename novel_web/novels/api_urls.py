@@ -5,7 +5,7 @@ from rest_framework.authtoken.views import obtain_auth_token
 from .views import (
     NovelProjectViewSet, ChapterViewSet,
     GenerationTaskViewSet, ExampleViewSet, ScoreCategoryViewSet,
-    GenreViewSet
+    GenreViewSet, ExampleScoreViewSet
 )
 
 router = DefaultRouter()
@@ -14,6 +14,7 @@ router.register(r'chapters', ChapterViewSet, basename='chapter')
 router.register(r'tasks', GenerationTaskViewSet, basename='task')
 router.register(r'genres', GenreViewSet, basename='genre')
 router.register(r'examples', ExampleViewSet, basename='example')
+router.register(r'example-scores', ExampleScoreViewSet, basename='example-score')
 router.register(r'score-categories', ScoreCategoryViewSet, basename='score-category')
 
 urlpatterns = [

@@ -37,20 +37,21 @@ show_menu() {
     echo "  Novel Writing Agent - Setup & Management"
     echo "=========================================="
     echo ""
-    echo "1)  Initial Setup (Docker)"
-    echo "2)  Initial Setup (Local Development)"
-    echo "3)  Run Migrations"
-    echo "4)  Clean up (Remove and recreate all Docker volumes and data)"
+    echo "1)  Setup Docker (Build and start containers)"
+    echo "2)  Setup Local Development"
+    echo "3)  Setup Database/Users (Run migrations and create superuser)"
+    echo "4)  Run Migrations (Update database schema)"
+    echo "5)  Clean up (Remove and recreate all Docker volumes and data)"
     echo "0)  Exit"
     echo ""
     read -p "Enter choice: " choice
 }
 
-# Initial setup - Docker
+# Setup Docker - Build and start containers only
 setup_docker() {
     echo ""
     echo "=================================="
-    echo "Docker Setup"
+    echo "Docker Setup - Build and Start Containers"
     echo "=================================="
     echo ""
 
@@ -123,43 +124,27 @@ setup_docker() {
     log_info "Building Docker images..."
     docker compose build
 
-    log_info "Starting database services..."
-    docker compose up -d db redis
+    log_info "Starting all services..."
+    docker compose up -d
 
     log_info "Waiting for services to be ready..."
     sleep 10
-
-    log_info "Starting web application..."
-    docker compose up -d
-
-    log_info "Waiting for web service to initialize (migrations will run automatically)..."
-    sleep 5
-
-    echo ""
-    read -p "Create superuser now? (y/n): " create_super
-    if [ "$create_super" = "y" ]; then
-        set +e  # Temporarily disable exit on error
-        docker compose exec web python manage.py createsuperuser
-        if [ $? -eq 0 ]; then
-            log_info "Superuser created successfully!"
-        else
-            log_warn "Superuser creation cancelled or failed. You can create one later with:"
-            log_warn "  docker compose exec web python manage.py createsuperuser"
-        fi
-        set -e  # Re-enable exit on error
-    fi
 
     local_ip=$(get_local_ip)
 
     echo ""
     echo "=================================="
-    log_info "Setup complete!"
+    log_info "Docker setup complete!"
     echo "=================================="
     echo ""
     echo "Application URLs:"
     echo "  Local:   http://localhost:8000"
     echo "  Network: http://$local_ip:8000"
     echo "  Admin:   http://localhost:8000/admin/"
+    echo ""
+    log_warn "Next steps:"
+    log_warn "  - Run option 3 to setup database and create superuser"
+    log_warn "  - Or run option 4 to just apply migrations"
     echo ""
     echo "Useful commands:"
     echo "  View logs:    docker compose logs -f"
@@ -246,6 +231,76 @@ setup_local() {
     echo "  celery -A novel_web worker -l info"
     echo ""
     log_warn "Make sure PostgreSQL and Redis are running!"
+    echo ""
+}
+
+# Setup Database and Users - Run migrations and create superuser
+setup_database() {
+    echo ""
+    echo "=================================="
+    echo "Setup Database and Users"
+    echo "=================================="
+    echo ""
+
+    # Determine which setup is being used
+    if command -v docker &> /dev/null && [ -f "docker-compose.yml" ] && docker compose ps web 2>/dev/null | grep -q "Up"; then
+        log_info "Using Docker setup..."
+
+        log_info "Running migrations..."
+        docker compose exec web python manage.py makemigrations || log_warn "No new migrations to create"
+        docker compose exec web python manage.py migrate
+
+        echo ""
+        log_info "Migrations completed!"
+
+        echo ""
+        read -p "Create superuser now? (y/n): " create_super
+        if [ "$create_super" = "y" ]; then
+            set +e  # Temporarily disable exit on error
+            docker compose exec web python manage.py createsuperuser
+            if [ $? -eq 0 ]; then
+                log_info "Superuser created successfully!"
+            else
+                log_warn "Superuser creation cancelled or failed. You can create one later with:"
+                log_warn "  docker compose exec web python manage.py createsuperuser"
+            fi
+            set -e  # Re-enable exit on error
+        fi
+
+    elif [ -d "venv" ]; then
+        log_info "Using local setup..."
+        source venv/bin/activate
+
+        log_info "Running migrations..."
+        python manage.py makemigrations || log_warn "No new migrations to create"
+        python manage.py migrate
+
+        echo ""
+        log_info "Migrations completed!"
+
+        echo ""
+        read -p "Create superuser now? (y/n): " create_super
+        if [ "$create_super" = "y" ]; then
+            set +e  # Temporarily disable exit on error
+            python manage.py createsuperuser
+            if [ $? -eq 0 ]; then
+                log_info "Superuser created successfully!"
+            else
+                log_warn "Superuser creation cancelled or failed. You can create one later with:"
+                log_warn "  python manage.py createsuperuser"
+            fi
+            set -e  # Re-enable exit on error
+        fi
+
+    else
+        log_error "No setup found. Please run option 1 (Docker) or 2 (Local) first."
+        return 1
+    fi
+
+    echo ""
+    echo "=================================="
+    log_info "Database setup complete!"
+    echo "=================================="
     echo ""
 }
 
@@ -507,7 +562,7 @@ cleanup_docker() {
     log_info "Clean up and recreation completed!"
     echo ""
     log_info "New containers have been created with fresh databases."
-    log_info "You may need to run migrations (option 3) and create a superuser."
+    log_info "You may need to run option 3 to setup database and create a superuser."
     echo ""
 }
 
@@ -517,8 +572,9 @@ while true; do
     case $choice in
         1) setup_docker; read -p "Press Enter to continue..." ;;
         2) setup_local; read -p "Press Enter to continue..." ;;
-        3) run_migrations; read -p "Press Enter to continue..." ;;
-        4) cleanup_docker; read -p "Press Enter to continue..." ;;
+        3) setup_database; read -p "Press Enter to continue..." ;;
+        4) run_migrations; read -p "Press Enter to continue..." ;;
+        5) cleanup_docker; read -p "Press Enter to continue..." ;;
         0) echo "Exiting..."; exit 0 ;;
         *) log_error "Invalid choice. Try again."; read -p "Press Enter to continue..." ;;
     esac

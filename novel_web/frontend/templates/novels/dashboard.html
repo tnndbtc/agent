@@ -62,17 +62,9 @@
                 <label for="genreSelect">{% trans "Genre" %}</label>
                 <select id="genreSelect" name="genreSelect" onchange="handleGenreChange()">
                     <option value="">{% trans "Select a genre..." %}</option>
-                    <option value="Fantasy">{% trans "Fantasy" %}</option>
-                    <option value="Science Fiction">{% trans "Science Fiction" %}</option>
-                    <option value="Romance">{% trans "Romance" %}</option>
-                    <option value="Mystery">{% trans "Mystery" %}</option>
-                    <option value="Thriller">{% trans "Thriller" %}</option>
-                    <option value="Horror">{% trans "Horror" %}</option>
-                    <option value="Historical Fiction">{% trans "Historical Fiction" %}</option>
-                    <option value="Literary Fiction">{% trans "Literary Fiction" %}</option>
-                    <option value="Young Adult">{% trans "Young Adult" %}</option>
-                    <option value="Adventure">{% trans "Adventure" %}</option>
-                    <option value="Dystopian">{% trans "Dystopian" %}</option>
+                    {% for genre in genres %}
+                    <option value="{{ genre.id }}">{{ genre }}</option>
+                    {% endfor %}
                     <option value="Custom">{% trans "Custom (Enter your own)" %}</option>
                 </select>
             </div>
@@ -199,5 +191,8 @@ function deleteProject(projectId, projectTitle) {
         showErrorModal('Error deleting project: ' + err.message);
     });
 }
+
+// Genres are now loaded server-side in the template (see lines 65-67)
+// This ensures both Dashboard and Manage Examples pages show the same genre list
 </script>
 {% endblock %}

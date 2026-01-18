@@ -36,6 +36,22 @@ msgstr "我的项目"
 msgid "Admin"
 msgstr "管理"
 
+#: frontend/templates/base.html:53
+msgid "Manage Examples"
+msgstr "管理示例"
+
+#: frontend/templates/novels/manage_examples.html:23
+msgid "Public Examples"
+msgstr "公共示例"
+
+#: frontend/templates/novels/manage_examples.html:77
+msgid "My Private Examples"
+msgstr "我的私有示例"
+
+#: frontend/templates/novels/manage_examples.html:52
+msgid "Score"
+msgstr "评分"
+
 #: frontend/templates/base.html:59
 msgid "Logout"
 msgstr "登出"

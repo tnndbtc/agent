@@ -900,6 +900,102 @@ class ExampleViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+    def create(self, request, *args, **kwargs):
+        """Override create to add detailed error logging."""
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            logger.error(f"Example creation failed. Request data: {request.data}")
+            logger.error(f"Validation errors: {serializer.errors}")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    @action(detail=False, methods=['post'], url_path='generate-scores')
+    def generate_scores(self, request):
+        """Generate AI scores for example content."""
+        content = request.data.get('content')
+        category = request.data.get('category')  # Optional
+
+        if not content:
+            return Response(
+                {'error': 'Content is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get user's language preference
+        user_language = getattr(request, 'LANGUAGE_CODE', 'en')
+
+        # Create generation task
+        task = GenerationTask.objects.create(
+            project=None,  # Not project-specific
+            user=request.user,
+            task_type='example_scoring',
+            input_data={
+                'content': content,
+                'category': category,
+                'language': user_language
+            }
+        )
+
+        # Start async task
+        from .tasks import generate_example_scores_task
+        generate_example_scores_task.delay(
+            task_id=str(task.id),
+            content=content,
+            category=category,
+            user_language=user_language
+        )
+
+        return Response({
+            'task_id': str(task.id),
+            'status': 'Task started'
+        }, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=True, methods=['post'], url_path='scores')
+    def create_score(self, request, pk=None):
+        """Create a score for this example."""
+        example = self.get_object()
+
+        # Verify the user owns this example or it's public
+        if example.user != request.user and not example.public:
+            return Response(
+                {'error': 'You do not have permission to score this example'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = ExampleScoreSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(example=example)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+class ExampleScoreViewSet(viewsets.ModelViewSet):
+    """ViewSet for ExampleScore model."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = ExampleScoreSerializer
+
+    def get_queryset(self):
+        """Return scores for examples the user can access."""
+        return ExampleScore.objects.filter(
+            Q(example__public=True) | Q(example__user=self.request.user)
+        ).select_related('example', 'category')
+
+    def perform_create(self, serializer):
+        """Create score - example must be set in request data."""
+        serializer.save()
+
+    def perform_update(self, serializer):
+        """Update score - verify permissions."""
+        score = self.get_object()
+        if score.example.user != self.request.user:
+            raise PermissionError("You don't have permission to update this score")
+        serializer.save()
+
 
 class ScoreCategoryViewSet(viewsets.ModelViewSet):
     """ViewSet for ScoreCategory model."""

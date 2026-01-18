@@ -650,3 +650,68 @@ def score_novel_task(self, task_id, project_id):
             # Final failure after all retries exhausted
             logger.error(f"Score novel task {task_id} failed after {self.max_retries} retries")
             raise
+
+
+@shared_task(bind=True, max_retries=3)
+def generate_example_scores_task(self, task_id, content, category=None, user_language='en'):
+    """Generate AI scores for example content."""
+    logger.info(f"Example scoring task started - task_id: {task_id}, "
+               f"content_length: {len(content)}, category: {category}")
+
+    try:
+        task = GenerationTask.objects.get(id=task_id)
+        task.status = 'running'
+        task.started_at = timezone.now()
+        task.celery_task_id = self.request.id
+        task.save(update_fields=['status', 'started_at', 'celery_task_id'])
+
+        update_task_progress(task_id, 10, "Analyzing example content...")
+
+        # Start progress updater (10% -> 85%)
+        progress_updater = ProgressUpdater(task_id, 10, 85, increment=5, interval=2)
+        progress_updater.start("Evaluating writing quality...")
+
+        try:
+            # Import service
+            from .services import ExampleScoringService
+
+            # Generate scores
+            scores = ExampleScoringService.generate_scores(
+                content=content,
+                category=category,
+                user_language=user_language
+            )
+
+            logger.info(f"Generated scores: {scores}")
+        finally:
+            progress_updater.stop()
+
+        update_task_progress(task_id, 90, "Finalizing scores...")
+
+        task.result_data = {'scores': scores}
+        task.status = 'completed'
+        task.completed_at = timezone.now()
+        task.progress = 100
+        task.save()
+
+        update_task_progress(task_id, 100, "Complete!")
+
+        return {'scores': scores}
+
+    except Exception as exc:
+        logger.error(f"Example scoring task failed: {exc}", exc_info=True)
+        task = GenerationTask.objects.get(id=task_id)
+        task.status = 'failed'
+        task.error_message = str(exc)
+        task.save()
+
+        # Broadcast error to WebSocket
+        update_task_progress(task_id, task.progress, f"Error: {str(exc)}")
+
+        # Only retry if we haven't exhausted retries
+        if self.request.retries < self.max_retries:
+            logger.info(f"Retrying example scoring task, attempt {self.request.retries + 1}/{self.max_retries}")
+            raise self.retry(exc=exc, countdown=60)
+        else:
+            logger.error(f"Example scoring task {task_id} failed after {self.max_retries} retries")
+            raise
