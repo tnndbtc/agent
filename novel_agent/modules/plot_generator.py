@@ -3,12 +3,26 @@ import logging
 from typing import Dict, Any, Optional, List
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
+from pydantic import BaseModel, Field
 
 from novel_agent.config import OPENAI_API_KEY, MODEL_NAME, TEMPERATURE
 from novel_agent.memory.context_manager import ContextManager
 from novel_agent.memory.long_term_memory import LongTermMemory
 
 logger = logging.getLogger(__name__)
+
+
+class ActStructure(BaseModel):
+    """Pydantic model for a single act in the three-act structure."""
+    act_number: int = Field(description="Act number (1, 2, or 3)")
+    subject: str = Field(description="Act type: SETUP, CONFRONTATION, or RESOLUTION")
+    percentage: int = Field(description="Percentage of story this act covers (typically 25, 50, 25)")
+    description: str = Field(description="Detailed description of what happens in this act")
+
+
+class PlotStructureResponse(BaseModel):
+    """Pydantic model for the complete plot structure with acts."""
+    acts: List[ActStructure] = Field(description="List of three acts in the plot structure")
 
 
 class PlotGenerator:
@@ -55,15 +69,36 @@ Conflict: {plot_idea.get('conflict', '')}
 Genre: {plot_idea.get('genre', 'General Fiction')}
 Themes: {plot_idea.get('themes', '')}
 
-IMPORTANT: The plot structure must be AT LEAST 2 paragraphs or 200 words in total length.
+IMPORTANT: Return a JSON object with this exact structure:
+{{
+  "acts": [
+    {{
+      "act_number": 1,
+      "subject": "SETUP",
+      "percentage": 25,
+      "description": "Detailed description of Act 1..."
+    }},
+    {{
+      "act_number": 2,
+      "subject": "CONFRONTATION",
+      "percentage": 50,
+      "description": "Detailed description of Act 2..."
+    }},
+    {{
+      "act_number": 3,
+      "subject": "RESOLUTION",
+      "percentage": 25,
+      "description": "Detailed description of Act 3..."
+    }}
+  ]
+}}
 
-Create a detailed structure with:
+For each act, provide a comprehensive description (at least 3-4 sentences) covering:
 
 ACT 1 - SETUP (25% of story):
-- Opening scene
-- Introduction of protagonist and world
-- Inciting incident
-- First plot point (major turning point)
+- Opening scene and introduction of protagonist and world
+- Inciting incident that starts the story
+- First plot point (major turning point that propels into Act 2)
 
 ACT 2 - CONFRONTATION (50% of story):
 - Rising action and complications
@@ -72,12 +107,12 @@ ACT 2 - CONFRONTATION (50% of story):
 - Second plot point (final push into Act 3)
 
 ACT 3 - RESOLUTION (25% of story):
-- Climax
-- Resolution
-- Denouement
+- Climax (final confrontation)
+- Resolution of the main conflict
+- Denouement (new normal)
 
-For each section, provide 2-3 sentences of specific plot details.
-Ensure the entire plot structure is comprehensive and detailed, with at least 200 words total."""
+Each description should be specific to this story and provide clear plot details.
+The subject field must be exactly: "SETUP", "CONFRONTATION", or "RESOLUTION"."""
 
         # Add language instruction if specified
         if language and language != 'English':
@@ -92,7 +127,28 @@ Ensure the entire plot structure is comprehensive and detailed, with at least 20
             HumanMessage(content=user_prompt)
         ]
 
-        response = self.llm.invoke(messages)
+        # Use structured output to ensure acts are returned in JSON format
+        try:
+            structured_llm = self.llm.with_structured_output(PlotStructureResponse)
+            structured_response = structured_llm.invoke(messages)
+
+            # Also get the plain text response for backward compatibility (structure field)
+            plain_response = self.llm.invoke(messages)
+
+            logger.info(f"PlotGenerator - Received structured response with {len(structured_response.acts)} acts")
+            logger.debug(f"PlotGenerator - Acts: {[f'Act {act.act_number}: {act.subject}' for act in structured_response.acts]}")
+
+            response = plain_response  # Use plain response for structure field
+            acts_data = [act.dict() for act in structured_response.acts]
+
+        except Exception as e:
+            logger.error(f"PlotGenerator - Failed to get structured output: {e}")
+            logger.info(f"PlotGenerator - Falling back to plain text response")
+
+            # Fallback: use plain response without structured acts
+            response = self.llm.invoke(messages)
+            acts_data = []
+
         logger.info(f"PlotGenerator - Received response from OpenAI (length: {len(response.content)})")
         logger.debug(f"PlotGenerator - Response preview: {response.content[:500]}")
 
@@ -118,8 +174,11 @@ Ensure the entire plot structure is comprehensive and detailed, with at least 20
             'premise': plot_idea.get('premise', ''),
             'themes': plot_idea.get('themes', ''),
             'conflict': plot_idea.get('conflict', ''),
-            'structure': response.content
+            'structure': response.content,
+            'acts': acts_data  # Include structured acts for direct database save
         }
+
+        logger.info(f"PlotGenerator - Plot structure includes {len(acts_data)} structured acts")
 
         # Store in long-term memory
         self.memory.store_plot(plot_structure)

@@ -2,7 +2,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import (
-    NovelProject, Plot, Character, Setting,
+    NovelProject, Plot, Act, Character, Setting,
     ChapterOutline, Chapter, Example, GenerationTask,
     Genre, GenreTranslation,
     ScoreCategory, ScoreCategoryTranslation, ExampleScore
@@ -80,8 +80,19 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 
+class ActSerializer(serializers.ModelSerializer):
+    """Serializer for Act model."""
+
+    class Meta:
+        model = Act
+        fields = ['id', 'act_number', 'subject', 'percentage', 'description', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
 class PlotSerializer(serializers.ModelSerializer):
     """Serializer for Plot model."""
+
+    acts = ActSerializer(many=True, read_only=True)
 
     class Meta:
         model = Plot

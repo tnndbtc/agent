@@ -12,14 +12,14 @@ from django.db.models import Q
 logger = logging.getLogger(__name__)
 
 from .models import (
-    NovelProject, Plot, Character, Setting,
+    NovelProject, Plot, Act, Character, Setting,
     ChapterOutline, Chapter, Example, GenerationTask, APIPerformanceMetric,
     ScoreCategory, ScoreCategoryTranslation, ExampleScore,
     Genre, GenreTranslation, UserProfile
 )
 from .serializers import (
     NovelProjectSerializer, NovelProjectListSerializer,
-    PlotSerializer, CharacterSerializer, SettingSerializer,
+    PlotSerializer, ActSerializer, CharacterSerializer, SettingSerializer,
     ChapterOutlineSerializer, ChapterSerializer, ChapterListSerializer,
     ExampleSerializer, GenerationTaskSerializer,
     BrainstormRequestSerializer, CreatePlotRequestSerializer,
@@ -194,6 +194,37 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             project=project,
             defaults=defaults
         )
+
+        # Save acts from structured data or parse from text as fallback
+        from .models import Act
+        acts_data = []
+
+        # First, try to use structured acts from plot generation (new JSON format)
+        if plot_data.get('acts'):
+            acts_data = plot_data['acts']
+            logger.info(f"Using {len(acts_data)} structured acts from plot generation response")
+        # Fallback: parse acts from plot structure text (old format or if structured output failed)
+        elif plot.structure:
+            acts_data = PlotService.parse_acts(plot.structure)
+            logger.info(f"Parsed {len(acts_data)} acts from plot structure text (fallback)")
+
+        # Create act records if we have acts data
+        if acts_data:
+            # Delete old acts for this plot (in case of regeneration)
+            plot.acts.all().delete()
+
+            # Create new act records
+            for act_data in acts_data:
+                Act.objects.create(
+                    plot=plot,
+                    act_number=act_data['act_number'],
+                    subject=act_data['subject'],
+                    percentage=act_data['percentage'],
+                    description=act_data['description']
+                )
+                logger.info(f"Created Act {act_data['act_number']}: {act_data['subject']}")
+        else:
+            logger.warning(f"No acts data available for plot {plot.id}")
 
         # Store plot in ChromaDB memory for outline generation
         try:
@@ -473,15 +504,29 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
                    f"Language: {user_language}, Raw request.data: {request.data}")
 
         num_chapters = int(request.data.get('num_chapters', 1))  # Default to 1 chapter if not specified
+        act_id = request.data.get('act_id')  # Optional act ID for associating outlines
 
-        logger.info(f"Create Outline - num_chapters parsed: {num_chapters}")
+        logger.info(f"Create Outline - num_chapters: {num_chapters}, act_id: {act_id}")
+
+        # Validate act_id if provided
+        if act_id:
+            from .models import Act
+            try:
+                act = Act.objects.get(id=act_id, plot__project=project)
+                logger.info(f"Outline will be associated with Act {act.act_number}: {act.subject}")
+            except Act.DoesNotExist:
+                logger.error(f"Act {act_id} not found for project {project.id}")
+                return Response(
+                    {'error': f'Act with id {act_id} not found for this project'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         # Create generation task
         task = GenerationTask.objects.create(
             project=project,
             user=request.user,
             task_type='outline',
-            input_data={'num_chapters': num_chapters}
+            input_data={'num_chapters': num_chapters, 'act_id': act_id}
         )
 
         # Start async task
@@ -489,6 +534,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             task_id=str(task.id),
             project_id=str(project.id),
             num_chapters=num_chapters,
+            act_id=act_id,
             user_language=user_language
         )
 
@@ -1185,3 +1231,21 @@ class ScoreCategoryViewSet(viewsets.ModelViewSet):
         if instance.created_by != self.request.user:
             raise serializers.ValidationError("Cannot delete another user's category")
         instance.delete()
+
+
+class ActViewSet(viewsets.ModelViewSet):
+    """ViewSet for Act model."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = ActSerializer
+
+    def get_queryset(self):
+        """Return acts for plots that belong to user's projects."""
+        return Act.objects.filter(plot__project__user=self.request.user)
+
+    def perform_update(self, serializer):
+        """Only allow users to update acts from their own projects."""
+        instance = self.get_object()
+        if instance.plot.project.user != self.request.user:
+            raise serializers.ValidationError("Cannot modify acts from another user's project")
+        serializer.save()

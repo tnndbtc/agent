@@ -656,3 +656,119 @@ class TestCompleteWorkflow:
         for chapter in chapters:
             assert chapter.outline is not None
             assert chapter.outline.project == project
+
+
+class TestActStructure:
+    """Test the three-act structure functionality."""
+
+    def test_plot_with_acts_fixture(self, test_plot_with_acts):
+        """Test that the plot with acts fixture creates proper structure."""
+        plot_data = test_plot_with_acts
+        plot = plot_data['plot']
+        act1 = plot_data['act1']
+        act2 = plot_data['act2']
+        act3 = plot_data['act3']
+
+        # Verify plot has 3 acts
+        assert plot.acts.count() == 3
+
+        # Verify act numbers
+        assert act1.act_number == 1
+        assert act2.act_number == 2
+        assert act3.act_number == 3
+
+        # Verify act subjects
+        assert act1.subject == 'SETUP'
+        assert act2.subject == 'CONFRONTATION'
+        assert act3.subject == 'RESOLUTION'
+
+        # Verify percentages
+        assert act1.percentage == 25
+        assert act2.percentage == 50
+        assert act3.percentage == 25
+
+        # Verify descriptions are not empty
+        assert len(act1.description) > 0
+        assert len(act2.description) > 0
+        assert len(act3.description) > 0
+
+    def test_create_outline_with_act(
+        self, authenticated_client, test_plot_with_acts, mock_all_openai
+    ):
+        """Test creating chapter outlines associated with a specific act."""
+        plot_data = test_plot_with_acts
+        plot = plot_data['plot']
+        project = plot.project
+        act1 = plot_data['act1']
+
+        # Create outline for Act 1
+        response = authenticated_client.post(
+            f'/api/projects/{project.id}/create_outline/',
+            {'num_chapters': 2, 'act_id': act1.id},
+            format='json'
+        )
+
+        assert response.status_code == 202
+        assert 'task_id' in response.data
+
+        # Wait for task to complete (synchronous in test mode)
+        from novels.models import GenerationTask, ChapterOutline
+        task = GenerationTask.objects.get(id=response.data['task_id'])
+        assert task.status == 'completed'
+
+        # Verify outlines were created and associated with Act 1
+        outlines = ChapterOutline.objects.filter(project=project)
+        assert outlines.count() == 2
+
+        for outline in outlines:
+            assert outline.act == act1
+            assert outline.act.act_number == 1
+
+    def test_api_returns_acts_in_plot(
+        self, authenticated_client, test_plot_with_acts
+    ):
+        """Test that the API returns acts when fetching a project with plot."""
+        plot_data = test_plot_with_acts
+        project = plot_data['plot'].project
+
+        response = authenticated_client.get(f'/api/projects/{project.id}/')
+
+        assert response.status_code == 200
+        assert 'plot' in response.data
+        assert 'acts' in response.data['plot']
+
+        acts = response.data['plot']['acts']
+        assert len(acts) == 3
+
+        # Verify act data structure
+        act1 = acts[0]
+        assert act1['act_number'] == 1
+        assert act1['subject'] == 'SETUP'
+        assert act1['percentage'] == 25
+        assert 'description' in act1
+        assert 'id' in act1
+
+    def test_outline_with_no_act(
+        self, authenticated_client, test_plot_with_acts, mock_all_openai
+    ):
+        """Test creating outlines without specifying an act."""
+        plot_data = test_plot_with_acts
+        project = plot_data['plot'].project
+
+        # Create outline without act_id
+        response = authenticated_client.post(
+            f'/api/projects/{project.id}/create_outline/',
+            {'num_chapters': 1},
+            format='json'
+        )
+
+        assert response.status_code == 202
+
+        # Verify outline was created without act association
+        from novels.models import GenerationTask, ChapterOutline
+        task = GenerationTask.objects.get(id=response.data['task_id'])
+        assert task.status == 'completed'
+
+        outlines = ChapterOutline.objects.filter(project=project)
+        assert outlines.count() == 1
+        assert outlines[0].act is None

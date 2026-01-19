@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch, MagicMock
 from django.contrib.auth.models import User
 from django.conf import settings
 from rest_framework.test import APIClient
-from novels.models import NovelProject, Genre, GenreTranslation, ScoreCategory, ScoreCategoryTranslation, Example, ExampleScore
+from novels.models import NovelProject, Plot, Act, Genre, GenreTranslation, ScoreCategory, ScoreCategoryTranslation, Example, ExampleScore
 from novels.tests.mocks.openai_responses import get_mock_response_for_prompt
 
 
@@ -245,6 +245,52 @@ def test_project(db, test_user, test_genres):
         genre=test_genres['fantasy'],
         status='draft'
     )
+
+
+@pytest.fixture
+def test_plot_with_acts(db, test_project):
+    """Create a plot with three-act structure for testing."""
+    from novels.models import Plot, Act
+
+    # Create plot
+    plot = Plot.objects.create(
+        project=test_project,
+        premise="A young wizard discovers their destiny and must battle an evil dark lord",
+        conflict="Battle between light and darkness",
+        themes="Coming of age, accepting responsibility, good vs evil",
+        structure="Classic three-act structure with clear turning points",
+        tone="Epic fantasy",
+        target_audience="Young Adult"
+    )
+
+    # Create Act 1 - Setup
+    act1 = Act.objects.create(
+        plot=plot,
+        act_number=1,
+        subject='SETUP',
+        percentage=25,
+        description='The protagonist is introduced in their ordinary world. They receive the call to adventure when they discover their magical powers and learn of an ancient prophecy.'
+    )
+
+    # Create Act 2 - Confrontation
+    act2 = Act.objects.create(
+        plot=plot,
+        act_number=2,
+        subject='CONFRONTATION',
+        percentage=50,
+        description='The protagonist trains and faces increasingly difficult challenges. They confront the antagonist for the first time and suffer a major setback that tests their resolve.'
+    )
+
+    # Create Act 3 - Resolution
+    act3 = Act.objects.create(
+        plot=plot,
+        act_number=3,
+        subject='RESOLUTION',
+        percentage=25,
+        description='The protagonist overcomes their doubts and faces the final confrontation with the antagonist. The conflict is resolved and the new normal is established.'
+    )
+
+    return {'plot': plot, 'act1': act1, 'act2': act2, 'act3': act3}
 
 
 # ============================================================================

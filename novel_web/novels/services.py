@@ -230,6 +230,54 @@ class PlotService:
         logger.info("PlotService.generate_subplots - Successfully generated subplots with language support")
         return subplots
 
+    @staticmethod
+    def parse_acts(structure_text):
+        """
+        Parse acts from plot structure text.
+
+        Args:
+            structure_text: The plot structure text containing ACT markers
+
+        Returns:
+            list: List of dicts with keys: act_number, subject, percentage, description
+        """
+        import re
+
+        logger.info(f"Parsing acts from structure text (length: {len(structure_text)})")
+
+        acts = []
+
+        # Pattern to match:
+        # ACT 1 - SETUP (optional percentage)
+        # ... content ...
+        # ACT 2 - CONFRONTATION
+        act_pattern = r'ACT\s+(\d+)\s*[-–]\s*(\w+)[^\n]*\n(.*?)(?=ACT\s+\d+|$)'
+
+        matches = re.findall(act_pattern, structure_text, re.DOTALL | re.IGNORECASE)
+
+        if not matches:
+            logger.warning("No acts found in structure text using regex pattern")
+            return acts
+
+        # Default percentages for 3-act structure
+        default_percentages = {1: 25, 2: 50, 3: 25}
+
+        for match in matches:
+            act_num_str, subject, description = match
+            act_num = int(act_num_str)
+
+            act_data = {
+                'act_number': act_num,
+                'subject': subject.upper().strip(),
+                'percentage': default_percentages.get(act_num, 33),
+                'description': description.strip()
+            }
+
+            acts.append(act_data)
+            logger.info(f"Parsed Act {act_num}: {act_data['subject']} ({act_data['percentage']}%)")
+
+        return acts
+
 
 class CharacterService:
     """Service for character operations."""
@@ -523,7 +571,7 @@ class ExampleScoringService:
 
         if not categories.exists():
             logger.warning("No score categories found")
-            return {}
+            return {}, {}
 
         # Build category mapping for novel_agent scorer
         category_descriptions = {

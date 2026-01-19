@@ -304,6 +304,47 @@ class Plot(models.Model):
         return self.structure
 
 
+class Act(models.Model):
+    """A three-act structure component of a plot."""
+
+    SUBJECT_CHOICES = [
+        ('SETUP', 'Setup'),
+        ('CONFRONTATION', 'Confrontation'),
+        ('RESOLUTION', 'Resolution'),
+    ]
+
+    id = models.AutoField(primary_key=True)
+    plot = models.ForeignKey('Plot', on_delete=models.CASCADE, related_name='acts')
+
+    act_number = models.IntegerField(
+        help_text="Act number (1, 2, or 3)"
+    )
+    subject = models.CharField(
+        max_length=50,
+        choices=SUBJECT_CHOICES,
+        help_text="Act type (SETUP, CONFRONTATION, RESOLUTION)"
+    )
+    percentage = models.IntegerField(
+        help_text="Percentage of story (typically 25%, 50%, 25%)"
+    )
+    description = models.TextField(
+        help_text="Detailed description of what happens in this act"
+    )
+
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['act_number']
+        unique_together = [['plot', 'act_number']]
+        indexes = [
+            models.Index(fields=['plot', 'act_number']),
+        ]
+
+    def __str__(self):
+        return f"Act {self.act_number}: {self.subject} ({self.percentage}%)"
+
+
 class Character(models.Model):
     """Character in a novel."""
 
@@ -386,6 +427,14 @@ class ChapterOutline(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     project = models.ForeignKey(NovelProject, on_delete=models.CASCADE, related_name='chapter_outlines')
+    act = models.ForeignKey(
+        'Act',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='outlines',
+        help_text="Act this outline belongs to (optional)"
+    )
 
     number = models.IntegerField()
     title = models.CharField(max_length=255)

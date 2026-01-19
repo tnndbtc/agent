@@ -510,13 +510,20 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
 
 
 @shared_task(bind=True, max_retries=3, time_limit=180, soft_time_limit=150)
-def create_outline_task(self, task_id, project_id, num_chapters=1, user_language='en'):
+def create_outline_task(self, task_id, project_id, num_chapters=1, act_id=None, user_language='en'):
     """Create chapter outline asynchronously.
+
+    Args:
+        task_id: ID of the GenerationTask
+        project_id: ID of the NovelProject
+        num_chapters: Number of chapter outlines to generate
+        act_id: Optional ID of Act to associate outlines with
+        user_language: Language for generation
 
     Time limits: 150s soft limit (raises exception), 180s hard limit (kills task).
     """
     logger.info(f"Create Outline task started - task_id: {task_id}, project_id: {project_id}, "
-               f"num_chapters: {num_chapters}, user_language: {user_language}")
+               f"num_chapters: {num_chapters}, act_id: {act_id}, user_language: {user_language}")
 
     try:
         task = GenerationTask.objects.get(id=task_id)
@@ -540,6 +547,26 @@ def create_outline_task(self, task_id, project_id, num_chapters=1, user_language
             'structure': project.plot.structure,
             'arc': project.plot.arc
         }
+
+        # Fetch act if act_id is provided (key feature: include act context)
+        act = None
+        if act_id:
+            from .models import Act
+            try:
+                act = Act.objects.get(id=act_id, plot=project.plot)
+                logger.info(f"Fetched Act {act.act_number}: {act.subject} for outline generation")
+
+                # KEY: Add act information to plot_data so it's included in the prompt
+                plot_data['act_context'] = {
+                    'act_number': act.act_number,
+                    'subject': act.subject,
+                    'percentage': act.percentage,
+                    'description': act.description
+                }
+                logger.info(f"Including act context in outline generation: {act.subject} ({act.percentage}%)")
+            except Act.DoesNotExist:
+                logger.error(f"Act {act_id} not found for project {project_id}")
+                act = None
 
         # Retrieve the original brainstorm idea for richer context
         idea_data = None
@@ -590,6 +617,7 @@ def create_outline_task(self, task_id, project_id, num_chapters=1, user_language
             logger.debug(f"Create Outline task - Saving chapter {i}/{total_chapters}: {chapter_title}")
             ChapterOutline.objects.create(
                 project=project,
+                act=act,  # Associate with act if provided
                 number=chapter_data['number'],
                 title=chapter_data.get('title', f"Chapter {chapter_data['number']}"),
                 pov=chapter_data.get('pov', ''),

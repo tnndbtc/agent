@@ -202,6 +202,50 @@
                         </form>
                     </div>
                 </div>
+                {# Display Acts in separate sections #}
+                {% if project.plot.acts.exists %}
+                <div class="plot-field">
+                    <h4>{% trans "Three-Act Structure" %}</h4>
+                    {% for act in project.plot.acts.all %}
+                    <div class="act-detail-section" id="act-section-{{ act.id }}" style="margin-bottom: 1.5rem; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; background-color: #fafafa;">
+                        <div id="actDisplay-{{ act.id }}" style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <div style="flex: 1;">
+                                <h5 style="margin: 0 0 0.5rem 0; color: #667eea;">
+                                    {% trans "Act" %} {{ act.act_number }}: {{ act.subject }} ({{ act.percentage }}%)
+                                </h5>
+                                <p id="actDescriptionText-{{ act.id }}" style="white-space: pre-wrap; line-height: 1.6; margin: 0;">{{ act.description }}</p>
+                            </div>
+                            <button class="btn btn-sm btn-primary" onclick="modifyAct('{{ act.id }}')" style="margin-left: 1rem;">
+                                {% trans "Modify" %}
+                            </button>
+                        </div>
+                        <div id="editAct-{{ act.id }}" style="display: none; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label>{% trans "Subject" %}</label>
+                                <select id="editActSubject-{{ act.id }}" class="form-control">
+                                    <option value="SETUP" {% if act.subject == 'SETUP' %}selected{% endif %}>{% trans "SETUP" %}</option>
+                                    <option value="CONFRONTATION" {% if act.subject == 'CONFRONTATION' %}selected{% endif %}>{% trans "CONFRONTATION" %}</option>
+                                    <option value="RESOLUTION" {% if act.subject == 'RESOLUTION' %}selected{% endif %}>{% trans "RESOLUTION" %}</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>{% trans "Percentage" %}</label>
+                                <input type="number" id="editActPercentage-{{ act.id }}" class="form-control" value="{{ act.percentage }}" min="1" max="100">
+                            </div>
+                            <div class="form-group">
+                                <label>{% trans "Description" %}</label>
+                                <textarea id="editActDescription-{{ act.id }}" class="form-control" rows="6" style="width: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6;">{{ act.description }}</textarea>
+                            </div>
+                            <div style="margin-top: 0.5rem;">
+                                <button class="btn btn-sm btn-primary" onclick="saveAct('{{ act.id }}')">{% trans "Save" %}</button>
+                                <button class="btn btn-sm btn-secondary" onclick="cancelActEdit('{{ act.id }}')">{% trans "Cancel" %}</button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
                 {% if project.plot.structure %}
                 <div class="plot-field">
                     <div id="plotStructureDisplay" style="display: flex; justify-content: space-between; align-items: flex-start;">
@@ -304,7 +348,236 @@
             {% if outlines %}
             <div class="outlines-section">
                 <h4>{% trans "Chapter Outlines" %}</h4>
-                <div class="outlines-list">
+
+                {# Display Acts if they exist #}
+                {% if has_plot and project.plot.acts.exists %}
+                    {% for act in project.plot.acts.all %}
+                    <div class="act-section" data-act-id="{{ act.id }}">
+                        <div class="act-header" onclick="toggleActSection({{ act.id }})">
+                            <h5>
+                                <span class="act-toggle">▼</span>
+                                Act {{ act.act_number }}: {{ act.subject }} ({{ act.percentage }}%)
+                            </h5>
+                            {% if act.description %}
+                            <p class="act-description">{{ act.description|truncatewords:20 }}</p>
+                            {% endif %}
+                        </div>
+                        <div class="act-outlines" id="act-outlines-{{ act.id }}">
+                            {% for outline in outlines %}
+                            {% if outline.act_id == act.id %}
+                    <div class="outline-card" id="outline-card-{{ outline.id }}">
+                        <div class="outline-header">
+                            <span class="outline-number">{{ outline.number }}</span>
+                            <h5>{{ outline.title }}</h5>
+                        </div>
+                        <div class="outline-details" id="outline-details-{{ outline.id }}">
+                            {% if outline.pov %}
+                            <p><strong>{% trans "POV:" %}</strong> {{ outline.pov }}</p>
+                            {% endif %}
+                            {% if outline.setting %}
+                            <p><strong>{% trans "Setting:" %}</strong> <span id="outline-setting-text-{{ outline.id }}">{{ outline.setting }}</span></p>
+                            {% endif %}
+                            {% if outline.events %}
+                            <p><strong>{% trans "Events:" %}</strong> <span id="outline-events-text-{{ outline.id }}">{{ outline.events|truncatewords:30 }}</span></p>
+                            {% endif %}
+                            {% if outline.pacing %}
+                            <p><strong>{% trans "Pacing:" %}</strong> <span id="outline-pacing-text-{{ outline.id }}">{{ outline.pacing }}</span></p>
+                            {% endif %}
+                        </div>
+
+                        <!-- Edit Form - Hidden by default -->
+                        <div id="edit-outline-{{ outline.id }}" style="display: none; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label for="edit-outline-setting-{{ outline.id }}">{% trans "Setting" %}</label>
+                                <textarea id="edit-outline-setting-{{ outline.id }}" class="form-control" rows="2">{{ outline.setting }}</textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-outline-events-{{ outline.id }}">{% trans "Events" %}</label>
+                                <textarea id="edit-outline-events-{{ outline.id }}" class="form-control" rows="4">{{ outline.events }}</textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-outline-pacing-{{ outline.id }}">{% trans "Pacing" %}</label>
+                                <input type="text" id="edit-outline-pacing-{{ outline.id }}" class="form-control" value="{{ outline.pacing }}">
+                            </div>
+                            <div style="margin-top: 0.5rem;">
+                                <button class="btn btn-sm btn-primary" onclick="saveOutline('{{ outline.id }}')">{% trans "Save" %}</button>
+                                <button class="btn btn-sm btn-secondary" onclick="cancelOutlineEdit('{{ outline.id }}')">{% trans "Cancel" %}</button>
+                            </div>
+                        </div>
+
+                        {% if outline.chapter %}
+                        <!-- Written Chapter -->
+                        <div class="written-chapter-preview">
+                            <div class="chapter-header">
+                                <h5>{% trans "Written Chapter" %}</h5>
+                                {% if outline.chapter.is_draft %}
+                                <span class="badge badge-warning">{% trans "Draft" %}</span>
+                                {% else %}
+                                <span class="badge badge-success">{% trans "Complete" %}</span>
+                                {% endif %}
+                            </div>
+                            <p class="chapter-stats">
+                                {{ outline.chapter.word_count }} {% trans "words" %} •
+                                {% trans "Updated" %} {{ outline.chapter.updated_at|timesince }} {% trans "ago" %}
+                            </p>
+                            <div class="chapter-preview-actions">
+                                <button class="btn btn-sm btn-primary" onclick="window.location.href='{% url 'novels:chapter_detail' project.id outline.chapter.id %}'">
+                                    {% trans "View/Edit Chapter" %}
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteChapter('{{ outline.chapter.id }}')">
+                                    {% trans "Delete Chapter" %}
+                                </button>
+                            </div>
+                        </div>
+                        {% else %}
+                        <!-- Outline Actions (only show if no chapter written) -->
+                        <div id="writeChapterProgressContainer-{{ outline.id }}" class="progress-container" style="display: none; margin-bottom: 1rem;">
+                            <div class="progress-bar">
+                                <div id="writeChapterProgressBarFill-{{ outline.id }}" class="progress-bar-fill">0%</div>
+                            </div>
+                            <div id="writeChapterProgressText-{{ outline.id }}" class="progress-text">Saving idea and creating plot & characters...</div>
+                        </div>
+                        <div id="regenerateProgressContainer-{{ outline.number }}" class="progress-container" style="display: none; margin-bottom: 1rem;">
+                            <div class="progress-bar">
+                                <div id="regenerateProgressBarFill-{{ outline.number }}" class="progress-bar-fill">0%</div>
+                            </div>
+                            <div id="regenerateProgressText-{{ outline.number }}" class="progress-text">Saving idea and creating plot & characters...</div>
+                        </div>
+                        <div class="outline-actions">
+                            <button class="btn btn-sm btn-primary" onclick="modifyOutline('{{ outline.id }}')">
+                                {% trans "Modify" %}
+                            </button>
+                            <button class="btn btn-sm btn-primary" onclick="writeChapterFromOutline('{{ outline.id }}')" id="writeChapterBtn-{{ outline.id }}">
+                                {% trans "Write This Chapter" %}
+                            </button>
+                            <button class="btn btn-sm btn-secondary" onclick="regenerateOutline({{ outline.number }})" id="regenerateBtn-{{ outline.number }}">
+                                {% trans "Regenerate" %}
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteOutline('{{ outline.id }}')">
+                                {% trans "Delete" %}
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+
+                    {# Display outlines without an act #}
+                    <div class="act-section">
+                        <div class="act-header" onclick="toggleActSection(0)">
+                            <h5>
+                                <span class="act-toggle">▼</span>
+                                {% trans "Unassigned Outlines" %}
+                            </h5>
+                        </div>
+                        <div class="act-outlines" id="act-outlines-0">
+                            {% for outline in outlines %}
+                            {% if not outline.act_id %}
+                    <div class="outline-card" id="outline-card-{{ outline.id }}">
+                        <div class="outline-header">
+                            <span class="outline-number">{{ outline.number }}</span>
+                            <h5>{{ outline.title }}</h5>
+                        </div>
+                        <div class="outline-details" id="outline-details-{{ outline.id }}">
+                            {% if outline.pov %}
+                            <p><strong>{% trans "POV:" %}</strong> {{ outline.pov }}</p>
+                            {% endif %}
+                            {% if outline.setting %}
+                            <p><strong>{% trans "Setting:" %}</strong> <span id="outline-setting-text-{{ outline.id }}">{{ outline.setting }}</span></p>
+                            {% endif %}
+                            {% if outline.events %}
+                            <p><strong>{% trans "Events:" %}</strong> <span id="outline-events-text-{{ outline.id }}">{{ outline.events|truncatewords:30 }}</span></p>
+                            {% endif %}
+                            {% if outline.pacing %}
+                            <p><strong>{% trans "Pacing:" %}</strong> <span id="outline-pacing-text-{{ outline.id }}">{{ outline.pacing }}</span></p>
+                            {% endif %}
+                        </div>
+
+                        <!-- Edit Form - Hidden by default -->
+                        <div id="edit-outline-{{ outline.id }}" style="display: none; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label for="edit-outline-setting-{{ outline.id }}">{% trans "Setting" %}</label>
+                                <textarea id="edit-outline-setting-{{ outline.id }}" class="form-control" rows="2">{{ outline.setting }}</textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-outline-events-{{ outline.id }}">{% trans "Events" %}</label>
+                                <textarea id="edit-outline-events-{{ outline.id }}" class="form-control" rows="4">{{ outline.events }}</textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-outline-pacing-{{ outline.id }}">{% trans "Pacing" %}</label>
+                                <input type="text" id="edit-outline-pacing-{{ outline.id }}" class="form-control" value="{{ outline.pacing }}">
+                            </div>
+                            <div style="margin-top: 0.5rem;">
+                                <button class="btn btn-sm btn-primary" onclick="saveOutline('{{ outline.id }}')">{% trans "Save" %}</button>
+                                <button class="btn btn-sm btn-secondary" onclick="cancelOutlineEdit('{{ outline.id }}')">{% trans "Cancel" %}</button>
+                            </div>
+                        </div>
+
+                        {% if outline.chapter %}
+                        <!-- Written Chapter -->
+                        <div class="written-chapter-preview">
+                            <div class="chapter-header">
+                                <h5>{% trans "Written Chapter" %}</h5>
+                                {% if outline.chapter.is_draft %}
+                                <span class="badge badge-warning">{% trans "Draft" %}</span>
+                                {% else %}
+                                <span class="badge badge-success">{% trans "Complete" %}</span>
+                                {% endif %}
+                            </div>
+                            <p class="chapter-stats">
+                                {{ outline.chapter.word_count }} {% trans "words" %} •
+                                {% trans "Updated" %} {{ outline.chapter.updated_at|timesince }} {% trans "ago" %}
+                            </p>
+                            <div class="chapter-preview-actions">
+                                <button class="btn btn-sm btn-primary" onclick="window.location.href='{% url 'novels:chapter_detail' project.id outline.chapter.id %}'">
+                                    {% trans "View/Edit Chapter" %}
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteChapter('{{ outline.chapter.id }}')">
+                                    {% trans "Delete Chapter" %}
+                                </button>
+                            </div>
+                        </div>
+                        {% else %}
+                        <!-- Outline Actions (only show if no chapter written) -->
+                        <div id="writeChapterProgressContainer-{{ outline.id }}" class="progress-container" style="display: none; margin-bottom: 1rem;">
+                            <div class="progress-bar">
+                                <div id="writeChapterProgressBarFill-{{ outline.id }}" class="progress-bar-fill">0%</div>
+                            </div>
+                            <div id="writeChapterProgressText-{{ outline.id }}" class="progress-text">Saving idea and creating plot & characters...</div>
+                        </div>
+                        <div id="regenerateProgressContainer-{{ outline.number }}" class="progress-container" style="display: none; margin-bottom: 1rem;">
+                            <div class="progress-bar">
+                                <div id="regenerateProgressBarFill-{{ outline.number }}" class="progress-bar-fill">0%</div>
+                            </div>
+                            <div id="regenerateProgressText-{{ outline.number }}" class="progress-text">Saving idea and creating plot & characters...</div>
+                        </div>
+                        <div class="outline-actions">
+                            <button class="btn btn-sm btn-primary" onclick="modifyOutline('{{ outline.id }}')">
+                                {% trans "Modify" %}
+                            </button>
+                            <button class="btn btn-sm btn-primary" onclick="writeChapterFromOutline('{{ outline.id }}')" id="writeChapterBtn-{{ outline.id }}">
+                                {% trans "Write This Chapter" %}
+                            </button>
+                            <button class="btn btn-sm btn-secondary" onclick="regenerateOutline({{ outline.number }})" id="regenerateBtn-{{ outline.number }}">
+                                {% trans "Regenerate" %}
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteOutline('{{ outline.id }}')">
+                                {% trans "Delete" %}
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                {% else %}
+                    {# No acts - display all outlines without grouping #}
+                    <div class="outlines-list">
                     {% for outline in outlines %}
                     <div class="outline-card" id="outline-card-{{ outline.id }}">
                         <div class="outline-header">
@@ -401,7 +674,8 @@
                         {% endif %}
                     </div>
                     {% endfor %}
-                </div>
+                    </div>
+                {% endif %}
             </div>
             {% endif %}
 
@@ -529,6 +803,41 @@
                 </button>
                 <button class="btn btn-primary" onclick="startChapterWriteWithConfig()">
                     {% trans "Write Chapter" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Outline Creation Configuration Modal -->
+<div id="outlineConfigModal" class="modal-overlay" style="display: none;">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <h3>{% trans "Create Chapter Outlines" %}</h3>
+            <button class="modal-close" onclick="closeOutlineConfigModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="config-section">
+                <label for="numChapters" class="config-label">{% trans "How many outlines do you want to create?" %}</label>
+                <input type="number" id="numChapters" class="form-control" min="1" max="100" value="1" placeholder="Enter number of outlines (1-100)">
+            </div>
+
+            <div class="config-section">
+                <label for="actSelect" class="config-label">{% trans "Which Act should these outlines belong to?" %}</label>
+                <select id="actSelect" class="form-control" onchange="showActDescription()">
+                    <option value="">{% trans "No Act (Optional)" %}</option>
+                </select>
+                <div id="actDescription" style="margin-top: 0.5rem; padding: 0.5rem; background-color: #f3f4f6; border-radius: 4px; display: none;">
+                    <small id="actDescriptionText"></small>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeOutlineConfigModal()">
+                    {% trans "Cancel" %}
+                </button>
+                <button class="btn btn-primary" onclick="submitOutlineCreation()">
+                    {% trans "Create Outlines" %}
                 </button>
             </div>
         </div>
@@ -980,6 +1289,58 @@
     outline: none;
     border-color: #3b82f6;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Act Section Styles */
+.act-section {
+    margin: 1.5rem 0;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: #fafafa;
+}
+
+.act-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1rem 1.5rem;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.act-header:hover {
+    background: linear-gradient(135deg, #5a67d8 0%, #6b42a1 100%);
+}
+
+.act-header h5 {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.act-toggle {
+    display: inline-block;
+    width: 24px;
+    font-size: 1rem;
+    transition: transform 0.3s ease;
+}
+
+.act-description {
+    margin: 0.5rem 0 0 0;
+    font-size: 0.9rem;
+    opacity: 0.95;
+    font-weight: normal;
+}
+
+.act-outlines {
+    padding: 0;
+    background-color: white;
+}
+
+.act-outlines .outline-card {
+    margin: 1rem;
 }
 </style>
 
@@ -1611,21 +1972,72 @@ function resetCreateOutlineProgressBar() {
 }
 
 async function createOutline() {
-    const numChapters = prompt('How many chapters do you want to create?', '1');
+    // Open the outline configuration modal
+    await loadActsForModal();
+    const modal = document.getElementById('outlineConfigModal');
+    modal.style.display = 'flex';
+}
 
-    // If user clicks Cancel, numChapters will be null
-    if (numChapters === null) return;
+async function loadActsForModal() {
+    try {
+        // Fetch the project with acts
+        const project = await apiRequest(`/api/projects/${projectId}/`);
+        const actSelect = document.getElementById('actSelect');
 
-    // If user clicks OK without typing anything, use default of 1
-    const chapters = parseInt(numChapters || '1');
+        // Clear existing options except the default
+        actSelect.innerHTML = '<option value="">{% trans "No Act (Optional)" %}</option>';
+
+        // Populate acts if they exist
+        if (project.plot && project.plot.acts && project.plot.acts.length > 0) {
+            project.plot.acts.forEach(act => {
+                const option = document.createElement('option');
+                option.value = act.id;
+                option.textContent = `Act ${act.act_number}: ${act.subject} (${act.percentage}%)`;
+                option.dataset.description = act.description;
+                actSelect.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading acts:', error);
+        showToast('Failed to load acts', 'error');
+    }
+}
+
+function showActDescription() {
+    const actSelect = document.getElementById('actSelect');
+    const actDescription = document.getElementById('actDescription');
+    const actDescriptionText = document.getElementById('actDescriptionText');
+
+    const selectedOption = actSelect.options[actSelect.selectedIndex];
+    if (selectedOption.value && selectedOption.dataset.description) {
+        actDescriptionText.textContent = selectedOption.dataset.description;
+        actDescription.style.display = 'block';
+    } else {
+        actDescription.style.display = 'none';
+    }
+}
+
+function closeOutlineConfigModal() {
+    const modal = document.getElementById('outlineConfigModal');
+    modal.style.display = 'none';
+}
+
+async function submitOutlineCreation() {
+    const numChaptersInput = document.getElementById('numChapters');
+    const actSelect = document.getElementById('actSelect');
+
+    const chapters = parseInt(numChaptersInput.value);
     if (isNaN(chapters) || chapters < 1 || chapters > 100) {
         showToast('Please enter a valid number between 1 and 100', 'error');
         return;
     }
 
-    console.log('Creating outline with num_chapters:', chapters);
+    const actId = actSelect.value || null;
 
-    if (!confirm(`Create outline with ${chapters} chapters? This may take a few moments.`)) return;
+    console.log('Creating outline with num_chapters:', chapters, 'act_id:', actId);
+
+    // Close modal
+    closeOutlineConfigModal();
 
     // Reset tokens at the start of new workflow
     resetTokens();
@@ -1635,9 +2047,14 @@ async function createOutline() {
         const estimatedDuration = await getEstimatedDuration('outline');
         startCreateOutlineProgressBar(estimatedDuration);
 
+        const requestBody = { num_chapters: chapters };
+        if (actId) {
+            requestBody.act_id = parseInt(actId);
+        }
+
         const response = await apiRequest(`/api/projects/${projectId}/create_outline/`, {
             method: 'POST',
-            body: JSON.stringify({ num_chapters: chapters })
+            body: JSON.stringify(requestBody)
         });
 
         showToast('Outline generation started!', 'success');
@@ -1699,6 +2116,23 @@ let currentOutlineId = null;
 let currentWordCount = null;
 let allExamples = [];
 let selectedExampleId = null;
+
+function toggleActSection(actId) {
+    const actOutlines = document.getElementById(`act-outlines-${actId}`);
+    const actSection = document.querySelector(`[data-act-id="${actId}"]`) ||
+                       document.querySelector(`.act-section:has(#act-outlines-${actId})`);
+    const toggle = actSection ? actSection.querySelector('.act-toggle') : null;
+
+    if (actOutlines) {
+        if (actOutlines.style.display === 'none') {
+            actOutlines.style.display = 'block';
+            if (toggle) toggle.textContent = '▼';
+        } else {
+            actOutlines.style.display = 'none';
+            if (toggle) toggle.textContent = '▶';
+        }
+    }
+}
 
 async function writeChapterFromOutline(outlineId) {
     // Store outline ID for later
@@ -2433,6 +2867,74 @@ async function saveCharacter(characterId) {
         showToast('Character updated successfully', 'success');
     } catch (err) {
         showToast('Error updating character: ' + err.message, 'error');
+    }
+}
+
+// Act editing functions
+function modifyAct(actId) {
+    const displayDiv = document.getElementById(`actDisplay-${actId}`);
+    const editDiv = document.getElementById(`editAct-${actId}`);
+
+    if (displayDiv && editDiv) {
+        displayDiv.style.display = 'none';
+        editDiv.style.display = 'block';
+    }
+}
+
+function cancelActEdit(actId) {
+    const displayDiv = document.getElementById(`actDisplay-${actId}`);
+    const editDiv = document.getElementById(`editAct-${actId}`);
+
+    if (displayDiv && editDiv) {
+        displayDiv.style.display = 'flex';
+        editDiv.style.display = 'none';
+    }
+}
+
+async function saveAct(actId) {
+    const subjectInput = document.getElementById(`editActSubject-${actId}`);
+    const percentageInput = document.getElementById(`editActPercentage-${actId}`);
+    const descriptionInput = document.getElementById(`editActDescription-${actId}`);
+
+    const newSubject = subjectInput.value.trim();
+    const newPercentage = parseInt(percentageInput.value);
+    const newDescription = descriptionInput.value.trim();
+
+    if (!newSubject || !newDescription) {
+        showToast('Subject and description cannot be empty', 'error');
+        return;
+    }
+
+    if (newPercentage < 1 || newPercentage > 100) {
+        showToast('Percentage must be between 1 and 100', 'error');
+        return;
+    }
+
+    try {
+        const response = await apiRequest(`/api/acts/${actId}/`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+                subject: newSubject,
+                percentage: newPercentage,
+                description: newDescription
+            })
+        });
+
+        // Update the display
+        const actSection = document.getElementById(`act-section-${actId}`);
+        const titleElement = actSection.querySelector('h5');
+        const descriptionElement = document.getElementById(`actDescriptionText-${actId}`);
+
+        if (titleElement) {
+            const actNumber = titleElement.textContent.match(/Act (\d+)/)[1];
+            titleElement.innerHTML = `{% trans "Act" %} ${actNumber}: ${newSubject} (${newPercentage}%)`;
+        }
+        if (descriptionElement) descriptionElement.textContent = newDescription;
+
+        cancelActEdit(actId);
+        showToast('Act updated successfully', 'success');
+    } catch (err) {
+        showToast('Error updating act: ' + err.message, 'error');
     }
 }
 
