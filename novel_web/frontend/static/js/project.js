@@ -1,14 +1,12 @@
 // Project-specific JavaScript
 
-// Global project functions
+// Global project functions (only for functions defined in this file)
 window.startBrainstorm = startBrainstorm;
 window.generatePlot = generatePlot;
 window.createCharacter = createCharacter;
-window.createOutline = createOutline;
 window.writeNextChapter = writeNextChapter;
 window.checkConsistency = checkConsistency;
-window.scoreNovel = scoreNovel;
-window.exportNovel = exportNovel;
+// Note: createOutline, scoreNovel, and exportNovel are defined in project_detail.html
 
 function startBrainstorm() {
     const genre = prompt('Genre (optional):');

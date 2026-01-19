@@ -263,6 +263,51 @@ function initTokenBar() {
 
     statusText.textContent = message;
     statusBar.style.display = 'block';
+
+    // Restore iteration scores if available (from chapter generation)
+    const storedIterationHistory = sessionStorage.getItem('iterationHistory');
+    if (storedIterationHistory) {
+        try {
+            const iterationHistory = JSON.parse(storedIterationHistory);
+            if (iterationHistory && iterationHistory.length > 0) {
+                // Build iteration summary
+                let iterationSummary = '';
+
+                // Always show iteration count
+                iterationSummary = ` | 🔄 ${iterationHistory.length} iteration${iterationHistory.length > 1 ? 's' : ''}`;
+
+                if (iterationHistory.length === 1) {
+                    // Single iteration
+                    const iter = iterationHistory[0];
+                    if (iter && iter.target_score !== undefined && iter.target_score !== null) {
+                        iterationSummary += ` | 📊 Score: ${iter.total_score}/${iter.target_score}`;
+                        // Show if target was achieved
+                        if (iter.total_score >= iter.target_score) {
+                            iterationSummary += ' ✅';
+                        }
+                    }
+                } else {
+                    // Multiple iterations - show best score
+                    const bestIter = iterationHistory.find(i => i.is_best) || iterationHistory[iterationHistory.length - 1];
+                    const finalIter = iterationHistory[iterationHistory.length - 1];
+                    if (bestIter && finalIter) {
+                        if (bestIter.total_score !== undefined && bestIter.target_score !== undefined) {
+                            iterationSummary += ` | 📊 Best: ${bestIter.total_score}/${bestIter.target_score}`;
+                        }
+                        if (finalIter.total_score !== undefined && finalIter.target_score !== undefined &&
+                            finalIter.total_score >= finalIter.target_score) {
+                            iterationSummary += ' ✅';
+                        }
+                    }
+                }
+                if (iterationSummary) {
+                    statusText.textContent = message + iterationSummary;
+                }
+            }
+        } catch (e) {
+            console.error('Failed to parse iterationHistory from sessionStorage:', e);
+        }
+    }
 }
 
 // Initialize when DOM is ready
@@ -274,10 +319,11 @@ if (document.readyState === 'loading') {
 
 // Reset token tracking (clear sessionStorage and UI)
 function resetTokens() {
-    console.log('resetTokens called - clearing session tokens');
+    console.log('resetTokens called - clearing session tokens and iteration history');
 
     // Clear sessionStorage
     sessionStorage.removeItem('sessionTokens');
+    sessionStorage.removeItem('iterationHistory');
 
     // Reset in-memory object
     sessionTokens = {
@@ -296,7 +342,7 @@ function resetTokens() {
         statusBar.style.display = 'block';
     }
 
-    console.log('Session tokens reset to zero');
+    console.log('Session tokens and iteration history reset');
 }
 
 // Display token usage in status bar (persistent)
@@ -337,4 +383,67 @@ function showTokenUsage(tokenData) {
     statusText.textContent = message;
     statusBar.style.display = 'block';
     statusBar.classList.remove('hiding');
+}
+
+// Display iteration scores in status bar (in addition to token usage)
+function showIterationScores(iterationHistory) {
+    try {
+        console.log('showIterationScores called with:', iterationHistory);
+
+        const statusBar = document.getElementById('tokenStatusBar');
+        const statusText = document.getElementById('tokenStatusText');
+
+        if (!statusBar || !statusText || !iterationHistory || iterationHistory.length === 0) {
+            console.log('No iteration history to display');
+            return;
+        }
+
+        // Save iteration history to sessionStorage for persistence across page reloads
+        sessionStorage.setItem('iterationHistory', JSON.stringify(iterationHistory));
+        console.log('Iteration history saved to sessionStorage');
+
+        // Build iteration summary
+        let iterationSummary = '';
+
+        // Always show iteration count
+        iterationSummary = ` | 🔄 ${iterationHistory.length} iteration${iterationHistory.length > 1 ? 's' : ''}`;
+
+        if (iterationHistory.length === 1) {
+            // Single iteration
+            const iter = iterationHistory[0];
+            if (iter && iter.target_score !== undefined && iter.target_score !== null) {
+                iterationSummary += ` | 📊 Score: ${iter.total_score}/${iter.target_score}`;
+                // Show if target was achieved
+                if (iter.total_score >= iter.target_score) {
+                    iterationSummary += ' ✅';
+                }
+            }
+        } else {
+            // Multiple iterations - show best score
+            const bestIter = iterationHistory.find(i => i.is_best) || iterationHistory[iterationHistory.length - 1];
+            const finalIter = iterationHistory[iterationHistory.length - 1];
+
+            if (bestIter && finalIter) {
+                if (bestIter.total_score !== undefined && bestIter.target_score !== undefined) {
+                    iterationSummary += ` | 📊 Best: ${bestIter.total_score}/${bestIter.target_score}`;
+                }
+
+                // Show if target was achieved
+                if (finalIter.total_score !== undefined && finalIter.target_score !== undefined &&
+                    finalIter.total_score >= finalIter.target_score) {
+                    iterationSummary += ' ✅';
+                }
+            }
+        }
+
+        // Append to existing token display (don't replace it!)
+        if (iterationSummary) {
+            const currentText = statusText.textContent;
+            statusText.textContent = currentText + iterationSummary;
+            console.log('Iteration scores displayed:', iterationSummary);
+        }
+    } catch (error) {
+        console.error('Error in showIterationScores:', error);
+        // Don't throw - just log and continue
+    }
 }

@@ -1764,12 +1764,10 @@ async function executeChapterWrite(exampleId = null) {
                         console.log('Calling showTokenUsage with:', task.result_data.token_usage);
                         showTokenUsage(task.result_data.token_usage);
 
-                        // Show iteration stats if available
-                        if (task.result_data.iterations) {
-                            const iterMsg = `Completed in ${task.result_data.iterations} iteration(s)`;
-                            if (task.result_data.best_score && task.result_data.target_score) {
-                                console.log(`${iterMsg} - Score: ${task.result_data.best_score.toFixed(1)}/${task.result_data.target_score.toFixed(1)}`);
-                            }
+                        // Show iteration scores if available
+                        if (task.result_data.iteration_history && task.result_data.iteration_history.length > 0) {
+                            console.log('Calling showIterationScores with:', task.result_data.iteration_history);
+                            showIterationScores(task.result_data.iteration_history);
                         }
                     }
 

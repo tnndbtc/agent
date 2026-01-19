@@ -285,6 +285,7 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
         best_chapter_data = None
         best_score = 0
         previous_scores = None
+        iteration_history = []  # Store each iteration's scores
 
         try:
             # Iterative generation loop
@@ -346,10 +347,23 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
                     logger.info(f"Iteration {iteration} - Score: {total_score:.1f}/10 (Target: {target_total_score:.1f}/10)")
                     logger.info(f"Iteration {iteration} - Category scores: {scores_by_name}")
 
+                    # Record this iteration's results
+                    iteration_data = {
+                        'iteration': iteration,
+                        'total_score': round(total_score, 1),
+                        'target_score': round(target_total_score, 1),
+                        'scores': {cat_name: round(score, 1) for cat_name, score in scores_by_name.items()},
+                        'is_best': False
+                    }
+                    iteration_history.append(iteration_data)
+
                     # Track best result
                     if total_score > best_score:
                         best_score = total_score
                         best_chapter_data = chapter_data
+                        # Mark this iteration as best
+                        for iter_data in iteration_history:
+                            iter_data['is_best'] = (iter_data['iteration'] == iteration)
                         logger.info(f"Iteration {iteration} - New best score: {best_score:.1f}/10")
 
                     # Check if we met the target score
@@ -453,7 +467,8 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
             'token_usage': token_usage,  # Include token usage for frontend display
             'iterations': iteration if iterative_mode and example_metadata else 1,  # Number of iterations performed
             'best_score': best_score if iterative_mode and example_metadata else None,  # Best score achieved
-            'target_score': target_total_score if iterative_mode and example_metadata else None  # Target score
+            'target_score': target_total_score if iterative_mode and example_metadata else None,  # Target score
+            'iteration_history': iteration_history if iterative_mode and example_metadata else []  # Per-iteration score breakdown
         }
         task.status = 'completed'
         task.completed_at = timezone.now()
