@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch, MagicMock
 from django.contrib.auth.models import User
 from django.conf import settings
 from rest_framework.test import APIClient
-from novels.models import NovelProject, Genre, GenreTranslation
+from novels.models import NovelProject, Genre, GenreTranslation, ScoreCategory, ScoreCategoryTranslation, Example, ExampleScore
 from novels.tests.mocks.openai_responses import get_mock_response_for_prompt
 
 
@@ -97,6 +97,139 @@ def test_genres(db):
     genres['mystery'] = mystery_genre
 
     return genres
+
+
+# ============================================================================
+# ScoreCategory Fixtures
+# ============================================================================
+
+@pytest.fixture
+def test_score_categories(db):
+    """Create test score categories with translations."""
+    categories = {}
+
+    # Create Plot category
+    plot_cat = ScoreCategory.objects.create(
+        name='plot',
+        public=True,
+        is_system=True,
+        default_weight=25,
+        order=1
+    )
+    ScoreCategoryTranslation.objects.create(category=plot_cat, language_code='en', name='Plot')
+    ScoreCategoryTranslation.objects.create(category=plot_cat, language_code='zh-hans', name='情节')
+    categories['plot'] = plot_cat
+
+    # Create Character Development category
+    char_cat = ScoreCategory.objects.create(
+        name='character_development',
+        public=True,
+        is_system=True,
+        default_weight=20,
+        order=2
+    )
+    ScoreCategoryTranslation.objects.create(category=char_cat, language_code='en', name='Character Development')
+    ScoreCategoryTranslation.objects.create(category=char_cat, language_code='zh-hans', name='人物发展')
+    categories['character_development'] = char_cat
+
+    # Create Pacing category
+    pacing_cat = ScoreCategory.objects.create(
+        name='pacing',
+        public=True,
+        is_system=True,
+        default_weight=20,
+        order=3
+    )
+    ScoreCategoryTranslation.objects.create(category=pacing_cat, language_code='en', name='Pacing')
+    ScoreCategoryTranslation.objects.create(category=pacing_cat, language_code='zh-hans', name='节奏')
+    categories['pacing'] = pacing_cat
+
+    # Create Dialogue category
+    dialogue_cat = ScoreCategory.objects.create(
+        name='dialogue',
+        public=True,
+        is_system=True,
+        default_weight=15,
+        order=4
+    )
+    ScoreCategoryTranslation.objects.create(category=dialogue_cat, language_code='en', name='Dialogue')
+    ScoreCategoryTranslation.objects.create(category=dialogue_cat, language_code='zh-hans', name='对话')
+    categories['dialogue'] = dialogue_cat
+
+    # Create Description category
+    desc_cat = ScoreCategory.objects.create(
+        name='description',
+        public=True,
+        is_system=True,
+        default_weight=20,
+        order=5
+    )
+    ScoreCategoryTranslation.objects.create(category=desc_cat, language_code='en', name='Description')
+    ScoreCategoryTranslation.objects.create(category=desc_cat, language_code='zh-hans', name='描写')
+    categories['description'] = desc_cat
+
+    return categories
+
+
+# ============================================================================
+# Example Fixtures
+# ============================================================================
+
+@pytest.fixture
+def test_example(db, test_user, test_genres, test_score_categories):
+    """Create a test example with scores."""
+    # Create example
+    example = Example.objects.create(
+        user=test_user,
+        genre=test_genres['fantasy'],
+        public=True,
+        is_good=True,
+        category='opening',
+        title='Excellent Fantasy Opening',
+        locale='English',
+        content='''The wind howled through the ancient forest, carrying with it whispers of forgotten magic.
+Aria pressed her back against the gnarled oak, her breath coming in short gasps as she clutched
+the amulet her grandmother had given her. Behind her, she could hear them—the Shadow Hunters,
+relentless in their pursuit. But she wouldn't give up. Not when she was so close to finding the truth
+about her parents' disappearance. With trembling fingers, she traced the runes on the amulet,
+and it began to glow with a soft blue light.''',
+        description='Strong opening with immediate tension, character introduction, and mystery setup.',
+        metadata={'source': 'test', 'author': 'test'}
+    )
+
+    # Create scores for each category
+    ExampleScore.objects.create(
+        example=example,
+        category=test_score_categories['plot'],
+        weight=25,
+        score=8.5
+    )
+    ExampleScore.objects.create(
+        example=example,
+        category=test_score_categories['character_development'],
+        weight=20,
+        score=7.0
+    )
+    ExampleScore.objects.create(
+        example=example,
+        category=test_score_categories['pacing'],
+        weight=20,
+        score=9.0
+    )
+    ExampleScore.objects.create(
+        example=example,
+        category=test_score_categories['dialogue'],
+        weight=15,
+        score=6.0
+    )
+    ExampleScore.objects.create(
+        example=example,
+        category=test_score_categories['description'],
+        weight=20,
+        score=8.0
+    )
+
+    return example
 
 
 # ============================================================================
@@ -220,12 +353,45 @@ def mock_channel_layer():
         yield mock_layer
 
 
+@pytest.fixture(autouse=True)
+def mock_example_scorer():
+    """Mock ExampleScorer for scoring generated content."""
+    mock_scorer = Mock()
+
+    # Mock score_example to return realistic scores
+    def mock_score_example(content, categories, category_hint=None):
+        """Return mock scores for each category."""
+        scores = {
+            'Plot': 6.5,
+            'Character Development': 5.0,
+            'Pacing': 6.0,
+            'Dialogue': 4.0,
+            'Description': 8.5
+        }
+        # Only return scores for categories that were requested
+        filtered_scores = {k: v for k, v in scores.items() if k in categories}
+
+        # Mock token usage
+        token_usage = {
+            'prompt_tokens': 386,
+            'completion_tokens': 86,
+            'total_tokens': 472
+        }
+        return filtered_scores, token_usage
+
+    mock_scorer.score_example = Mock(side_effect=mock_score_example)
+
+    # Patch ExampleScorer from novel_agent.output (where it's imported)
+    with patch('novel_agent.output.ExampleScorer', return_value=mock_scorer):
+        yield mock_scorer
+
+
 # ============================================================================
 # Combined Mock Fixture for Full Integration Tests
 # ============================================================================
 
 @pytest.fixture
-def mock_all_openai(mock_openai_chat, mock_openai_embeddings, mock_chroma, mock_channel_layer):
+def mock_all_openai(mock_openai_chat, mock_openai_embeddings, mock_chroma, mock_channel_layer, mock_example_scorer):
     """
     Combined fixture that mocks all OpenAI and related services.
     Use this for integration tests to ensure no real API calls are made.
@@ -234,7 +400,8 @@ def mock_all_openai(mock_openai_chat, mock_openai_embeddings, mock_chroma, mock_
         'chat': mock_openai_chat,
         'embeddings': mock_openai_embeddings,
         'chroma': mock_chroma,
-        'channel_layer': mock_channel_layer
+        'channel_layer': mock_channel_layer,
+        'scorer': mock_example_scorer
     }
 
 

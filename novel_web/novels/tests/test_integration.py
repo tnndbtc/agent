@@ -411,6 +411,76 @@ class TestChapterGeneration:
         test_project.refresh_from_db()
         assert test_project.total_word_count == chapter.word_count
 
+    def test_generate_chapter_with_example_iterative_mode(
+        self, authenticated_client, test_project, test_example, mock_all_openai
+    ):
+        """Test writing chapter with example in iterative mode (quality targeting)."""
+        # Setup: Create plot and outline
+        Plot.objects.create(project=test_project, premise='Test premise')
+        outline = ChapterOutline.objects.create(
+            project=test_project,
+            number=1,
+            title='Chapter 1',
+            events='Test events'
+        )
+
+        # Write chapter with example and iterative mode
+        response = authenticated_client.post(
+            f'/api/projects/{test_project.id}/write_chapter/',
+            {
+                'chapter_outline_id': str(outline.id),
+                'writing_style': 'literary',
+                'language': 'English',
+                'target_word_count': 100,
+                'example_id': str(test_example.id),
+                'iterative_mode': True,
+                'max_iterations_multiplier': 3
+            }
+        )
+
+        assert response.status_code == 202
+        assert 'task_id' in response.data
+
+        # Verify task completed
+        task = GenerationTask.objects.get(id=response.data['task_id'])
+        assert task.task_type == 'chapter'
+        assert task.status == 'completed'
+
+        # KEY VALIDATION: Check iteration_history is present and properly structured
+        assert 'iteration_history' in task.result_data, f"iteration_history not in result_data. Keys: {task.result_data.keys()}"
+        iteration_history = task.result_data['iteration_history']
+
+        assert isinstance(iteration_history, list), f"iteration_history is not a list, it's {type(iteration_history)}"
+        assert len(iteration_history) > 0, f"iteration_history is empty. result_data: {task.result_data}"
+
+        # Verify each iteration has required fields
+        for iteration in iteration_history:
+            assert 'iteration' in iteration
+            assert 'total_score' in iteration
+            assert 'target_score' in iteration
+            assert 'scores' in iteration
+            assert 'is_best' in iteration
+
+            # Verify scores is a dict with category scores
+            assert isinstance(iteration['scores'], dict)
+            assert len(iteration['scores']) > 0
+
+        # Verify at least one iteration is marked as best
+        best_iterations = [i for i in iteration_history if i['is_best']]
+        assert len(best_iterations) == 1, "Exactly one iteration should be marked as best"
+
+        # Verify token usage is included
+        assert 'token_usage' in task.result_data
+        token_usage = task.result_data['token_usage']
+        assert 'total_tokens' in token_usage
+        assert token_usage['total_tokens'] > 0
+
+        # Verify chapter was created
+        chapter = Chapter.objects.get(project=test_project, chapter_number=1)
+        assert chapter is not None
+        assert chapter.content is not None
+        assert chapter.word_count > 0
+
 
 # ============================================================================
 # Test 7: Complete End-to-End Workflow
