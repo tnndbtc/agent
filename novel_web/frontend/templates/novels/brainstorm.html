@@ -689,6 +689,15 @@ function pollTask(taskId) {
                     clearInterval(interval);
                     hideLoading();
                     displayIdeas(task.result_data.ideas);
+
+                    // Show token usage if available
+                    console.log('Brainstorm task result_data:', task.result_data);
+                    if (task.result_data.token_usage) {
+                        console.log('Calling showTokenUsage with:', task.result_data.token_usage);
+                        showTokenUsage(task.result_data.token_usage);
+                    } else {
+                        console.warn('No token_usage in brainstorm result_data');
+                    }
                 } else if (task.status === 'failed') {
                     clearInterval(interval);
                     hideLoading();

@@ -143,6 +143,34 @@
             <div class="form-group">
                 <label for="content">{% trans "Content" %} *</label>
                 <textarea id="content" name="content" class="form-control" rows="5" required></textarea>
+                <button type="button" class="btn btn-primary" id="generateScoresBtn" disabled style="margin-top: 0.75rem; width: 100%;">
+                    ✨ {% trans "Suggest Metadata & Generate Scores" %}
+                </button>
+
+                <!-- Progress bar for AI generation -->
+                <div id="scoreProgressContainer" class="progress-container" style="display: none; margin-top: 0.75rem;">
+                    <div class="progress-bar">
+                        <div id="scoreProgressBarFill" class="progress-bar-fill" style="width: 0%;">0%</div>
+                    </div>
+                    <div id="scoreProgressText" class="progress-text">Analyzing example...</div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="title">{% trans "Title" %}</label>
+                <input type="text" id="title" name="title" class="form-control" placeholder="{% trans "Short one-line summary..." %}" maxlength="200">
+            </div>
+
+            <div class="form-group">
+                <label for="locale">{% trans "Language/Locale" %}</label>
+                <select id="locale" name="locale" class="form-control">
+                    <option value="English">English</option>
+                    <option value="Chinese">Chinese</option>
+                    <option value="French">French</option>
+                    <option value="Spanish">Spanish</option>
+                    <option value="German">German</option>
+                    <option value="Japanese">Japanese</option>
+                </select>
             </div>
 
             <div class="form-group" style="display: none;">
@@ -194,20 +222,7 @@
 
             <!-- Score Categories -->
             <div class="form-group">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                    <label style="margin: 0;">{% trans "Scores" %}</label>
-                    <button type="button" class="btn btn-sm btn-primary" id="generateScoresBtn" disabled>
-                        ✨ {% trans "Generate Scores" %}
-                    </button>
-                </div>
-
-                <!-- Progress bar for AI generation -->
-                <div id="scoreProgressContainer" class="progress-container" style="display: none; margin-bottom: 1rem;">
-                    <div class="progress-bar">
-                        <div id="scoreProgressBarFill" class="progress-bar-fill" style="width: 0%;">0%</div>
-                    </div>
-                    <div id="scoreProgressText" class="progress-text">Analyzing example...</div>
-                </div>
+                <label>{% trans "Scores" %}</label>
 
                 <div id="scoreInputs">
                     {% for cat in score_categories %}
@@ -456,6 +471,8 @@ async function editExample(exampleId) {
         document.getElementById('modalTitle').textContent = '{% trans "Edit Example" %}';
         document.getElementById('exampleId').value = exampleId;
         document.getElementById('content').value = response.content || '';
+        document.getElementById('title').value = response.title || '';
+        document.getElementById('locale').value = response.locale || 'English';
         document.getElementById('description').value = response.description || '';
         document.getElementById('category').value = response.category || '';
 
@@ -531,6 +548,8 @@ document.getElementById('exampleForm').addEventListener('submit', async (e) => {
     const categoryValue = document.getElementById('category').value;
     const data = {
         content: document.getElementById('content').value,
+        title: document.getElementById('title').value,
+        locale: document.getElementById('locale').value,
         description: document.getElementById('description').value,
         category: categoryValue || null,
         genre: genre,
@@ -636,7 +655,7 @@ document.getElementById('content').addEventListener('input', function() {
     document.getElementById('generateScoresBtn').disabled = !hasContent;
 });
 
-// Generate Scores with AI
+// Suggest Metadata & Generate Scores with AI
 document.getElementById('generateScoresBtn').addEventListener('click', async function() {
     const content = document.getElementById('content').value.trim();
     const category = document.getElementById('category').value;
@@ -649,7 +668,7 @@ document.getElementById('generateScoresBtn').addEventListener('click', async fun
     try {
         // Disable button during generation
         this.disabled = true;
-        this.textContent = '{% trans "Generating..." %}';
+        this.textContent = '{% trans "Processing..." %}';
 
         // Show progress bar
         const progressContainer = document.getElementById('scoreProgressContainer');
@@ -658,6 +677,67 @@ document.getElementById('generateScoresBtn').addEventListener('click', async fun
         progressContainer.style.display = 'block';
         progressBarFill.style.width = '0%';
         progressBarFill.textContent = '0%';
+
+        // Step 1: Suggest metadata
+        progressText.textContent = '{% trans "Suggesting metadata..." %}';
+        progressBarFill.style.width = '10%';
+        progressBarFill.textContent = '10%';
+
+        try {
+            const metadataResponse = await apiRequest('/api/examples/suggest-metadata/', {
+                method: 'POST',
+                body: JSON.stringify({ content: content })
+            });
+
+            // Populate fields with suggestions
+            if (metadataResponse.title) {
+                document.getElementById('title').value = metadataResponse.title;
+            }
+            if (metadataResponse.category) {
+                document.getElementById('category').value = metadataResponse.category;
+            }
+            if (metadataResponse.locale) {
+                document.getElementById('locale').value = metadataResponse.locale;
+            }
+            if (metadataResponse.genre) {
+                // Check if genre matches a predefined genre
+                const genreSelect = document.getElementById('genre');
+                const genreOptions = Array.from(genreSelect.options);
+                const matchingOption = genreOptions.find(opt =>
+                    opt.textContent.toLowerCase() === metadataResponse.genre.toLowerCase()
+                );
+
+                if (matchingOption) {
+                    genreSelect.value = matchingOption.value;
+                    document.getElementById('customGenreGroup').style.display = 'none';
+                } else {
+                    // Use custom genre
+                    genreSelect.value = 'Custom';
+                    document.getElementById('customGenre').value = metadataResponse.genre;
+                    document.getElementById('customGenreGroup').style.display = 'block';
+                }
+            }
+
+            // Show token usage if available
+            console.log('Metadata response:', metadataResponse);
+            if (metadataResponse.token_usage) {
+                console.log('Calling showTokenUsage with:', metadataResponse.token_usage);
+                showTokenUsage(metadataResponse.token_usage);
+            } else {
+                console.warn('No token_usage in metadata response');
+            }
+
+            progressBarFill.style.width = '30%';
+            progressBarFill.textContent = '30%';
+        } catch (metadataError) {
+            console.error('Error suggesting metadata:', metadataError);
+            // Continue with score generation even if metadata suggestion fails
+        }
+
+        // Step 2: Generate scores
+        progressText.textContent = '{% trans "Generating scores..." %}';
+        progressBarFill.style.width = '40%';
+        progressBarFill.textContent = '40%';
 
         // Start API request
         const response = await apiRequest('/api/examples/generate-scores/', {
@@ -683,9 +763,10 @@ document.getElementById('generateScoresBtn').addEventListener('click', async fun
             const data = JSON.parse(event.data);
 
             if (data.type === 'progress') {
-                // Update progress bar
-                progressBarFill.style.width = `${data.progress}%`;
-                progressBarFill.textContent = `${Math.round(data.progress)}%`;
+                // Scale progress from 40% to 100%
+                const scaledProgress = 40 + (data.progress * 0.6);
+                progressBarFill.style.width = `${scaledProgress}%`;
+                progressBarFill.textContent = `${Math.round(scaledProgress)}%`;
                 progressText.textContent = data.message || '{% trans "Analyzing..." %}';
 
                 // Check if completed
@@ -716,7 +797,7 @@ document.getElementById('generateScoresBtn').addEventListener('click', async fun
         };
 
     } catch (error) {
-        console.error('Error starting score generation:', error);
+        console.error('Error during processing:', error);
         showToast('{% trans "Error: " %}' + error.message, 'error');
         resetGenerateButton();
         document.getElementById('scoreProgressContainer').style.display = 'none';
@@ -744,6 +825,15 @@ async function fetchTaskResult(taskId) {
                 }
             }
 
+            // Show token usage if available
+            console.log('Task result_data:', taskData.result_data);
+            if (taskData.result_data.token_usage) {
+                console.log('Calling showTokenUsage with:', taskData.result_data.token_usage);
+                showTokenUsage(taskData.result_data.token_usage);
+            } else {
+                console.warn('No token_usage in task result_data');
+            }
+
             // Hide progress, enable save button
             document.getElementById('scoreProgressContainer').style.display = 'none';
             document.getElementById('saveExampleBtn').disabled = false;
@@ -767,7 +857,7 @@ function resetGenerateButton() {
     const btn = document.getElementById('generateScoresBtn');
     const hasContent = document.getElementById('content').value.trim().length > 0;
     btn.disabled = !hasContent;
-    btn.textContent = '✨ {% trans "Generate Scores" %}';
+    btn.textContent = '✨ {% trans "Suggest Metadata & Generate Scores" %}';
 }
 
 // Enable save button when any score is manually entered

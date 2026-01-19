@@ -1136,3 +1136,21 @@ body {
         grid-template-columns: repeat(3, 1fr);
     }
 }
+
+/* Token Usage Status Bar */
+.token-status-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(102, 126, 234, 0.95);
+    color: white;
+    padding: 8px 16px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 400;
+    box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.1);
+    z-index: 999;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+}

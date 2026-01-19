@@ -4,7 +4,48 @@ from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 from django.utils.translation import get_language, gettext_lazy as _
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 import uuid
+
+
+class UserProfile(models.Model):
+    """User profile for tracking token usage and other user-specific data."""
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    prompt_tokens = models.BigIntegerField(default=0, help_text="Total prompt tokens consumed by this user")
+    completion_tokens = models.BigIntegerField(default=0, help_text="Total completion tokens consumed by this user")
+    total_tokens = models.BigIntegerField(default=0, help_text="Total tokens consumed by this user")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("User Profile")
+        verbose_name_plural = _("User Profiles")
+
+    def __str__(self):
+        return f"{self.user.username}'s profile"
+
+    def add_tokens(self, prompt_tokens=0, completion_tokens=0, total_tokens=0):
+        """Add token usage to user's totals."""
+        self.prompt_tokens += prompt_tokens
+        self.completion_tokens += completion_tokens
+        self.total_tokens += total_tokens
+        self.save()
+
+
+@receiver(post_save, sender=User)
+def create_user_profile(sender, instance, created, **kwargs):
+    """Automatically create UserProfile when a new User is created."""
+    if created:
+        UserProfile.objects.create(user=instance)
+
+
+@receiver(post_save, sender=User)
+def save_user_profile(sender, instance, **kwargs):
+    """Save the UserProfile when the User is saved."""
+    if hasattr(instance, 'profile'):
+        instance.profile.save()
 
 
 class Genre(models.Model):
@@ -468,6 +509,15 @@ class Example(models.Model):
         ('ending', 'Ending'),
     ]
 
+    LOCALE_CHOICES = [
+        ('English', 'English'),
+        ('Chinese', 'Chinese'),
+        ('French', 'French'),
+        ('Spanish', 'Spanish'),
+        ('German', 'German'),
+        ('Japanese', 'Japanese'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='examples')
 
@@ -475,6 +525,9 @@ class Example(models.Model):
     genre = models.ForeignKey(Genre, null=True, blank=True, on_delete=models.SET_NULL, related_name='examples')
     public = models.BooleanField(default=False, db_index=True, help_text="Whether this example is publicly available")
 
+    # Basic information
+    title = models.CharField(max_length=200, blank=True, help_text="Short one-line summary of the example")
+    locale = models.CharField(max_length=50, choices=LOCALE_CHOICES, default='English', help_text="Language of the content")
     is_good = models.BooleanField(help_text="True for good example, False for bad")
     category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, blank=True, null=True)
     content = models.TextField()

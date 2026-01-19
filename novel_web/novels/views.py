@@ -15,7 +15,7 @@ from .models import (
     NovelProject, Plot, Character, Setting,
     ChapterOutline, Chapter, Example, GenerationTask, APIPerformanceMetric,
     ScoreCategory, ScoreCategoryTranslation, ExampleScore,
-    Genre, GenreTranslation
+    Genre, GenreTranslation, UserProfile
 )
 from .serializers import (
     NovelProjectSerializer, NovelProjectListSerializer,
@@ -148,13 +148,32 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         # Track API performance
         start_time = timezone.now()
 
-        plot_data = PlotService.create_full_plot(project, serializer.validated_data['idea_data'], user_language=user_language)
+        # Accumulate token usage from all AI calls
+        total_tokens_used = {
+            'prompt_tokens': 0,
+            'completion_tokens': 0,
+            'total_tokens': 0
+        }
+
+        plot_data, plot_tokens = PlotService.create_full_plot(project, serializer.validated_data['idea_data'], user_language=user_language)
+        # Accumulate plot tokens
+        if plot_tokens:
+            total_tokens_used['prompt_tokens'] += plot_tokens.get('prompt_tokens', 0)
+            total_tokens_used['completion_tokens'] += plot_tokens.get('completion_tokens', 0)
+            total_tokens_used['total_tokens'] += plot_tokens.get('total_tokens', 0)
+            logger.info(f"Plot generation tokens: {plot_tokens}")
 
         # Generate one-sentence theme from the idea
         target_language = get_language_name(user_language)
         logger.info(f"Generating one-sentence theme - user_language: {user_language}, target_language: {target_language}")
-        theme_sentence = generate_theme_from_idea(serializer.validated_data['idea_data'], language=target_language)
+        theme_sentence, theme_tokens = generate_theme_from_idea(serializer.validated_data['idea_data'], language=target_language)
         logger.info(f"Generated theme: {theme_sentence}")
+        # Accumulate theme tokens
+        if theme_tokens:
+            total_tokens_used['prompt_tokens'] += theme_tokens.get('prompt_tokens', 0)
+            total_tokens_used['completion_tokens'] += theme_tokens.get('completion_tokens', 0)
+            total_tokens_used['total_tokens'] += theme_tokens.get('total_tokens', 0)
+            logger.info(f"Theme generation tokens: {theme_tokens}")
 
         # Save to database
         # Note: genre is now a ForeignKey to Genre model, not a text field
@@ -201,9 +220,15 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         }
 
         # Generate and save protagonist
-        protagonist_options = CharacterService.create_protagonists(
+        protagonist_options, protagonist_tokens = CharacterService.create_protagonists(
             project, character_plot_data, num_options=1, user_language=user_language
         )
+        # Accumulate protagonist tokens
+        if protagonist_tokens:
+            total_tokens_used['prompt_tokens'] += protagonist_tokens.get('prompt_tokens', 0)
+            total_tokens_used['completion_tokens'] += protagonist_tokens.get('completion_tokens', 0)
+            total_tokens_used['total_tokens'] += protagonist_tokens.get('total_tokens', 0)
+            logger.info(f"Protagonist generation tokens: {protagonist_tokens}")
 
         protagonist_db = None
         if protagonist_options:
@@ -251,9 +276,15 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
                 'goals': protagonist_db.motivation
             }
 
-            antagonist_data = CharacterService.create_antagonist(
+            antagonist_data, antagonist_tokens = CharacterService.create_antagonist(
                 project, character_plot_data, protagonist_data_for_antagonist, user_language=user_language
             )
+            # Accumulate antagonist tokens
+            if antagonist_tokens:
+                total_tokens_used['prompt_tokens'] += antagonist_tokens.get('prompt_tokens', 0)
+                total_tokens_used['completion_tokens'] += antagonist_tokens.get('completion_tokens', 0)
+                total_tokens_used['total_tokens'] += antagonist_tokens.get('total_tokens', 0)
+                logger.info(f"Antagonist generation tokens: {antagonist_tokens}")
 
             if antagonist_data:
                 antagonist_db = Character.objects.create(
@@ -289,6 +320,19 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
                 except Exception as e:
                     logger.warning(f"Failed to store antagonist in ChromaDB memory: {e}")
 
+        # Save token usage to user profile
+        if total_tokens_used and request.user.is_authenticated:
+            try:
+                profile, created = UserProfile.objects.get_or_create(user=request.user)
+                profile.add_tokens(
+                    prompt_tokens=total_tokens_used.get('prompt_tokens', 0),
+                    completion_tokens=total_tokens_used.get('completion_tokens', 0),
+                    total_tokens=total_tokens_used.get('total_tokens', 0)
+                )
+                logger.info(f"Saved create_plot tokens to user {request.user.username}: {total_tokens_used}")
+            except Exception as e:
+                logger.error(f"Failed to save create_plot tokens to user profile: {e}")
+
         # Track API performance
         end_time = timezone.now()
         duration = (end_time - start_time).total_seconds()
@@ -301,7 +345,8 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
 
         response_data = {
             'plot': PlotSerializer(plot).data,
-            'message': 'Plot and characters (protagonist and antagonist) created successfully'
+            'message': 'Plot and characters (protagonist and antagonist) created successfully',
+            'token_usage': total_tokens_used
         }
         if protagonist_db:
             response_data['protagonist'] = CharacterSerializer(protagonist_db).data
@@ -952,6 +997,110 @@ class ExampleViewSet(viewsets.ModelViewSet):
             'task_id': str(task.id),
             'status': 'Task started'
         }, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=False, methods=['post'], url_path='suggest-metadata')
+    def suggest_metadata(self, request):
+        """Suggest title, category, genre, and locale for example content using OpenAI."""
+        from langchain_openai import ChatOpenAI
+
+        content = request.data.get('content', '')
+        if not content:
+            return Response(
+                {'error': 'Content is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get available choices
+        from novels.models import Genre
+        category_choices = [choice[0] for choice in Example.CATEGORY_CHOICES]
+        locale_choices = [choice[0] for choice in Example.LOCALE_CHOICES]
+        genre_objects = Genre.objects.filter(public=True)
+        genre_names = [str(genre) for genre in genre_objects]
+
+        try:
+            llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+
+            prompt = f"""Analyze the following writing example and suggest appropriate metadata.
+
+Content:
+{content[:1000]}
+
+Please suggest:
+1. A short one-line title (max 100 characters)
+2. Category (choose from: {', '.join(category_choices)})
+3. Genre (choose from: {', '.join(genre_names) if genre_names else 'General'})
+4. Locale/Language (choose from: {', '.join(locale_choices)})
+
+Respond in JSON format:
+{{
+    "title": "suggested title",
+    "category": "category name",
+    "genre": "genre name",
+    "locale": "locale name"
+}}
+"""
+
+            response = llm.invoke(prompt)
+            import json
+
+            # Extract token usage information
+            token_usage = {}
+            if hasattr(response, 'response_metadata') and 'token_usage' in response.response_metadata:
+                usage = response.response_metadata['token_usage']
+                token_usage = {
+                    'prompt_tokens': usage.get('prompt_tokens', 0),
+                    'completion_tokens': usage.get('completion_tokens', 0),
+                    'total_tokens': usage.get('total_tokens', 0)
+                }
+            elif hasattr(response, 'usage_metadata'):
+                token_usage = {
+                    'prompt_tokens': getattr(response.usage_metadata, 'input_tokens', 0),
+                    'completion_tokens': getattr(response.usage_metadata, 'output_tokens', 0),
+                    'total_tokens': getattr(response.usage_metadata, 'total_tokens', 0)
+                }
+
+            # Save token usage to user profile
+            if token_usage and request.user.is_authenticated:
+                try:
+                    profile, created = UserProfile.objects.get_or_create(user=request.user)
+                    profile.add_tokens(
+                        prompt_tokens=token_usage.get('prompt_tokens', 0),
+                        completion_tokens=token_usage.get('completion_tokens', 0),
+                        total_tokens=token_usage.get('total_tokens', 0)
+                    )
+                    logger.info(f"Saved tokens to user {request.user.username}: {token_usage}")
+                except Exception as e:
+                    logger.error(f"Failed to save tokens to user profile: {e}")
+
+            # Extract JSON from response
+            content_text = response.content if hasattr(response, 'content') else str(response)
+
+            # Try to extract JSON from the response
+            import re
+            json_match = re.search(r'\{[^{}]*\}', content_text, re.DOTALL)
+            if json_match:
+                suggestions = json.loads(json_match.group())
+            else:
+                # Fallback: try to parse the entire response
+                suggestions = json.loads(content_text)
+
+            # Validate and clean suggestions
+            result = {
+                'title': suggestions.get('title', '')[:200],  # Max 200 chars
+                'category': suggestions.get('category', '') if suggestions.get('category') in category_choices else '',
+                'genre': suggestions.get('genre', ''),
+                'locale': suggestions.get('locale', 'English') if suggestions.get('locale') in locale_choices else 'English',
+                'token_usage': token_usage
+            }
+
+            return Response(result, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Error suggesting metadata: {str(e)}")
+            return Response(
+                {'error': f'Failed to generate suggestions: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @action(detail=True, methods=['post'], url_path='scores')
     def create_score(self, request, pk=None):

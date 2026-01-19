@@ -814,6 +814,15 @@ async function useCurrentIdea() {
             body: JSON.stringify({ idea_data: currentIdea })
         });
 
+        // Extract and display token usage
+        console.log('Create plot response:', response);
+        if (response.token_usage) {
+            console.log('Calling showTokenUsage with:', response.token_usage);
+            showTokenUsage(response.token_usage);
+        } else {
+            console.warn('No token_usage in create plot response');
+        }
+
         completeCreatePlotProgressBar();
         showToast('Plot and characters created successfully!', 'success');
         setTimeout(() => {

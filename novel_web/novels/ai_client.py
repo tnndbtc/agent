@@ -87,7 +87,7 @@ def generate_theme_from_idea(idea_data, language='English'):
         language: Target language for the theme (default: English)
 
     Returns:
-        str: A one-sentence theme
+        tuple: (theme, token_usage) where token_usage is a dict with prompt_tokens, completion_tokens, total_tokens
     """
     logger.info(f"Generating one-sentence theme from idea - Language: {language}")
 
@@ -96,7 +96,7 @@ def generate_theme_from_idea(idea_data, language='English'):
 
     if not premise:
         logger.warning("No premise found in idea_data, returning default theme")
-        return "A story of personal growth and discovery."
+        return "A story of personal growth and discovery.", {}
 
     # Construct the prompt
     prompt = f"""Based on the following plot idea, generate ONE SENTENCE that captures the core theme of the story.
@@ -123,13 +123,23 @@ Return ONLY the one-sentence theme, nothing else."""
         )
 
         theme = response.choices[0].message.content.strip()
-        logger.info(f"Generated theme: {theme}")
-        return theme
+
+        # Extract token usage
+        token_usage = {}
+        if hasattr(response, 'usage') and response.usage:
+            token_usage = {
+                'prompt_tokens': response.usage.prompt_tokens,
+                'completion_tokens': response.usage.completion_tokens,
+                'total_tokens': response.usage.total_tokens
+            }
+
+        logger.info(f"Generated theme: {theme}, tokens: {token_usage}")
+        return theme, token_usage
 
     except Exception as e:
         logger.error(f"Failed to generate theme: {str(e)}")
         # Return a default theme if generation fails
-        return "A story of personal growth and discovery."
+        return "A story of personal growth and discovery.", {}
 
 
 def patch_openai_for_logging():

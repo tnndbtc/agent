@@ -23,7 +23,7 @@ class ExampleScorer:
         content: str,
         categories: Dict[str, str],
         category_hint: Optional[str] = None
-    ) -> Dict[str, float]:
+    ) -> tuple[Dict[str, float], Dict[str, int]]:
         """
         Score a writing example across multiple categories.
 
@@ -33,7 +33,9 @@ class ExampleScorer:
             category_hint: Optional hint about example type (dialogue, action, etc.)
 
         Returns:
-            Dict mapping category names to scores (0-10)
+            Tuple of (scores dict, token_usage dict)
+            - scores: Dict mapping category names to scores (0-10)
+            - token_usage: Dict with prompt_tokens, completion_tokens, total_tokens
         """
         # Build prompt
         system_message = "You are an expert writing evaluator. Respond only with valid JSON."
@@ -89,6 +91,22 @@ class ExampleScorer:
         response = self.llm.invoke(messages)
         response_text = response.content.strip()
 
+        # Extract token usage
+        token_usage = {}
+        if hasattr(response, 'response_metadata') and 'token_usage' in response.response_metadata:
+            usage = response.response_metadata['token_usage']
+            token_usage = {
+                'prompt_tokens': usage.get('prompt_tokens', 0),
+                'completion_tokens': usage.get('completion_tokens', 0),
+                'total_tokens': usage.get('total_tokens', 0)
+            }
+        elif hasattr(response, 'usage_metadata'):
+            token_usage = {
+                'prompt_tokens': getattr(response.usage_metadata, 'input_tokens', 0),
+                'completion_tokens': getattr(response.usage_metadata, 'output_tokens', 0),
+                'total_tokens': getattr(response.usage_metadata, 'total_tokens', 0)
+            }
+
         # Parse JSON response
         # Handle markdown code blocks if present
         if response_text.startswith('```'):
@@ -107,7 +125,7 @@ class ExampleScorer:
                 score_value = float(score_data['score'])
                 scores[cat_name] = score_value
 
-            return scores
+            return scores, token_usage
 
         except json.JSONDecodeError as e:
             raise ValueError(f"AI returned invalid JSON format: {e}")

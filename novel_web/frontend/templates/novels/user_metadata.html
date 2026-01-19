@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "User Metadata" %}{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <div class="page-header">
+        <h1>{% trans "User Metadata" %}</h1>
+        <p class="subtitle">{% trans "View your account information and token usage" %}</p>
+    </div>
+
+    <div class="metadata-container">
+        <!-- User Information -->
+        <div class="metadata-card">
+            <h2>
+                <span class="icon">👤</span>
+                {% trans "User Information" %}
+            </h2>
+            <div class="metadata-grid">
+                <div class="metadata-item">
+                    <span class="label">{% trans "Username" %}:</span>
+                    <span class="value">{{ user.username }}</span>
+                </div>
+                <div class="metadata-item">
+                    <span class="label">{% trans "Email" %}:</span>
+                    <span class="value">{{ user.email|default:"-" }}</span>
+                </div>
+                <div class="metadata-item">
+                    <span class="label">{% trans "Date Joined" %}:</span>
+                    <span class="value">{{ user.date_joined|date:"F d, Y" }}</span>
+                </div>
+                <div class="metadata-item">
+                    <span class="label">{% trans "Last Login" %}:</span>
+                    <span class="value">{{ user.last_login|date:"F d, Y H:i"|default:"-" }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Token Usage -->
+        <div class="metadata-card token-usage-card">
+            <h2>
+                <span class="icon">🪙</span>
+                {% trans "Token Usage" %}
+            </h2>
+            <div class="token-stats">
+                <div class="token-stat total">
+                    <div class="stat-label">{% trans "Total Tokens" %}</div>
+                    <div class="stat-value">{{ profile.total_tokens|default:0 }}</div>
+                </div>
+                <div class="token-stat prompt">
+                    <div class="stat-label">{% trans "Prompt Tokens" %}</div>
+                    <div class="stat-value">{{ profile.prompt_tokens|default:0 }}</div>
+                </div>
+                <div class="token-stat completion">
+                    <div class="stat-label">{% trans "Completion Tokens" %}</div>
+                    <div class="stat-value">{{ profile.completion_tokens|default:0 }}</div>
+                </div>
+            </div>
+            <div class="token-info">
+                <p class="info-text">
+                    <span class="icon">ℹ️</span>
+                    {% trans "Tokens are consumed when using AI features like brainstorming, generating scores, and suggesting metadata." %}
+                </p>
+                {% if profile.updated_at %}
+                <p class="last-updated">
+                    {% trans "Last updated" %}: {{ profile.updated_at|date:"F d, Y H:i" }}
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.metadata-container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.metadata-card {
+    background: white;
+    border-radius: 8px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.metadata-card h2 {
+    margin: 0 0 1.5rem 0;
+    color: #2c3e50;
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.metadata-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+}
+
+.metadata-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.metadata-item .label {
+    font-weight: 600;
+    color: #666;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.metadata-item .value {
+    font-size: 1.1rem;
+    color: #2c3e50;
+}
+
+.token-usage-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.token-usage-card h2 {
+    color: white;
+}
+
+.token-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.token-stat {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    backdrop-filter: blur(10px);
+}
+
+.token-stat.total {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    opacity: 0.9;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.stat-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.token-info {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 1rem;
+    backdrop-filter: blur(10px);
+}
+
+.info-text {
+    margin: 0 0 0.5rem 0;
+    display: flex;
+    align-items: start;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.info-text .icon {
+    flex-shrink: 0;
+}
+
+.last-updated {
+    margin: 0;
+    font-size: 0.85rem;
+    opacity: 0.8;
+    text-align: right;
+}
+
+@media (max-width: 768px) {
+    .metadata-card {
+        padding: 1.5rem;
+    }
+
+    .metadata-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .token-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .stat-value {
+        font-size: 2rem;
+    }
+}
+</style>
+{% endblock %}

@@ -7,7 +7,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import threading
 import time
-from .models import GenerationTask, NovelProject, Chapter, ChapterOutline, APIPerformanceMetric
+from .models import GenerationTask, NovelProject, Chapter, ChapterOutline, APIPerformanceMetric, UserProfile
 from .services import (
     BrainstormService, PlotService, CharacterService,
     SettingService, OutlineService, WritingService,
@@ -105,7 +105,7 @@ def brainstorm_ideas_task(self, task_id, project_id, genre=None, theme=None, num
         progress_updater.start("Generating plot ideas...")
 
         try:
-            ideas = BrainstormService.generate_ideas(
+            ideas, token_usage = BrainstormService.generate_ideas(
                 project,
                 genre=genre,
                 theme=theme,
@@ -114,13 +114,29 @@ def brainstorm_ideas_task(self, task_id, project_id, genre=None, theme=None, num
                 use_context=False,  # Skip context retrieval for faster generation
                 user_language=user_language
             )
-            logger.info(f"Brainstorm task generated {len(ideas)} ideas")
+            logger.info(f"Brainstorm task generated {len(ideas)} ideas, tokens: {token_usage}")
+
+            # Save token usage to user profile
+            if token_usage and task.user:
+                try:
+                    profile, created = UserProfile.objects.get_or_create(user=task.user)
+                    profile.add_tokens(
+                        prompt_tokens=token_usage.get('prompt_tokens', 0),
+                        completion_tokens=token_usage.get('completion_tokens', 0),
+                        total_tokens=token_usage.get('total_tokens', 0)
+                    )
+                    logger.info(f"Saved brainstorm tokens to user {task.user.username}: {token_usage}")
+                except Exception as e:
+                    logger.error(f"Failed to save brainstorm tokens to user profile: {e}")
         finally:
             progress_updater.stop()
 
         update_task_progress(task_id, 90, "Finalizing ideas...")
 
-        task.result_data = {'ideas': ideas}
+        task.result_data = {
+            'ideas': ideas,
+            'token_usage': token_usage
+        }
         task.status = 'completed'
         task.completed_at = timezone.now()
         task.progress = 100
@@ -138,7 +154,10 @@ def brainstorm_ideas_task(self, task_id, project_id, genre=None, theme=None, num
 
         update_task_progress(task_id, 100, "Complete!")
 
-        return {'ideas': ideas}
+        return {
+            'ideas': ideas,
+            'token_usage': token_usage
+        }
 
     except Exception as exc:
         logger.error(f"Brainstorm task failed: {exc}")
@@ -675,20 +694,36 @@ def generate_example_scores_task(self, task_id, content, category=None, user_lan
             # Import service
             from .services import ExampleScoringService
 
-            # Generate scores
-            scores = ExampleScoringService.generate_scores(
+            # Generate scores (returns scores and token_usage)
+            scores, token_usage = ExampleScoringService.generate_scores(
                 content=content,
                 category=category,
                 user_language=user_language
             )
 
-            logger.info(f"Generated scores: {scores}")
+            logger.info(f"Generated scores: {scores}, tokens: {token_usage}")
+
+            # Save token usage to user profile
+            if token_usage and task.user:
+                try:
+                    profile, created = UserProfile.objects.get_or_create(user=task.user)
+                    profile.add_tokens(
+                        prompt_tokens=token_usage.get('prompt_tokens', 0),
+                        completion_tokens=token_usage.get('completion_tokens', 0),
+                        total_tokens=token_usage.get('total_tokens', 0)
+                    )
+                    logger.info(f"Saved scoring tokens to user {task.user.username}: {token_usage}")
+                except Exception as e:
+                    logger.error(f"Failed to save scoring tokens to user profile: {e}")
         finally:
             progress_updater.stop()
 
         update_task_progress(task_id, 90, "Finalizing scores...")
 
-        task.result_data = {'scores': scores}
+        task.result_data = {
+            'scores': scores,
+            'token_usage': token_usage
+        }
         task.status = 'completed'
         task.completed_at = timezone.now()
         task.progress = 100
@@ -696,7 +731,10 @@ def generate_example_scores_task(self, task_id, content, category=None, user_lan
 
         update_task_progress(task_id, 100, "Complete!")
 
-        return {'scores': scores}
+        return {
+            'scores': scores,
+            'token_usage': token_usage
+        }
 
     except Exception as exc:
         logger.error(f"Example scoring task failed: {exc}", exc_info=True)

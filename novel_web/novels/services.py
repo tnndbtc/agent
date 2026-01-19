@@ -166,7 +166,7 @@ class BrainstormService:
         custom_prompt = add_language_instruction(custom_prompt, target_language)
         logger.info(f"BrainstormService - custom_prompt after language instruction: {custom_prompt[:200] if custom_prompt else None}")
 
-        ideas = brainstormer.generate_plot_ideas(
+        ideas, token_usage = brainstormer.generate_plot_ideas(
             genre=genre,
             theme=theme,
             num_ideas=num_ideas,
@@ -174,8 +174,8 @@ class BrainstormService:
             use_context=use_context
         )
 
-        logger.info(f"BrainstormService generated {len(ideas)} ideas")
-        return ideas
+        logger.info(f"BrainstormService generated {len(ideas)} ideas, tokens: {token_usage}")
+        return ideas, token_usage
 
     @staticmethod
     def refine_idea(project, idea_data, feedback):
@@ -201,7 +201,11 @@ class PlotService:
 
     @staticmethod
     def create_full_plot(project, idea_data, user_language='en'):
-        """Create a complete plot structure."""
+        """Create a complete plot structure.
+
+        Returns:
+            tuple: (plot, token_usage) where token_usage contains prompt_tokens, completion_tokens, total_tokens
+        """
         service = ProjectService(project)
         plot_gen = service.get_plot_generator()
 
@@ -209,9 +213,9 @@ class PlotService:
         target_language = get_language_name(user_language)
         logger.info(f"PlotService.create_full_plot - user_language: {user_language}, target_language: {target_language}")
 
-        plot = plot_gen.create_full_plot(idea_data, language=target_language)
-        logger.info("PlotService.create_full_plot - Successfully generated plot with language support")
-        return plot
+        plot, token_usage = plot_gen.create_full_plot(idea_data, language=target_language)
+        logger.info(f"PlotService.create_full_plot - Successfully generated plot with token usage: {token_usage}")
+        return plot, token_usage
 
     @staticmethod
     def generate_subplots(project, main_plot, num_subplots=2, user_language='en'):
@@ -232,7 +236,11 @@ class CharacterService:
 
     @staticmethod
     def create_protagonists(project, plot_data, num_options=3, user_language='en'):
-        """Generate protagonist options."""
+        """Generate protagonist options.
+
+        Returns:
+            tuple: (protagonists, token_usage) where token_usage contains prompt_tokens, completion_tokens, total_tokens
+        """
         service = ProjectService(project)
         char_gen = service.get_character_generator()
 
@@ -240,13 +248,17 @@ class CharacterService:
         logger.info(f"CharacterService.create_protagonists - user_language: {user_language}, "
                    f"target_language: {target_language}, num_options: {num_options}")
 
-        protagonists = char_gen.create_protagonist(plot_data, num_options, language=target_language)
-        logger.info(f"CharacterService.create_protagonists - Successfully generated {len(protagonists)} protagonists with language support")
-        return protagonists
+        protagonists, token_usage = char_gen.create_protagonist(plot_data, num_options, language=target_language)
+        logger.info(f"CharacterService.create_protagonists - Successfully generated {len(protagonists)} protagonists with token usage: {token_usage}")
+        return protagonists, token_usage
 
     @staticmethod
     def create_antagonist(project, plot_data, protagonist_data, user_language='en'):
-        """Create an antagonist."""
+        """Create an antagonist.
+
+        Returns:
+            tuple: (antagonist, token_usage) where token_usage contains prompt_tokens, completion_tokens, total_tokens
+        """
         service = ProjectService(project)
         char_gen = service.get_character_generator()
 
@@ -254,9 +266,9 @@ class CharacterService:
         logger.info(f"CharacterService.create_antagonist - user_language: {user_language}, "
                    f"target_language: {target_language}")
 
-        antagonist = char_gen.create_antagonist(plot_data, protagonist_data, language=target_language)
-        logger.info("CharacterService.create_antagonist - Successfully generated antagonist with language support")
-        return antagonist
+        antagonist, token_usage = char_gen.create_antagonist(plot_data, protagonist_data, language=target_language)
+        logger.info(f"CharacterService.create_antagonist - Successfully generated antagonist with token usage: {token_usage}")
+        return antagonist, token_usage
 
     @staticmethod
     def create_supporting(project, plot_data, protagonist_data, roles, user_language='en'):
@@ -516,14 +528,14 @@ class ExampleScoringService:
         scorer = ExampleScorer()
 
         try:
-            # Call novel_agent scorer
-            scores_by_name = scorer.score_example(
+            # Call novel_agent scorer (returns tuple of scores and token_usage)
+            scores_by_name, token_usage = scorer.score_example(
                 content=content,
                 categories=scorer_categories,
                 category_hint=category
             )
 
-            logger.info(f"AI returned scores: {scores_by_name}")
+            logger.info(f"AI returned scores: {scores_by_name}, tokens: {token_usage}")
 
             # Map category names to IDs for Django
             scores_dict = {}
@@ -536,7 +548,7 @@ class ExampleScoringService:
                         break
 
             logger.info(f"Mapped scores to IDs: {scores_dict}")
-            return scores_dict
+            return scores_dict, token_usage
 
         except Exception as e:
             logger.error(f"Error generating scores: {e}", exc_info=True)

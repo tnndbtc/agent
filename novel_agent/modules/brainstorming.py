@@ -34,7 +34,7 @@ class BrainstormingModule:
         num_ideas: int = 3,
         custom_prompt: Optional[str] = None,
         use_context: bool = False
-    ) -> List[Dict[str, str]]:
+    ) -> tuple[List[Dict[str, str]], Dict[str, int]]:
         """
         Generate multiple plot ideas for the user to choose from.
 
@@ -46,7 +46,7 @@ class BrainstormingModule:
             use_context: Whether to retrieve existing context from memory (default: False for speed)
 
         Returns:
-            List of plot idea dictionaries
+            Tuple of (plot idea list, token usage dict)
         """
         logger.info(f"BrainstormingModule.generate_plot_ideas - genre: {genre}, theme: {theme}, "
                    f"num_ideas: {num_ideas}, use_context: {use_context}, "
@@ -99,10 +99,26 @@ Make each idea distinctly different from the others."""
         logger.info(f"BrainstormingModule - Received response from OpenAI (length: {len(response.content)})")
         logger.debug(f"BrainstormingModule - Response content: {response.content[:500]}")
 
-        ideas = self._parse_plot_ideas(response.content)
-        logger.info(f"BrainstormingModule - Parsed {len(ideas)} ideas from response")
+        # Extract token usage
+        token_usage = {}
+        if hasattr(response, 'response_metadata') and 'token_usage' in response.response_metadata:
+            usage = response.response_metadata['token_usage']
+            token_usage = {
+                'prompt_tokens': usage.get('prompt_tokens', 0),
+                'completion_tokens': usage.get('completion_tokens', 0),
+                'total_tokens': usage.get('total_tokens', 0)
+            }
+        elif hasattr(response, 'usage_metadata'):
+            token_usage = {
+                'prompt_tokens': getattr(response.usage_metadata, 'input_tokens', 0),
+                'completion_tokens': getattr(response.usage_metadata, 'output_tokens', 0),
+                'total_tokens': getattr(response.usage_metadata, 'total_tokens', 0)
+            }
 
-        return ideas
+        ideas = self._parse_plot_ideas(response.content)
+        logger.info(f"BrainstormingModule - Parsed {len(ideas)} ideas from response, tokens: {token_usage}")
+
+        return ideas, token_usage
 
     def refine_plot_idea(self, plot_idea: Dict[str, str], user_feedback: str) -> Dict[str, str]:
         """

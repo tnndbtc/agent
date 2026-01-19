@@ -94,10 +94,26 @@ Fit: [why perfect for story]
         response = self.llm.invoke(messages)
         logger.info(f"CharacterGenerator - Received response from OpenAI (length: {len(response.content)})")
 
-        protagonists = self._parse_characters(response.content)
-        logger.info(f"CharacterGenerator - Parsed {len(protagonists)} protagonists")
+        # Extract token usage
+        token_usage = {}
+        if hasattr(response, 'response_metadata') and 'token_usage' in response.response_metadata:
+            usage = response.response_metadata['token_usage']
+            token_usage = {
+                'prompt_tokens': usage.get('prompt_tokens', 0),
+                'completion_tokens': usage.get('completion_tokens', 0),
+                'total_tokens': usage.get('total_tokens', 0)
+            }
+        elif hasattr(response, 'usage_metadata'):
+            token_usage = {
+                'prompt_tokens': getattr(response.usage_metadata, 'input_tokens', 0),
+                'completion_tokens': getattr(response.usage_metadata, 'output_tokens', 0),
+                'total_tokens': getattr(response.usage_metadata, 'total_tokens', 0)
+            }
 
-        return protagonists
+        protagonists = self._parse_characters(response.content)
+        logger.info(f"CharacterGenerator - Parsed {len(protagonists)} protagonists, tokens: {token_usage}")
+
+        return protagonists, token_usage
 
     def create_antagonist(self, plot: Dict[str, Any], protagonist: Dict[str, Any], language: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -163,12 +179,30 @@ Humanity: [redeeming qualities]"""
 
         response = self.llm.invoke(messages)
         logger.info(f"CharacterGenerator.create_antagonist - Received response from OpenAI")
+
+        # Extract token usage
+        token_usage = {}
+        if hasattr(response, 'response_metadata') and 'token_usage' in response.response_metadata:
+            usage = response.response_metadata['token_usage']
+            token_usage = {
+                'prompt_tokens': usage.get('prompt_tokens', 0),
+                'completion_tokens': usage.get('completion_tokens', 0),
+                'total_tokens': usage.get('total_tokens', 0)
+            }
+        elif hasattr(response, 'usage_metadata'):
+            token_usage = {
+                'prompt_tokens': getattr(response.usage_metadata, 'input_tokens', 0),
+                'completion_tokens': getattr(response.usage_metadata, 'output_tokens', 0),
+                'total_tokens': getattr(response.usage_metadata, 'total_tokens', 0)
+            }
+
         antagonist = self._parse_single_character(response.content)
 
         # Store in memory
         self.memory.store_character(antagonist)
 
-        return antagonist
+        logger.info(f"CharacterGenerator.create_antagonist - Returning antagonist with token usage: {token_usage}")
+        return antagonist, token_usage
 
     def create_supporting_characters(
         self,

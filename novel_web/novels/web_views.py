@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib import messages
 from django.db.models import Q
-from .models import NovelProject, Chapter, GenerationTask, Example, Genre, ScoreCategory
+from .models import NovelProject, Chapter, GenerationTask, Example, Genre, ScoreCategory, UserProfile
 
 
 def register(request):
@@ -134,4 +134,15 @@ def manage_examples(request):
         'private_examples': private_examples,
         'genres': genres,
         'score_categories': score_categories
+    })
+
+
+@login_required
+def user_metadata(request):
+    """Display user metadata including token usage."""
+    profile, created = UserProfile.objects.get_or_create(user=request.user)
+
+    return render(request, 'novels/user_metadata.html', {
+        'profile': profile,
+        'user': request.user
     })

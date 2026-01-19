@@ -55,6 +55,9 @@
                 <li><a href="{% url 'admin:index' %}" class="menu-item" target="_blank">
                     <span class="icon">⚙️</span> {% trans "Admin" %}
                 </a></li>
+                <li><a href="{% url 'novels:user_metadata' %}" class="menu-item">
+                    <span class="icon">🪙</span> {% trans "User Metadata" %}
+                </a></li>
                 <li>
                     <form method="post" action="{% url 'novels:logout' %}" class="logout-form">
                         {% csrf_token %}
@@ -103,6 +106,11 @@
 
     <!-- Toast Notifications -->
     <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Token Usage Status Bar -->
+    <div class="token-status-bar" id="tokenStatusBar" style="display: none;">
+        <span id="tokenStatusText"></span>
+    </div>
 
     <!-- Scripts -->
     <script src="/static/js/mobile-ui.js"></script>

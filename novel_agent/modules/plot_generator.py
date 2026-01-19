@@ -96,6 +96,22 @@ Ensure the entire plot structure is comprehensive and detailed, with at least 20
         logger.info(f"PlotGenerator - Received response from OpenAI (length: {len(response.content)})")
         logger.debug(f"PlotGenerator - Response preview: {response.content[:500]}")
 
+        # Extract token usage
+        token_usage = {}
+        if hasattr(response, 'response_metadata') and 'token_usage' in response.response_metadata:
+            usage = response.response_metadata['token_usage']
+            token_usage = {
+                'prompt_tokens': usage.get('prompt_tokens', 0),
+                'completion_tokens': usage.get('completion_tokens', 0),
+                'total_tokens': usage.get('total_tokens', 0)
+            }
+        elif hasattr(response, 'usage_metadata'):
+            token_usage = {
+                'prompt_tokens': getattr(response.usage_metadata, 'input_tokens', 0),
+                'completion_tokens': getattr(response.usage_metadata, 'output_tokens', 0),
+                'total_tokens': getattr(response.usage_metadata, 'total_tokens', 0)
+            }
+
         plot_structure = {
             'title': plot_idea.get('title', 'Untitled'),
             'genre': plot_idea.get('genre', ''),
@@ -109,7 +125,8 @@ Ensure the entire plot structure is comprehensive and detailed, with at least 20
         self.memory.store_plot(plot_structure)
         self.context_manager.update_current_context('plot', plot_structure)
 
-        return plot_structure
+        logger.info(f"PlotGenerator - Returning plot structure with token usage: {token_usage}")
+        return plot_structure, token_usage
 
     def generate_subplots(self, main_plot: Dict[str, Any], num_subplots: int = 2, language: Optional[str] = None) -> List[Dict[str, str]]:
         """
