@@ -22,6 +22,7 @@ An AI-powered novel writing assistant that helps authors create complete novels 
 - [Restarting the Application](#restarting-the-application)
 - [Testing](#testing)
 - [Project Structure](#project-structure)
+- [Vector Memory Architecture](#vector-memory-architecture)
 - [Configuration](#configuration)
 - [Extending the System](#extending-the-system)
 - [Troubleshooting](#troubleshooting)
@@ -901,6 +902,294 @@ agent/
 ├── setup.py
 └── README.md                    # This file
 ```
+
+## Vector Memory Architecture
+
+### Overview
+
+The Novel Writing Agent uses **vector memory** (embeddings and semantic search) to maintain long-term context across the entire novel project. This enables the AI to write Chapter 10 with full awareness of events, characters, and themes from Chapters 1-9, even when those details exceed the LLM's context window.
+
+**Core Technology Stack:**
+- **Vector Database**: ChromaDB (persistent vector storage)
+- **Embeddings**: OpenAI Embeddings API (1536-dimensional vectors)
+- **Framework**: LangChain for vector operations
+- **Storage Location**: `/app/media/vector_stores/` (project-specific collections)
+
+### The Problem Vector Memory Solves
+
+Traditional LLMs have limited context windows (8K-32K tokens). When writing a novel:
+- Chapter 10 needs to remember events from Chapter 1
+- Characters must maintain consistent personalities across 50+ chapters
+- Plot threads introduced early must pay off later
+- World-building rules must remain consistent
+
+**Without vector memory**: The LLM only sees the current prompt (limited context).
+
+**With vector memory**: The LLM gets **semantically relevant context** retrieved from the entire project history via similarity search.
+
+---
+
+### How It Works: Chapter Generation Workflow
+
+#### 1. Content Storage (`novel_agent/memory/long_term_memory.py`)
+
+When project content is created, it's converted to embeddings and stored:
+
+```python
+# Each project gets its own ChromaDB collection
+collection_name = f"project_{project_id}_hex"
+
+# Storage methods automatically embed and store content:
+memory.store_character(name="Alice", profile="...")     # → Embedded & stored
+memory.store_plot(plot_data)                            # → Embedded & stored
+memory.store_chapter(chapter_number=1, content="...")   # → Chunked, embedded & stored
+memory.store_setting(name="Magic System", details="...") # → Embedded & stored
+```
+
+**Document Chunking**: Large chapters are split into 1000-character chunks with 200-char overlap for better retrieval precision.
+
+**Metadata Storage**: Each document includes:
+- `type`: "character", "plot", "chapter", "setting", or "outline"
+- `name`/`title`: Item identifier
+- `timestamp`: Creation time
+- `chapter_number`: For chapters
+- `chunk_index`: For chunked documents
+
+#### 2. Chapter Generation Request Flow
+
+```
+User clicks "Write Chapter"
+    ↓
+write_chapter_task() [Celery async task]
+    ↓
+ChapterWriter.write_chapter()
+    ↓
+[CONTEXT BUILDING PHASE] ← Vector memory retrieval happens here
+    ↓
+ContextManager.build_context_for_task("writing")
+```
+
+#### 3. Semantic Context Retrieval (`context_manager.py:27-114`)
+
+Before generating any chapter content, the system retrieves relevant context using **semantic similarity search**:
+
+**A. Plot Summary**
+```python
+plot = memory.get_plot_summary()  # Retrieves all documents with type="plot"
+# Returns: Main plot arc, themes, story structure
+```
+
+**B. Character Profiles**
+```python
+characters = memory.get_all_characters()  # Up to 5 most relevant characters
+# Returns: Personalities, motivations, relationships, character arcs
+```
+
+**C. World/Setting Details**
+```python
+settings = memory.retrieve_by_type("setting", k=3)
+# Returns: Top 3 relevant setting details (magic systems, geography, culture)
+```
+
+**D. Previous Chapter Context** (KEY SEMANTIC SEARCH)
+```python
+recent_chapters = memory.retrieve_context(
+    query=f"Chapter {chapter_number} - {outline_title}",
+    k=2,
+    filter_type="chapter"
+)
+# Returns: 2 most semantically similar previous chapters
+# Uses vector similarity to find relevant past content!
+```
+
+**Example**:
+- Writing Chapter 10: "Alice confronts the villain"
+- Vector search finds:
+  - Chapter 3: "Alice discovers the villain's identity" (semantically similar)
+  - Chapter 7: "Alice trains for battle" (semantically similar)
+- These become context even though they're not adjacent chapters
+
+#### 4. Context Assembly for LLM
+
+Retrieved content is formatted into a context string:
+
+```python
+context_string = f"""
+Plot Summary: {plot_summary}
+
+Characters:
+{character_profiles}
+
+World-Building:
+{setting_details}
+
+Previous Chapter Context:
+{semantically_relevant_chapters}
+"""
+```
+
+This context (truncated to ~1500 chars) is prepended to the LLM prompt, giving it awareness of relevant project history.
+
+#### 5. Scene Writing with Vector Context
+
+For each scene in the chapter:
+
+```python
+def _write_scene(scene, chapter_outline, context, good_examples, ...):
+    prompt = f"""
+    You are writing Chapter {number}.
+
+    **Context from vector memory:**
+    {context}  # ← Plot, characters, settings, previous chapters
+
+    **Good writing examples:**
+    {good_examples}
+
+    **Write the following scene:**
+    {scene_description}
+    """
+
+    return llm.generate(prompt)
+```
+
+The LLM generates content **informed by** all retrieved vector context, ensuring consistency and continuity.
+
+#### 6. Storing Generated Content
+
+After chapter generation:
+
+```python
+memory.store_chapter(
+    chapter_number=10,
+    content=generated_content,
+    metadata={
+        "type": "chapter",
+        "title": chapter_title,
+        "timestamp": datetime.now()
+    }
+)
+```
+
+The new chapter is embedded and stored, becoming part of the vector memory for future chapters.
+
+---
+
+### Key Benefits of Vector Memory
+
+#### 1. **Semantic Context Retrieval**
+- Not just "previous 3 chapters" but **semantically relevant** chapters
+- If Chapter 15 is about a wedding, vector search finds Chapter 2 where the couple met
+- Maintains thematic consistency across non-adjacent chapters
+
+#### 2. **Character Consistency** (`consistency_checker.py:30-86`)
+```python
+characters = memory.get_all_characters()  # Retrieves all character profiles
+# Checks new content against stored character traits
+# Catches: personality changes, forgotten characteristics, contradictions
+```
+
+#### 3. **Plot Continuity**
+- Maintains story arcs across many chapters
+- Remembers plot threads introduced earlier (Chekhov's gun)
+- Ensures foreshadowing payoff
+
+#### 4. **World-Building Validation**
+- Consistent magic system rules
+- Accurate geography and setting details
+- Maintained cultural/social norms
+
+#### 5. **Long-Term Memory Beyond Token Limits**
+- LLM context window: 8K-32K tokens (limited)
+- Vector store: **Unlimited** - entire project history available
+- Semantic search retrieves only what's relevant for current task
+
+---
+
+### Project Isolation with ChromaDB Collections
+
+Each novel project gets its own isolated ChromaDB collection:
+
+```python
+# novels/models.py:188-220
+class NovelProject(models.Model):
+    chroma_collection_name = models.CharField(max_length=255, unique=True)
+
+    def save(self, *args, **kwargs):
+        if not self.chroma_collection_name:
+            # Generate unique collection name
+            self.chroma_collection_name = f"project_{self.id.hex[:16]}"
+        super().save(*args, **kwargs)
+```
+
+**Result**: Novel A's characters don't pollute Novel B's context. Each project has completely independent vector memory.
+
+---
+
+### File Locations & Key Functions
+
+| Component | File Path | Key Method | Lines |
+|-----------|-----------|-----------|-------|
+| **Vector Storage** | `novel_agent/memory/long_term_memory.py` | `store_chapter()` | 88-114 |
+| **Vector Retrieval** | `novel_agent/memory/long_term_memory.py` | `retrieve_context()` | 158-179 |
+| **Context Building** | `novel_agent/memory/context_manager.py` | `build_context_for_task()` | 27-114 |
+| **Chapter Writer** | `novel_agent/modules/chapter_writer.py` | `write_chapter()` | 39-108 |
+| **Scene Writing** | `novel_agent/modules/chapter_writer.py` | `_write_scene()` | 275-332 |
+| **Consistency Check** | `novel_agent/modules/consistency_checker.py` | `check_character_consistency()` | 30-86 |
+| **Celery Task** | `novels/tasks.py` | `write_chapter_task()` | 163-316 |
+| **Project Service** | `novels/services.py` | `ProjectService.__init__()` | 73-98 |
+| **Django Model** | `novels/models.py` | `NovelProject.chroma_collection_name` | 188-220 |
+
+---
+
+### Vector Memory Storage Configuration
+
+Storage location is configured in Django settings:
+
+```python
+# novel_web/settings.py:199-206
+NOVEL_AGENT = {
+    'VECTOR_STORE_DIR': Path(MEDIA_ROOT) / 'vector_stores',
+    'EXAMPLES_DIR': Path(MEDIA_ROOT) / 'examples',
+    'OUTPUT_DIR': Path(MEDIA_ROOT) / 'exports',
+}
+```
+
+In Docker: `/app/media/vector_stores/`
+
+---
+
+### Embedding Process Details
+
+1. **Embedding Creation**: OpenAI API generates 1536-dimensional vector embeddings
+2. **Storage**: Embeddings stored in ChromaDB with document metadata
+3. **Retrieval**: Semantic similarity search via cosine similarity
+4. **Filtering**: Results can be filtered by document type (character, plot, chapter, etc.)
+
+### Vector Search Query Example
+
+```python
+# Find chapters semantically similar to "Alice defeats the dragon"
+similar_chapters = memory.retrieve_context(
+    query="Alice defeats the dragon",
+    k=3,  # Return top 3 most similar
+    filter_type="chapter"  # Only search chapter documents
+)
+
+# ChromaDB performs cosine similarity search on 1536-dim vectors
+# Returns chapters with highest semantic similarity scores
+```
+
+---
+
+### In Summary
+
+Vector memory transforms chapter generation from:
+- ❌ **Without**: "Write Chapter 10 with only this outline and 8K token limit"
+
+To:
+- ✅ **With**: "Write Chapter 10 with semantic awareness of all relevant plot points, character development, world-building details, and previous chapters across the entire 50-chapter project"
+
+The LLM receives **intelligent, contextually-relevant information** via semantic search instead of trying to fit everything into the limited token context window. This enables truly consistent, coherent long-form novel generation.
 
 ## Configuration
 
