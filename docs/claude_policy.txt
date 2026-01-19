@@ -6,3 +6,4 @@ If containers should be stopped and rebuilt, then run
   docker compose up -d
 When debugging, make sure to check if container should be deleted and re-created so the fix can take effect
 Task acceptance criteria is that you can run end-to-end test to validate the fix.
+Run novel_web/novels/tests to ensure tests passes after each modification

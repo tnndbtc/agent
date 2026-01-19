@@ -180,10 +180,24 @@ def brainstorm_ideas_task(self, task_id, project_id, genre=None, theme=None, num
 
 
 @shared_task(bind=True, max_retries=3)
-def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_style='literary', language='English', target_word_count=3000):
-    """Write a chapter asynchronously."""
+def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_style='literary', language='English', target_word_count=3000, example_id=None, iterative_mode=True, max_iterations_multiplier=3):
+    """
+    Write a chapter asynchronously with optional iterative quality improvement.
+
+    Args:
+        task_id: Generation task ID
+        project_id: Novel project ID
+        chapter_outline_id: Chapter outline ID
+        writing_style: Writing style (literary, commercial, etc.)
+        language: Target language
+        target_word_count: Target word count for the chapter
+        example_id: Optional example ID for quality targeting
+        iterative_mode: Whether to use iterative generation (default: True)
+        max_iterations_multiplier: Maximum tokens as multiple of first iteration (default: 3)
+    """
     logger.info(f"Write chapter task started - task_id: {task_id}, project_id: {project_id}, "
-                f"outline_id: {chapter_outline_id}, language: {language}, writing_style: {writing_style}")
+                f"outline_id: {chapter_outline_id}, language: {language}, writing_style: {writing_style}, "
+                f"example_id: {example_id}, iterative_mode: {iterative_mode}")
     try:
         task = GenerationTask.objects.get(id=task_id)
         task.status = 'running'
@@ -227,21 +241,152 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
             'story_beats': outline.story_beats
         }
 
+        # Load example metadata if example_id provided (metadata only, NO content!)
+        example_metadata = None
+        target_total_score = None
+        if example_id and iterative_mode:
+            try:
+                from .models import Example
+                example = Example.objects.prefetch_related('scores__category', 'genre').get(id=example_id)
+
+                # Extract ONLY metadata (NO content!)
+                example_metadata = {
+                    'category': example.category,
+                    'genre': str(example.genre) if example.genre else None,
+                    'total_score': float(example.total_score),
+                    'scores': [
+                        {
+                            'category_name': str(score.category),
+                            'score': float(score.score),
+                            'weight': score.weight
+                        }
+                        for score in example.scores.all()
+                    ]
+                }
+                target_total_score = float(example.total_score)
+                logger.info(f"Loaded example metadata (NO content): category={example_metadata['category']}, "
+                           f"genre={example_metadata['genre']}, target_score={target_total_score}")
+            except Exception as e:
+                logger.warning(f"Failed to load example {example_id}: {e}. Continuing without example.")
+                example_metadata = None
+                iterative_mode = False
+
         update_task_progress(task_id, 17, "Generating chapter content...")
 
         # Start incremental progress updates (17% -> 75%, +5% every 2 seconds)
         progress_updater = ProgressUpdater(task_id, 17, 75, increment=5, interval=2)
         progress_updater.start("Generating chapter content...")
 
+        # Initialize iteration variables
+        iteration = 1
+        cumulative_tokens = {'prompt_tokens': 0, 'completion_tokens': 0, 'total_tokens': 0}
+        first_iteration_tokens = 0
+        max_total_tokens = 0
+        best_chapter_data = None
+        best_score = 0
+        previous_scores = None
+
         try:
-            logger.info(f"Calling WritingService.write_chapter with language='{language}'")
-            chapter_data, token_usage = WritingService.write_chapter(
-                project,
-                outline_data,
-                writing_style=writing_style,
-                language=language,
-                target_word_count=target_word_count
-            )
+            # Iterative generation loop
+            while True:
+                iteration_msg = f"Iteration {iteration}" if iterative_mode and example_metadata else "Generating chapter content"
+                logger.info(f"{iteration_msg} - Calling WritingService.write_chapter with language='{language}'")
+
+                # Pass example_metadata (NO content!), iteration, and previous_scores
+                chapter_data, token_usage = WritingService.write_chapter(
+                    project,
+                    outline_data,
+                    writing_style=writing_style,
+                    language=language,
+                    target_word_count=target_word_count,
+                    example_metadata=example_metadata,
+                    iteration=iteration,
+                    previous_scores=previous_scores
+                )
+
+                # Accumulate tokens
+                if token_usage:
+                    cumulative_tokens['prompt_tokens'] += token_usage.get('prompt_tokens', 0)
+                    cumulative_tokens['completion_tokens'] += token_usage.get('completion_tokens', 0)
+                    cumulative_tokens['total_tokens'] += token_usage.get('total_tokens', 0)
+
+                # Track first iteration tokens for budget
+                if iteration == 1:
+                    first_iteration_tokens = token_usage.get('total_tokens', 0)
+                    max_total_tokens = first_iteration_tokens * max_iterations_multiplier
+                    logger.info(f"First iteration used {first_iteration_tokens} tokens. "
+                               f"Max budget: {max_total_tokens} tokens ({max_iterations_multiplier}x)")
+
+                # If not in iterative mode or no example, use this result and break
+                if not iterative_mode or not example_metadata:
+                    best_chapter_data = chapter_data
+                    logger.info("Non-iterative mode - using generated content")
+                    break
+
+                # Score the generated content
+                from .services import ExampleScoringService
+                content = chapter_data.get('content', '')
+                logger.info(f"Iteration {iteration} - Scoring generated content (length: {len(content)})")
+
+                try:
+                    scores_by_name, scoring_tokens = ExampleScoringService.generate_scores(
+                        content=content,
+                        category=example_metadata.get('category'),
+                        user_language=language
+                    )
+
+                    # Accumulate scoring tokens
+                    if scoring_tokens:
+                        cumulative_tokens['prompt_tokens'] += scoring_tokens.get('prompt_tokens', 0)
+                        cumulative_tokens['completion_tokens'] += scoring_tokens.get('completion_tokens', 0)
+                        cumulative_tokens['total_tokens'] += scoring_tokens.get('total_tokens', 0)
+
+                    # Calculate total score (weighted average)
+                    total_score = sum(scores_by_name.values()) / len(scores_by_name) if scores_by_name else 0
+                    logger.info(f"Iteration {iteration} - Score: {total_score:.1f}/10 (Target: {target_total_score:.1f}/10)")
+                    logger.info(f"Iteration {iteration} - Category scores: {scores_by_name}")
+
+                    # Track best result
+                    if total_score > best_score:
+                        best_score = total_score
+                        best_chapter_data = chapter_data
+                        logger.info(f"Iteration {iteration} - New best score: {best_score:.1f}/10")
+
+                    # Check if we met the target score
+                    if total_score >= target_total_score:
+                        logger.info(f"Iteration {iteration} - Target score achieved! "
+                                   f"({total_score:.1f} >= {target_total_score:.1f})")
+                        break
+
+                    # Check if we've exceeded token budget
+                    if cumulative_tokens['total_tokens'] >= max_total_tokens:
+                        logger.info(f"Iteration {iteration} - Token budget reached "
+                                   f"({cumulative_tokens['total_tokens']} >= {max_total_tokens})")
+                        break
+
+                    # Prepare for next iteration with gap analysis
+                    previous_scores = {
+                        'total': total_score,
+                        'by_category': [
+                            {'category_name': cat_name, 'score': score}
+                            for cat_name, score in scores_by_name.items()
+                        ]
+                    }
+
+                    iteration += 1
+                    update_task_progress(task_id, min(17 + iteration * 10, 70),
+                                       f"Iteration {iteration} - Improving quality...")
+                    logger.info(f"Starting iteration {iteration} with gap analysis")
+
+                except Exception as e:
+                    logger.error(f"Iteration {iteration} - Scoring failed: {e}. Using current result.")
+                    if best_chapter_data is None:
+                        best_chapter_data = chapter_data
+                    break
+
+            # Use best result from all iterations
+            chapter_data = best_chapter_data
+            token_usage = cumulative_tokens
 
             # Save token usage to user profile
             if token_usage and token_usage.get('total_tokens', 0) > 0:
@@ -305,7 +450,10 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
             'word_count': chapter_data['word_count'],
             'content': chapter_data['content'],  # Include content in result
             'title': chapter_data['title'],
-            'token_usage': token_usage  # Include token usage for frontend display
+            'token_usage': token_usage,  # Include token usage for frontend display
+            'iterations': iteration if iterative_mode and example_metadata else 1,  # Number of iterations performed
+            'best_score': best_score if iterative_mode and example_metadata else None,  # Best score achieved
+            'target_score': target_total_score if iterative_mode and example_metadata else None  # Target score
         }
         task.status = 'completed'
         task.completed_at = timezone.now()

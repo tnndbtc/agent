@@ -41,16 +41,22 @@ class ChapterWriter:
         chapter_outline: Dict[str, Any],
         writing_style: str = "literary",
         language: str = "English",
-        target_word_count: int = 3000
+        target_word_count: int = 3000,
+        example_metadata: Optional[Dict[str, Any]] = None,
+        iteration: int = 1,
+        previous_scores: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """
-        Write a complete chapter based on the outline.
+        Write a complete chapter based on the outline with optional quality targeting.
 
         Args:
             chapter_outline: Chapter outline dictionary
             writing_style: Style preference (literary, commercial, minimalist, etc.)
             language: Target language
             target_word_count: Target word count for the chapter (default: 3000)
+            example_metadata: Optional dict with 'category', 'genre', 'total_score', 'scores' (NO content!)
+            iteration: Current iteration number (1 for first attempt)
+            previous_scores: Previous iteration scores for gap analysis
 
         Returns:
             Complete chapter dictionary with content
@@ -61,13 +67,21 @@ class ChapterWriter:
             f"Chapter {chapter_outline.get('number', 1)}"
         )
 
-        # Get good examples for reference
-        good_examples = self.example_manager.get_good_examples(category="writing", limit=2)
+        # Use example metadata if provided (metadata only, NO content!)
         example_context = ""
-        if good_examples:
-            example_context = "\n\nGood writing examples to emulate:\n"
-            for ex in good_examples:
-                example_context += f"\n{ex['content'][:500]}...\n"
+        if example_metadata:
+            example_context = self._prepare_example_context(
+                example_metadata,
+                iteration=iteration,
+                previous_scores=previous_scores
+            )
+        else:
+            # Fallback to file-based examples (old behavior)
+            good_examples = self.example_manager.get_good_examples(category="writing", limit=2)
+            if good_examples:
+                example_context = "\n\nGood writing examples to emulate:\n"
+                for ex in good_examples:
+                    example_context += f"\n{ex['content'][:500]}...\n"
 
         # Generate the chapter in sections
         scenes = self._generate_scene_breakdown(chapter_outline)
@@ -256,6 +270,75 @@ Write 2-3 paragraphs of evocative description."""
 
         response = self.llm.invoke(messages)
         return response.content.strip()
+
+    def _prepare_example_context(
+        self,
+        example_metadata: Dict[str, Any],
+        iteration: int = 1,
+        previous_scores: Optional[Dict] = None
+    ) -> str:
+        """
+        Prepare example context using ONLY metadata (no content).
+
+        Args:
+            example_metadata: Dict with 'category', 'genre', 'total_score', 'scores' (list of dicts)
+            iteration: Current iteration number (1 for first attempt)
+            previous_scores: Previous iteration scores for gap analysis
+
+        Returns:
+            Formatted context string with metadata only
+        """
+        if not example_metadata:
+            return ""
+
+        context_parts = ["\n\nQuality Target from Example:"]
+
+        # Add basic metadata
+        if example_metadata.get('category'):
+            context_parts.append(f"Category: {example_metadata['category']}")
+        if example_metadata.get('genre'):
+            context_parts.append(f"Genre: {example_metadata['genre']}")
+
+        # Add total score target
+        total_score = example_metadata.get('total_score', 0)
+        context_parts.append(f"Target Total Score: {total_score:.1f}/10")
+
+        # Show individual category scores
+        scores = example_metadata.get('scores', [])
+        if scores:
+            context_parts.append("\nScore Targets by Category:")
+            for score in scores:
+                category_name = score.get('category_name', 'Unknown')
+                score_value = score.get('score', 0)
+                weight = score.get('weight', 0)
+                context_parts.append(
+                    f"- {category_name}: {score_value:.1f}/10 (weight: {weight}%)"
+                )
+
+        # Add gap analysis for iterations after the first
+        if iteration > 1 and previous_scores:
+            context_parts.append(f"\n\nYour Previous Attempt (Iteration {iteration - 1}):")
+            context_parts.append(f"Score Achieved: {previous_scores.get('total', 0):.1f}/10")
+            context_parts.append(f"Target Score: {total_score:.1f}/10")
+            gap = total_score - previous_scores.get('total', 0)
+            context_parts.append(f"Gap to Close: {gap:.1f} points")
+
+            # Show category-level gaps if available
+            if previous_scores.get('by_category'):
+                context_parts.append("\nGaps by Category:")
+                for cat_score in previous_scores['by_category']:
+                    cat_name = cat_score.get('category_name', 'Unknown')
+                    achieved = cat_score.get('score', 0)
+                    # Find target for this category
+                    target_score = next(
+                        (s['score'] for s in scores if s.get('category_name') == cat_name),
+                        0
+                    )
+                    cat_gap = target_score - achieved
+                    if cat_gap > 0:
+                        context_parts.append(f"- {cat_name}: Need +{cat_gap:.1f} points")
+
+        return "\n".join(context_parts)
 
     def _generate_scene_breakdown(self, chapter_outline: Dict[str, Any]) -> List[Dict[str, str]]:
         """Generate basic scene breakdown if not provided."""

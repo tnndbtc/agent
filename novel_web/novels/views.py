@@ -611,6 +611,10 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
 
         validated_data['chapter_outline_id'] = str(chapter_outline_id)
 
+        # Convert example_id UUID to string for JSON serialization (if present)
+        if 'example_id' in validated_data and validated_data['example_id'] is not None:
+            validated_data['example_id'] = str(validated_data['example_id'])
+
         # If language not specified in request, use user's UI language preference
         if 'language' not in validated_data or not validated_data['language']:
             from novels.services import get_language_name

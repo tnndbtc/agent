@@ -359,8 +359,23 @@ class WritingService:
     """Service for writing operations."""
 
     @staticmethod
-    def write_chapter(project, chapter_outline, writing_style='literary', language='English', target_word_count=3000):
-        """Write a complete chapter."""
+    def write_chapter(project, chapter_outline, writing_style='literary', language='English', target_word_count=3000, example_metadata=None, iteration=1, previous_scores=None):
+        """
+        Write a complete chapter with optional example-based quality targeting.
+
+        Args:
+            project: NovelProject instance
+            chapter_outline: Chapter outline dict
+            writing_style: Writing style (literary, commercial, etc.)
+            language: Target language
+            target_word_count: Target word count
+            example_metadata: Optional dict with 'category', 'genre', 'total_score', 'scores'
+            iteration: Current iteration number (for iterative generation)
+            previous_scores: Previous iteration scores (for gap analysis)
+
+        Returns:
+            Tuple of (chapter_data, token_usage)
+        """
         service = ProjectService(project)
         writer = service.get_writer()
 
@@ -368,7 +383,10 @@ class WritingService:
             chapter_outline,
             writing_style=writing_style,
             language=language,
-            target_word_count=target_word_count
+            target_word_count=target_word_count,
+            example_metadata=example_metadata,
+            iteration=iteration,
+            previous_scores=previous_scores
         )
         return chapter, token_usage
 

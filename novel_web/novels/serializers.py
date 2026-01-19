@@ -244,15 +244,20 @@ class ExampleSerializer(serializers.ModelSerializer):
 
     scores = ExampleScoreSerializer(many=True, read_only=True)
     total_score = serializers.ReadOnlyField()
+    genre_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Example
-        fields = ['id', 'user', 'genre', 'public', 'is_good', 'category', 'title', 'locale',
+        fields = ['id', 'user', 'genre', 'genre_name', 'public', 'is_good', 'category', 'title', 'locale',
                   'content', 'description', 'issues', 'metadata', 'scores', 'total_score', 'created_at']
-        read_only_fields = ['id', 'user', 'created_at', 'total_score']
+        read_only_fields = ['id', 'user', 'created_at', 'total_score', 'genre_name']
         extra_kwargs = {
             'category': {'allow_null': True, 'required': False},
         }
+
+    def get_genre_name(self, obj):
+        """Return genre name if genre exists."""
+        return str(obj.genre) if obj.genre else None
 
 
 class GenerationTaskSerializer(serializers.ModelSerializer):
@@ -304,7 +309,7 @@ class CreateCharacterRequestSerializer(serializers.Serializer):
 
 
 class WriteChapterRequestSerializer(serializers.Serializer):
-    """Request serializer for chapter writing."""
+    """Request serializer for chapter writing with optional iterative quality improvement."""
     chapter_outline_id = serializers.UUIDField()
     writing_style = serializers.CharField(default='literary')
     language = serializers.CharField(required=False, allow_blank=True)
@@ -313,6 +318,21 @@ class WriteChapterRequestSerializer(serializers.Serializer):
         min_value=10,
         max_value=10000,
         help_text="Target word count for the chapter (10-10000)"
+    )
+    example_id = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+        help_text="Optional Example ID for quality targeting"
+    )
+    iterative_mode = serializers.BooleanField(
+        default=True,
+        help_text="Whether to use iterative generation (default: True)"
+    )
+    max_iterations_multiplier = serializers.IntegerField(
+        default=3,
+        min_value=2,
+        max_value=10,
+        help_text="Maximum tokens as multiple of first iteration (default: 3)"
     )
 
     def validate_chapter_outline_id(self, value):

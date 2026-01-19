@@ -476,6 +476,65 @@
     </div>
 </div>
 
+<!-- Chapter Write Configuration Modal -->
+<div id="chapterConfigModal" class="modal-overlay" style="display: none;">
+    <div class="modal-dialog modal-large">
+        <div class="modal-header">
+            <h3>{% trans "Configure Chapter Writing" %}</h3>
+            <button class="modal-close" onclick="closeChapterConfigModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="config-section">
+                <label for="chapterWordCount" class="config-label">{% trans "How many words should this chapter be?" %}</label>
+                <input type="number" id="chapterWordCount" class="form-control" min="10" max="10000" value="10" placeholder="Enter word count (10-10000)">
+            </div>
+
+            <div class="config-section">
+                <h4 class="section-title">{% trans "Select Quality Example (Optional)" %}</h4>
+                <div class="example-filters">
+                    <div class="filter-group">
+                        <label for="exampleCategoryFilter">{% trans "Category" %}:</label>
+                        <select id="exampleCategoryFilter" onchange="filterExamples()">
+                            <option value="">{% trans "All Categories" %}</option>
+                            <option value="opening">{% trans "Opening" %}</option>
+                            <option value="dialogue">{% trans "Dialogue" %}</option>
+                            <option value="description">{% trans "Description" %}</option>
+                            <option value="action">{% trans "Action" %}</option>
+                            <option value="transition">{% trans "Transition" %}</option>
+                            <option value="ending">{% trans "Ending" %}</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="exampleLocaleFilter">{% trans "Language" %}:</label>
+                        <select id="exampleLocaleFilter" onchange="filterExamples()">
+                            <option value="">{% trans "All Languages" %}</option>
+                            <option value="English">English</option>
+                            <option value="Chinese">中文</option>
+                            <option value="French">Français</option>
+                            <option value="Spanish">Español</option>
+                            <option value="German">Deutsch</option>
+                            <option value="Japanese">日本語</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="examplesList" class="examples-list">
+                    <div class="loading-spinner">{% trans "Loading examples..." %}</div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeChapterConfigModal()">
+                    {% trans "Cancel" %}
+                </button>
+                <button class="btn btn-primary" onclick="startChapterWriteWithConfig()">
+                    {% trans "Write Chapter" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
 /* Brainstorm Section Styles */
 .brainstorm-section .info-message {
@@ -706,6 +765,221 @@
     .brainstorm-section .action-buttons .btn {
         width: 100%;
     }
+}
+
+/* Example Selection Modal Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-dialog {
+    background: white;
+    border-radius: 8px;
+    max-width: 700px;
+    width: 90%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-dialog.modal-large {
+    max-width: 800px;
+}
+
+.modal-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: #111827;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 2rem;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 0;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-close:hover {
+    color: #111827;
+}
+
+.modal-body {
+    padding: 1.5rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.modal-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.example-filters {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.filter-group {
+    flex: 1;
+}
+
+.filter-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #374151;
+}
+
+.filter-group select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+
+.examples-list {
+    min-height: 200px;
+}
+
+.loading-spinner {
+    text-align: center;
+    padding: 2rem;
+    color: #6b7280;
+}
+
+.example-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.example-card:hover {
+    border-color: #3b82f6;
+    background: #eff6ff;
+}
+
+.example-card.selected {
+    border-color: #3b82f6;
+    background: #dbeafe;
+}
+
+.example-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: 0.5rem;
+}
+
+.example-title {
+    font-weight: 600;
+    color: #111827;
+    font-size: 0.95rem;
+}
+
+.example-score {
+    background: #10b981;
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.example-meta {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+.example-meta span {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.example-scores {
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+    color: #6b7280;
+}
+
+.empty-state-examples {
+    text-align: center;
+    padding: 2rem;
+    color: #6b7280;
+}
+
+/* Chapter Config Modal Styles */
+.config-section {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.config-section:last-of-type {
+    border-bottom: none;
+}
+
+.config-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #111827;
+    font-size: 1rem;
+}
+
+.section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 1rem;
+}
+
+#chapterWordCount {
+    width: 100%;
+    max-width: 300px;
+    padding: 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+#chapterWordCount:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 </style>
 
@@ -1420,19 +1694,33 @@ function scoreNovel() {
     });
 }
 
+// Example Selection Modal Functions
+let currentOutlineId = null;
+let currentWordCount = null;
+let allExamples = [];
+let selectedExampleId = null;
+
 async function writeChapterFromOutline(outlineId) {
-    // Prompt for word count
-    const wordCount = prompt('How many words should this chapter be? (10-10000)', '10');
+    // Store outline ID for later
+    currentOutlineId = outlineId;
 
-    if (wordCount === null) return; // User cancelled
+    // Open combined configuration modal
+    const modal = document.getElementById('chapterConfigModal');
+    modal.style.display = 'flex';
 
-    const words = parseInt(wordCount);
-    if (isNaN(words) || words < 10 || words > 10000) {
-        showToast('Please enter a valid word count between 10 and 10000', 'error');
-        return;
-    }
+    // Reset selection
+    selectedExampleId = null;
 
-    if (!confirm(`Write this chapter with approximately ${words} words?`)) return;
+    // Set default word count
+    document.getElementById('chapterWordCount').value = '10';
+
+    // Load examples
+    await loadExamples();
+}
+
+async function executeChapterWrite(exampleId = null) {
+    const outlineId = currentOutlineId;
+    const words = currentWordCount;
 
     // Reset tokens at the start of new workflow
     resetTokens();
@@ -1442,16 +1730,25 @@ async function writeChapterFromOutline(outlineId) {
         const estimatedDuration = await getEstimatedDuration('chapter');
         startWriteChapterProgressBar(outlineId, estimatedDuration);
 
+        const requestBody = {
+            chapter_outline_id: outlineId,
+            writing_style: 'literary',
+            target_word_count: words
+        };
+
+        // Add example_id if selected
+        if (exampleId) {
+            requestBody.example_id = exampleId;
+            requestBody.iterative_mode = true;
+            requestBody.max_iterations_multiplier = 3;
+        }
+
         const response = await apiRequest(`/api/projects/${projectId}/write_chapter/`, {
             method: 'POST',
-            body: JSON.stringify({
-                chapter_outline_id: outlineId,
-                writing_style: 'literary',
-                target_word_count: words
-            })
+            body: JSON.stringify(requestBody)
         });
 
-        showToast('Chapter writing started!', 'success');
+        showToast(exampleId ? 'Chapter writing with quality targeting started!' : 'Chapter writing started!', 'success');
 
         // Poll task status
         writeChapterPollingIntervals[outlineId] = setInterval(async () => {
@@ -1466,6 +1763,14 @@ async function writeChapterFromOutline(outlineId) {
                     if (task.result_data && task.result_data.token_usage) {
                         console.log('Calling showTokenUsage with:', task.result_data.token_usage);
                         showTokenUsage(task.result_data.token_usage);
+
+                        // Show iteration stats if available
+                        if (task.result_data.iterations) {
+                            const iterMsg = `Completed in ${task.result_data.iterations} iteration(s)`;
+                            if (task.result_data.best_score && task.result_data.target_score) {
+                                console.log(`${iterMsg} - Score: ${task.result_data.best_score.toFixed(1)}/${task.result_data.target_score.toFixed(1)}`);
+                            }
+                        }
                     }
 
                     showToast('Chapter written successfully!', 'success');
@@ -1486,8 +1791,125 @@ async function writeChapterFromOutline(outlineId) {
 
     } catch (err) {
         resetWriteChapterProgressBar(outlineId);
-        showToast('Error writing chapter: ' + err.message, 'error');
+        showToast('Error writing chapter', 'error');
     }
+}
+
+function closeChapterConfigModal() {
+    const modal = document.getElementById('chapterConfigModal');
+    modal.style.display = 'none';
+}
+
+function selectExample(exampleId) {
+    selectedExampleId = exampleId;
+
+    // Update UI to show selection
+    document.querySelectorAll('.example-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    document.querySelector(`[data-example-id="${exampleId}"]`)?.classList.add('selected');
+}
+
+function startChapterWriteWithConfig() {
+    // Get word count from input
+    const wordCountInput = document.getElementById('chapterWordCount');
+    const words = parseInt(wordCountInput.value);
+
+    // Validate word count
+    if (isNaN(words) || words < 10 || words > 10000) {
+        showToast('Please enter a valid word count between 10 and 10000', 'error');
+        return;
+    }
+
+    // Store word count
+    currentWordCount = words;
+
+    // Close modal
+    closeChapterConfigModal();
+
+    // Execute chapter write with selected example (or null if none selected)
+    executeChapterWrite(selectedExampleId);
+}
+
+async function loadExamples() {
+    const listElement = document.getElementById('examplesList');
+    if (!listElement) {
+        console.error('examplesList element not found!');
+        return;
+    }
+
+    listElement.innerHTML = '<div class="loading-spinner">Loading examples...</div>';
+
+    try {
+        console.log('Loading examples from /api/examples/?is_good=true');
+        // Fetch examples from API (backend returns public examples + user's private examples)
+        const response = await apiRequest('/api/examples/?is_good=true');
+        console.log('Examples response:', response);
+        allExamples = response.results || response;
+        console.log('Loaded examples:', allExamples);
+
+        if (!Array.isArray(allExamples)) {
+            console.error('allExamples is not an array:', allExamples);
+            allExamples = [];
+        }
+
+        filterExamples();
+    } catch (error) {
+        console.error('Error loading examples:', error);
+        console.error('Error details:', error.message, error.stack);
+        listElement.innerHTML = '<div class="empty-state-examples">Error loading examples: ' + (error.message || 'Unknown error') + '</div>';
+    }
+}
+
+function filterExamples() {
+    const categoryFilter = document.getElementById('exampleCategoryFilter').value;
+    const localeFilter = document.getElementById('exampleLocaleFilter').value;
+    const listElement = document.getElementById('examplesList');
+
+    // Filter examples
+    let filtered = allExamples;
+
+    if (categoryFilter) {
+        filtered = filtered.filter(ex => ex.category === categoryFilter);
+    }
+
+    if (localeFilter) {
+        filtered = filtered.filter(ex => ex.locale === localeFilter);
+    }
+
+    // Render examples
+    if (filtered.length === 0) {
+        listElement.innerHTML = '<div class="empty-state-examples">No examples found matching your criteria.</div>';
+        return;
+    }
+
+    listElement.innerHTML = filtered.map(example => {
+        const totalScore = parseFloat(example.total_score) || 0;
+        const scoreDisplay = totalScore.toFixed(1);
+
+        // Get category scores - convert score to number first
+        const scoresText = example.scores && example.scores.length > 0
+            ? example.scores.map(s => {
+                const score = parseFloat(s.score);
+                return `${s.category_name || 'Score'}: ${!isNaN(score) ? score.toFixed(1) : '0.0'}`;
+              }).join(' • ')
+            : '';
+
+        return `
+            <div class="example-card" data-example-id="${example.id}" onclick="selectExample('${example.id}')">
+                <div class="example-header">
+                    <div class="example-title">${example.title || 'Untitled Example'}</div>
+                    <div class="example-score">${scoreDisplay}/10</div>
+                </div>
+                <div class="example-meta">
+                    <span>📁 ${example.category || 'General'}</span>
+                    <span>🌐 ${example.locale || 'English'}</span>
+                    ${example.genre_name ? `<span>📚 ${example.genre_name}</span>` : ''}
+                </div>
+                ${scoresText ? `<div class="example-scores">${scoresText}</div>` : ''}
+            </div>
+        `;
+    }).join('');
 }
 
 // Write Chapter progress bar management
