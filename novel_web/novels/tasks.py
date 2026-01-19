@@ -235,7 +235,7 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
 
         try:
             logger.info(f"Calling WritingService.write_chapter with language='{language}'")
-            chapter_data = WritingService.write_chapter(
+            chapter_data, token_usage = WritingService.write_chapter(
                 project,
                 outline_data,
                 writing_style=writing_style,
@@ -243,8 +243,18 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
                 target_word_count=target_word_count
             )
 
+            # Save token usage to user profile
+            if token_usage and token_usage.get('total_tokens', 0) > 0:
+                logger.info(f"Saving token usage to UserProfile: {token_usage}")
+                user_profile, _ = UserProfile.objects.get_or_create(user=project.user)
+                user_profile.total_tokens += token_usage.get('total_tokens', 0)
+                user_profile.prompt_tokens += token_usage.get('prompt_tokens', 0)
+                user_profile.completion_tokens += token_usage.get('completion_tokens', 0)
+                user_profile.save()
+
             # Log the response structure for debugging
             logger.info(f"WritingService returned data with keys: {chapter_data.keys() if isinstance(chapter_data, dict) else 'Not a dict'}")
+            logger.info(f"Token usage: {token_usage}")
 
             # Validate response structure
             required_keys = ['chapter_number', 'title', 'content', 'word_count']
@@ -294,7 +304,8 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
             'chapter_id': str(chapter.id),
             'word_count': chapter_data['word_count'],
             'content': chapter_data['content'],  # Include content in result
-            'title': chapter_data['title']
+            'title': chapter_data['title'],
+            'token_usage': token_usage  # Include token usage for frontend display
         }
         task.status = 'completed'
         task.completed_at = timezone.now()
@@ -392,8 +403,8 @@ def create_outline_task(self, task_id, project_id, num_chapters=1, user_language
         progress_updater.start(f"Generating {num_chapters} chapter outline...")
 
         try:
-            outline = OutlineService.create_outline(project, plot_data, num_chapters, user_language=user_language, idea_data=idea_data)
-            logger.info(f"Create Outline task generated outline with {len(outline.get('chapters', []))} chapters")
+            outline, token_usage = OutlineService.create_outline(project, plot_data, num_chapters, user_language=user_language, idea_data=idea_data)
+            logger.info(f"Create Outline task generated outline with {len(outline.get('chapters', []))} chapters, tokens: {token_usage}")
         finally:
             progress_updater.stop()
 
@@ -433,7 +444,23 @@ def create_outline_task(self, task_id, project_id, num_chapters=1, user_language
 
         update_task_progress(task_id, 95, "Finalizing...")
 
-        task.result_data = {'num_chapters': len(outline['chapters'])}
+        # Save token usage to user profile
+        if token_usage and task.user:
+            try:
+                profile, created = UserProfile.objects.get_or_create(user=task.user)
+                profile.add_tokens(
+                    prompt_tokens=token_usage.get('prompt_tokens', 0),
+                    completion_tokens=token_usage.get('completion_tokens', 0),
+                    total_tokens=token_usage.get('total_tokens', 0)
+                )
+                logger.info(f"Saved outline tokens to user {task.user.username}: {token_usage}")
+            except Exception as e:
+                logger.error(f"Failed to save outline tokens to user profile: {e}")
+
+        task.result_data = {
+            'num_chapters': len(outline['chapters']),
+            'token_usage': token_usage
+        }
         task.status = 'completed'
         task.completed_at = timezone.now()
         task.progress = 100
@@ -524,7 +551,16 @@ def regenerate_single_outline_task(self, task_id, project_id, chapter_number, us
 
         try:
             # Generate new outline for this chapter
-            outline = OutlineService.create_outline(project, plot_data, total_chapters, user_language=user_language)
+            outline, token_usage = OutlineService.create_outline(project, plot_data, total_chapters, user_language=user_language)
+
+            # Save token usage to user profile
+            if token_usage and token_usage.get('total_tokens', 0) > 0:
+                logger.info(f"Saving token usage to UserProfile: {token_usage}")
+                user_profile, _ = UserProfile.objects.get_or_create(user=project.user)
+                user_profile.total_tokens += token_usage.get('total_tokens', 0)
+                user_profile.prompt_tokens += token_usage.get('prompt_tokens', 0)
+                user_profile.completion_tokens += token_usage.get('completion_tokens', 0)
+                user_profile.save()
         finally:
             progress_updater.stop()
 
@@ -551,7 +587,10 @@ def regenerate_single_outline_task(self, task_id, project_id, chapter_number, us
 
         update_task_progress(task_id, 95, "Finalizing...")
 
-        task.result_data = {'chapter_number': chapter_number}
+        task.result_data = {
+            'chapter_number': chapter_number,
+            'token_usage': token_usage
+        }
         task.status = 'completed'
         task.completed_at = timezone.now()
         task.progress = 100
@@ -559,7 +598,7 @@ def regenerate_single_outline_task(self, task_id, project_id, chapter_number, us
 
         update_task_progress(task_id, 100, "Outline regenerated!")
 
-        return {'chapter_number': chapter_number}
+        return {'chapter_number': chapter_number, 'token_usage': token_usage}
 
     except SoftTimeLimitExceeded:
         logger.error(f"Regenerate outline task timed out after 100 seconds")

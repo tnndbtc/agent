@@ -147,9 +147,19 @@ def mock_openai_chat():
         # Get appropriate mock response
         response_content = get_mock_response_for_prompt(prompt_text)
 
-        # Create mock response object
+        # Create mock response object with proper response_metadata
         mock_response = Mock()
         mock_response.content = response_content
+        # Mock token usage metadata (mimics real OpenAI response structure)
+        mock_response.response_metadata = {
+            'token_usage': {
+                'prompt_tokens': 100,
+                'completion_tokens': 200,
+                'total_tokens': 300
+            },
+            'model_name': 'gpt-4o-mini',
+            'finish_reason': 'stop'
+        }
         return mock_response
 
     mock_instance.invoke = Mock(side_effect=mock_invoke)

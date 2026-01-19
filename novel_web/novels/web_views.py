@@ -81,35 +81,6 @@ def chapter_detail(request, pk, chapter_id):
 
 
 @login_required
-def brainstorm_view(request, pk):
-    """Brainstorming ideas view."""
-    project = get_object_or_404(NovelProject, pk=pk, user=request.user)
-
-    # Get previous brainstorm tasks with results
-    previous_tasks = GenerationTask.objects.filter(
-        project=project,
-        task_type='brainstorm',
-        status='completed'
-    ).order_by('-created_at')[:10]  # Get last 10 completed brainstorms, ordered by creation date
-
-    # Extract ideas from completed tasks
-    previous_ideas = []
-    for task in previous_tasks:
-        if task.result_data and 'ideas' in task.result_data:
-            ideas_list = task.result_data.get('ideas', [])
-            if isinstance(ideas_list, list):
-                for idea in ideas_list:
-                    if isinstance(idea, dict):
-                        idea['task_date'] = task.completed_at or task.created_at
-                        previous_ideas.append(idea)
-
-    return render(request, 'novels/brainstorm.html', {
-        'project': project,
-        'previous_ideas': previous_ideas
-    })
-
-
-@login_required
 def manage_examples(request):
     """Manage examples view - shows user's examples and public examples."""
     # Get user's own examples and public examples

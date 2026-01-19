@@ -223,13 +223,25 @@ function formatTimeRemaining(seconds) {
     }
 }
 
-// Session-wide token usage tracking
-let sessionTokens = {
-    prompt_tokens: 0,
-    completion_tokens: 0,
-    total_tokens: 0,
-    call_count: 0
-};
+// Session-wide token usage tracking with sessionStorage persistence
+function getSessionTokens() {
+    const stored = sessionStorage.getItem('sessionTokens');
+    if (stored) {
+        try {
+            return JSON.parse(stored);
+        } catch (e) {
+            console.error('Failed to parse sessionTokens from sessionStorage:', e);
+        }
+    }
+    return {
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0,
+        call_count: 0
+    };
+}
+
+let sessionTokens = getSessionTokens();
 
 // Initialize token bar on page load
 function initTokenBar() {
@@ -238,8 +250,18 @@ function initTokenBar() {
 
     if (!statusBar || !statusText) return;
 
-    // Show initial state
-    statusText.textContent = '🪙 Tokens: 0 total (0 prompt + 0 completion) • 0 API calls';
+    // Restore session tokens from storage
+    sessionTokens = getSessionTokens();
+
+    // Display current session tokens
+    let message = '';
+    if (sessionTokens.total_tokens > 0) {
+        message = `🪙 Tokens: ${sessionTokens.total_tokens} total (${sessionTokens.prompt_tokens} prompt + ${sessionTokens.completion_tokens} completion) • ${sessionTokens.call_count} API calls`;
+    } else {
+        message = '🪙 Tokens: 0 total (0 prompt + 0 completion) • 0 API calls';
+    }
+
+    statusText.textContent = message;
     statusBar.style.display = 'block';
 }
 
@@ -248,6 +270,33 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initTokenBar);
 } else {
     initTokenBar();
+}
+
+// Reset token tracking (clear sessionStorage and UI)
+function resetTokens() {
+    console.log('resetTokens called - clearing session tokens');
+
+    // Clear sessionStorage
+    sessionStorage.removeItem('sessionTokens');
+
+    // Reset in-memory object
+    sessionTokens = {
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0,
+        call_count: 0
+    };
+
+    // Update UI
+    const statusBar = document.getElementById('tokenStatusBar');
+    const statusText = document.getElementById('tokenStatusText');
+
+    if (statusBar && statusText) {
+        statusText.textContent = '🪙 Tokens: 0 total (0 prompt + 0 completion) • 0 API calls';
+        statusBar.style.display = 'block';
+    }
+
+    console.log('Session tokens reset to zero');
 }
 
 // Display token usage in status bar (persistent)
@@ -262,13 +311,19 @@ function showTokenUsage(tokenData) {
         return;
     }
 
+    // Load current session tokens from storage
+    sessionTokens = getSessionTokens();
+
     // Accumulate tokens
     if (tokenData.prompt_tokens) sessionTokens.prompt_tokens += tokenData.prompt_tokens;
     if (tokenData.completion_tokens) sessionTokens.completion_tokens += tokenData.completion_tokens;
     if (tokenData.total_tokens) sessionTokens.total_tokens += tokenData.total_tokens;
     sessionTokens.call_count += 1;
 
-    console.log('Session tokens updated:', sessionTokens);
+    // Save to sessionStorage for persistence across page reloads
+    sessionStorage.setItem('sessionTokens', JSON.stringify(sessionTokens));
+
+    console.log('Session tokens updated and saved:', sessionTokens);
 
     // Format the message
     let message = '';

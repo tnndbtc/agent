@@ -1059,6 +1059,9 @@ Respond in JSON format:
                     'total_tokens': getattr(response.usage_metadata, 'total_tokens', 0)
                 }
 
+            # Log token usage in web container
+            logger.info(f"suggest_metadata - Token usage: {token_usage}")
+
             # Save token usage to user profile
             if token_usage and request.user.is_authenticated:
                 try:
@@ -1068,9 +1071,9 @@ Respond in JSON format:
                         completion_tokens=token_usage.get('completion_tokens', 0),
                         total_tokens=token_usage.get('total_tokens', 0)
                     )
-                    logger.info(f"Saved tokens to user {request.user.username}: {token_usage}")
+                    logger.info(f"suggest_metadata - Saved tokens to user {request.user.username}: {token_usage}")
                 except Exception as e:
-                    logger.error(f"Failed to save tokens to user profile: {e}")
+                    logger.error(f"suggest_metadata - Failed to save tokens to user profile: {e}")
 
             # Extract JSON from response
             content_text = response.content if hasattr(response, 'content') else str(response)

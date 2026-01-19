@@ -73,12 +73,19 @@ class ChapterWriter:
         scenes = self._generate_scene_breakdown(chapter_outline)
         chapter_content = []
 
+        # Initialize token usage accumulator
+        total_tokens_used = {
+            'prompt_tokens': 0,
+            'completion_tokens': 0,
+            'total_tokens': 0
+        }
+
         # Calculate words per scene to meet target word count
         num_scenes = len(scenes)
         words_per_scene = target_word_count // num_scenes if num_scenes > 0 else target_word_count
 
         for i, scene in enumerate(scenes):
-            scene_content = self._write_scene(
+            scene_content, scene_tokens = self._write_scene(
                 scene,
                 chapter_outline,
                 context,
@@ -91,13 +98,26 @@ class ChapterWriter:
             )
             chapter_content.append(scene_content)
 
+            # Accumulate scene tokens
+            if scene_tokens:
+                total_tokens_used['prompt_tokens'] += scene_tokens.get('prompt_tokens', 0)
+                total_tokens_used['completion_tokens'] += scene_tokens.get('completion_tokens', 0)
+                total_tokens_used['total_tokens'] += scene_tokens.get('total_tokens', 0)
+
         full_content = "\n\n".join(chapter_content)
+
+        # Generate chapter summary and accumulate its tokens
+        summary, summary_tokens = self._generate_chapter_summary(full_content)
+        if summary_tokens:
+            total_tokens_used['prompt_tokens'] += summary_tokens.get('prompt_tokens', 0)
+            total_tokens_used['completion_tokens'] += summary_tokens.get('completion_tokens', 0)
+            total_tokens_used['total_tokens'] += summary_tokens.get('total_tokens', 0)
 
         chapter = {
             'chapter_number': chapter_outline.get('number', 1),
             'title': chapter_outline.get('title', 'Untitled'),
             'content': full_content,
-            'summary': self._generate_chapter_summary(full_content),
+            'summary': summary,
             'word_count': len(full_content.split()),
             'language': language
         }
@@ -105,7 +125,7 @@ class ChapterWriter:
         # Store in memory
         self.memory.store_chapter(chapter)
 
-        return chapter
+        return chapter, total_tokens_used
 
     def write_paragraph(
         self,
@@ -329,7 +349,24 @@ Write polished prose that meets the {target_words}-word target."""
         ]
 
         response = self.llm.invoke(messages)
-        return response.content.strip()
+
+        # Extract token usage
+        token_usage = {}
+        if hasattr(response, 'response_metadata') and 'token_usage' in response.response_metadata:
+            usage = response.response_metadata['token_usage']
+            token_usage = {
+                'prompt_tokens': usage.get('prompt_tokens', 0),
+                'completion_tokens': usage.get('completion_tokens', 0),
+                'total_tokens': usage.get('total_tokens', 0)
+            }
+        elif hasattr(response, 'usage_metadata'):
+            token_usage = {
+                'prompt_tokens': getattr(response.usage_metadata, 'input_tokens', 0),
+                'completion_tokens': getattr(response.usage_metadata, 'output_tokens', 0),
+                'total_tokens': getattr(response.usage_metadata, 'total_tokens', 0)
+            }
+
+        return response.content.strip(), token_usage
 
     def _generate_chapter_summary(self, content: str) -> str:
         """Generate a summary of the chapter content."""
@@ -348,7 +385,24 @@ Focus on plot progression and character changes."""
         ]
 
         response = self.llm.invoke(messages)
-        return response.content.strip()
+
+        # Extract token usage
+        token_usage = {}
+        if hasattr(response, 'response_metadata') and 'token_usage' in response.response_metadata:
+            usage = response.response_metadata['token_usage']
+            token_usage = {
+                'prompt_tokens': usage.get('prompt_tokens', 0),
+                'completion_tokens': usage.get('completion_tokens', 0),
+                'total_tokens': usage.get('total_tokens', 0)
+            }
+        elif hasattr(response, 'usage_metadata'):
+            token_usage = {
+                'prompt_tokens': getattr(response.usage_metadata, 'input_tokens', 0),
+                'completion_tokens': getattr(response.usage_metadata, 'output_tokens', 0),
+                'total_tokens': getattr(response.usage_metadata, 'total_tokens', 0)
+            }
+
+        return response.content.strip(), token_usage
 
     def continue_from_draft(
         self,

@@ -16,6 +16,5 @@ urlpatterns = [
     path('examples/', web_views.manage_examples, name='manage_examples'),
     path('user-metadata/', web_views.user_metadata, name='user_metadata'),
     path('project/<uuid:pk>/', web_views.project_detail, name='project_detail'),
-    path('project/<uuid:pk>/brainstorm/', web_views.brainstorm_view, name='brainstorm'),
     path('project/<uuid:pk>/chapter/<uuid:chapter_id>/', web_views.chapter_detail, name='chapter_detail'),
 ]

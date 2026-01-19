@@ -113,6 +113,24 @@ Story Beats: [which major plot points]
         response = self.llm.invoke(messages)
         logger.info(f"OutlinerModule - Received response from OpenAI (length: {len(response.content)})")
         logger.debug(f"OutlinerModule - Response content: {response.content[:500]}")
+        logger.info(f"OutlinerModule - Full response for debugging: {response.content}")
+
+        # Extract token usage
+        token_usage = {}
+        if hasattr(response, 'response_metadata') and 'token_usage' in response.response_metadata:
+            usage = response.response_metadata['token_usage']
+            token_usage = {
+                'prompt_tokens': usage.get('prompt_tokens', 0),
+                'completion_tokens': usage.get('completion_tokens', 0),
+                'total_tokens': usage.get('total_tokens', 0)
+            }
+        elif hasattr(response, 'usage_metadata'):
+            token_usage = {
+                'prompt_tokens': getattr(response.usage_metadata, 'input_tokens', 0),
+                'completion_tokens': getattr(response.usage_metadata, 'output_tokens', 0),
+                'total_tokens': getattr(response.usage_metadata, 'total_tokens', 0)
+            }
+        logger.info(f"OutlinerModule - Token usage: {token_usage}")
 
         chapters = self._parse_chapter_outline(response.content)
         logger.info(f"OutlinerModule - Parsed {len(chapters)} chapters from response (requested: {num_chapters})")
@@ -136,7 +154,7 @@ Story Beats: [which major plot points]
         self.memory.store_outline(outline)
         self.context_manager.update_current_context('outline', outline)
 
-        return outline
+        return outline, token_usage
 
     def refine_chapter(
         self,

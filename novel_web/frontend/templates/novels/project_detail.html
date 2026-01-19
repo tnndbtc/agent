@@ -804,6 +804,9 @@ async function useCurrentIdea() {
         return;
     }
 
+    // Reset tokens at the start of new workflow
+    resetTokens();
+
     try {
         // Get estimated duration for plot API
         const estimatedDuration = await getEstimatedDuration('plot');
@@ -1086,6 +1089,9 @@ function resetBrainstormProgressBar() {
 }
 
 async function generateIdeas(data) {
+    // Reset tokens at the start of new workflow
+    resetTokens();
+
     // Get estimated duration for brainstorm API
     const estimatedDuration = await getEstimatedDuration('brainstorm');
     startBrainstormProgressBar(estimatedDuration);
@@ -1109,9 +1115,19 @@ function pollTask(taskId) {
                 if (task.status === 'completed') {
                     clearInterval(interval);
                     completeBrainstormProgressBar();
+
+                    // Extract and display token usage FIRST (before other operations)
+                    if (task.result_data && task.result_data.token_usage) {
+                        console.log('Calling showTokenUsage with:', task.result_data.token_usage);
+                        showTokenUsage(task.result_data.token_usage);
+                    }
+
                     setTimeout(() => {
                         resetBrainstormProgressBar();
-                        displayIdeas(task.result_data.ideas);
+                        // Display ideas after token tracking with defensive check
+                        if (task.result_data && task.result_data.ideas) {
+                            displayIdeas(task.result_data.ideas);
+                        }
                     }, 500);
                 } else if (task.status === 'failed') {
                     clearInterval(interval);
@@ -1196,6 +1212,9 @@ function useSelectedIdea() {
         return;
     }
 
+    // Reset tokens at the start of new workflow
+    resetTokens();
+
     showLoading('Creating plot and characters...');
 
     apiRequest(`/api/projects/${projectId}/create_plot/`, {
@@ -1203,6 +1222,16 @@ function useSelectedIdea() {
         body: JSON.stringify({ idea_data: selectedIdea })
     }).then(response => {
         hideLoading();
+
+        // Extract and display token usage
+        console.log('Create plot response:', response);
+        if (response.token_usage) {
+            console.log('Calling showTokenUsage with:', response.token_usage);
+            showTokenUsage(response.token_usage);
+        } else {
+            console.warn('No token_usage in create plot response');
+        }
+
         showToast('Plot and characters created successfully!', 'success');
         setTimeout(() => {
             window.location.href = '{% url 'novels:project_detail' project.id %}';
@@ -1243,10 +1272,6 @@ function showTab(tabName) {
 
     // Update URL hash to preserve tab state across page reloads
     window.location.hash = tabName;
-}
-
-function startBrainstorm() {
-    window.location.href = `/project/${projectId}/brainstorm/`;
 }
 
 // Create Outline progress bar management
@@ -1328,6 +1353,9 @@ async function createOutline() {
 
     if (!confirm(`Create outline with ${chapters} chapters? This may take a few moments.`)) return;
 
+    // Reset tokens at the start of new workflow
+    resetTokens();
+
     try {
         // Get estimated duration for outline API
         const estimatedDuration = await getEstimatedDuration('outline');
@@ -1348,6 +1376,13 @@ async function createOutline() {
                 if (task.status === 'completed') {
                     clearInterval(createOutlinePollingInterval);
                     completeCreateOutlineProgressBar();
+
+                    // Extract and display token usage BEFORE reload
+                    if (task.result_data && task.result_data.token_usage) {
+                        console.log('Calling showTokenUsage with:', task.result_data.token_usage);
+                        showTokenUsage(task.result_data.token_usage);
+                    }
+
                     showToast('Outline created successfully!', 'success');
                     setTimeout(() => {
                         window.location.reload();
@@ -1399,6 +1434,9 @@ async function writeChapterFromOutline(outlineId) {
 
     if (!confirm(`Write this chapter with approximately ${words} words?`)) return;
 
+    // Reset tokens at the start of new workflow
+    resetTokens();
+
     try {
         // Get estimated duration for chapter API
         const estimatedDuration = await getEstimatedDuration('chapter');
@@ -1423,6 +1461,13 @@ async function writeChapterFromOutline(outlineId) {
                 if (task.status === 'completed') {
                     clearInterval(writeChapterPollingIntervals[outlineId]);
                     completeWriteChapterProgressBar(outlineId);
+
+                    // Extract and display token usage
+                    if (task.result_data && task.result_data.token_usage) {
+                        console.log('Calling showTokenUsage with:', task.result_data.token_usage);
+                        showTokenUsage(task.result_data.token_usage);
+                    }
+
                     showToast('Chapter written successfully!', 'success');
                     setTimeout(() => {
                         window.location.reload();
@@ -1604,6 +1649,9 @@ function resetRegenerateProgressBar(chapterNumber) {
 async function regenerateOutline(chapterNumber) {
     if (!confirm(`Regenerate outline for chapter ${chapterNumber}? This will replace the current outline with a new version.`)) return;
 
+    // Reset tokens at the start of new workflow
+    resetTokens();
+
     try {
         // Get estimated duration for outline API
         const estimatedDuration = await getEstimatedDuration('outline');
@@ -1624,6 +1672,13 @@ async function regenerateOutline(chapterNumber) {
                 if (task.status === 'completed') {
                     clearInterval(regeneratePollingIntervals[chapterNumber]);
                     completeRegenerateProgressBar(chapterNumber);
+
+                    // Extract and display token usage
+                    if (task.result_data && task.result_data.token_usage) {
+                        console.log('Calling showTokenUsage with:', task.result_data.token_usage);
+                        showTokenUsage(task.result_data.token_usage);
+                    }
+
                     showToast('Outline regenerated successfully!', 'success');
                     setTimeout(() => {
                         window.location.reload();

@@ -335,10 +335,10 @@ class OutlineService:
         else:
             enriched_plot_data = plot_data
 
-        outline = outliner.create_chapter_outline(enriched_plot_data, num_chapters, language=target_language)
-        logger.info(f"OutlineService created outline with language parameter, chapters: {len(outline.get('chapters', []))}")
+        outline, token_usage = outliner.create_chapter_outline(enriched_plot_data, num_chapters, language=target_language)
+        logger.info(f"OutlineService created outline with language parameter, chapters: {len(outline.get('chapters', []))}, tokens: {token_usage}")
 
-        return outline
+        return outline, token_usage
 
     @staticmethod
     def generate_scene_breakdown(project, chapter_outline, user_language='en'):
@@ -364,13 +364,13 @@ class WritingService:
         service = ProjectService(project)
         writer = service.get_writer()
 
-        chapter = writer.write_chapter(
+        chapter, token_usage = writer.write_chapter(
             chapter_outline,
             writing_style=writing_style,
             language=language,
             target_word_count=target_word_count
         )
-        return chapter
+        return chapter, token_usage
 
     @staticmethod
     def write_dialogue(project, characters, context, purpose, language='English'):

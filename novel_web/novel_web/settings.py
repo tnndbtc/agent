@@ -49,6 +49,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'novel_web.middleware.NoCacheMiddleware',  # Prevent browser caching of HTML templates
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
