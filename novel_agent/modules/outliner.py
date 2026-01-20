@@ -63,11 +63,60 @@ Consider the three-act structure when distributing chapters."""
             for c in characters[:5]
         ])
 
+        # Extract act context if provided
+        act_info = ""
+        act_guidance = ""
+        if 'act_context' in plot:
+            act_ctx = plot['act_context']
+            act_info = f"""
+Act Context: Act {act_ctx['act_number']} - {act_ctx['subject']} ({act_ctx['percentage']}% of story)
+Act Description: {act_ctx['description']}"""
+
+            # Provide specific guidance based on the act
+            act_type = act_ctx['subject'].upper()
+            if 'SETUP' in act_type or act_ctx['act_number'] == 1:
+                act_guidance = f"""
+IMPORTANT: These {num_chapters} chapters are part of Act 1 (SETUP). Focus on:
+- Introducing the protagonist and their ordinary world
+- Establishing the story's tone and setting
+- Presenting the inciting incident that disrupts the status quo
+- Building toward the first major turning point
+- Each chapter should progressively set up the main conflict"""
+            elif 'CONFRONTATION' in act_type or act_ctx['act_number'] == 2:
+                act_guidance = f"""
+IMPORTANT: These {num_chapters} chapters are part of Act 2 (CONFRONTATION). Focus on:
+- Rising action and increasing complications
+- The protagonist facing obstacles and setbacks
+- Character growth through challenges
+- Building toward the midpoint (major twist or revelation)
+- Escalating stakes and tension
+- The protagonist's lowest point before Act 3
+- Each chapter should raise the stakes higher than the previous"""
+            elif 'RESOLUTION' in act_type or act_ctx['act_number'] == 3:
+                act_guidance = f"""
+IMPORTANT: These {num_chapters} chapters are part of Act 3 (RESOLUTION). Focus on:
+- The final push toward the climax
+- The climactic confrontation or resolution of the main conflict
+- Tying up loose ends and subplots
+- Showing the consequences of earlier actions
+- Establishing the new normal after the conflict
+- Each chapter should move toward satisfying resolution"""
+
+            logger.info(f"OutlinerModule - Including act context: Act {act_ctx['act_number']} ({act_ctx['subject']})")
+        else:
+            # Generic act guidance if no specific act is provided
+            act_guidance = f"""
+Consider:
+- Act 1: Chapters 1-{num_chapters // 4} (setup)
+- Act 2: Chapters {num_chapters // 4 + 1}-{3 * num_chapters // 4} (confrontation)
+- Act 3: Chapters {3 * num_chapters // 4 + 1}-{num_chapters} (resolution)"""
+
         user_prompt = f"""Create a {num_chapters}-chapter outline for this novel:
 
 Title: {plot.get('title', 'Untitled')}
 Premise: {plot.get('premise', '')}
 Plot Structure: {plot.get('structure', '')}
+{act_info}
 
 Characters:
 {char_summary}
@@ -78,13 +127,9 @@ For each chapter provide:
 - Setting/location
 - Plot events (what happens)
 - Character development (how characters change)
-- Pacing notes (slow/medium/fast)
+- Pacing notes (brief description under 32 characters, e.g., slow, medium, fast, or short phrases like "building tension")
 - Story beats (which major plot points occur)
-
-Consider:
-- Act 1: Chapters 1-{num_chapters // 4} (setup)
-- Act 2: Chapters {num_chapters // 4 + 1}-{3 * num_chapters // 4} (confrontation)
-- Act 3: Chapters {3 * num_chapters // 4 + 1}-{num_chapters} (resolution)
+{act_guidance}
 
 Format each chapter as:
 ---
@@ -93,7 +138,7 @@ POV: [character name]
 Setting: [location]
 Events: [what happens - 3-4 sentences]
 Character Development: [how characters grow/change]
-Pacing: [slow/medium/fast]
+Pacing: [brief description under 32 characters]
 Story Beats: [which major plot points]
 ---"""
 

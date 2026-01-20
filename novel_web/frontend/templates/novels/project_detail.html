@@ -354,6 +354,7 @@
 
                 {# Display Acts if they exist #}
                 {% if has_plot and project.plot.acts.exists %}
+                    {# Create ID to display number mapping #}
                     {% regroup outlines by act_id as outlines_by_act %}
                     {% for act in project.plot.acts.all %}
                     {# Check if this act has any outlines #}
@@ -373,7 +374,7 @@
                             {% for outline in act_group.list %}
                     <div class="outline-card" id="outline-card-{{ outline.id }}">
                         <div class="outline-header">
-                            <span class="outline-number">{{ outline.number }}</span>
+                            <span class="outline-number" data-outline-id="{{ outline.id }}">{{ outline.number }}</span>
                             <h5>{{ outline.title }}</h5>
                         </div>
                         <div class="outline-details" id="outline-details-{{ outline.id }}">
@@ -3003,5 +3004,18 @@ async function saveOutline(outlineId) {
         showToast('Error updating outline: ' + err.message, 'error');
     }
 }
+
+// Renumber all chapter outlines sequentially based on their display order
+function renumberChapterOutlines() {
+    const outlineNumbers = document.querySelectorAll('.outline-number');
+    outlineNumbers.forEach((element, index) => {
+        element.textContent = index + 1;
+    });
+}
+
+// Call renumbering on page load
+document.addEventListener('DOMContentLoaded', () => {
+    renumberChapterOutlines();
+});
 </script>
 {% endblock %}

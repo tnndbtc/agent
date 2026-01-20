@@ -436,24 +436,43 @@ class ChapterOutline(models.Model):
         help_text="Act this outline belongs to (optional)"
     )
 
-    number = models.IntegerField()
+    number = models.IntegerField(help_text="Chapter number (display)")
+    order_key = models.DecimalField(
+        max_digits=10,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        help_text="Ordering key for sorting (allows insertion between items)"
+    )
     title = models.CharField(max_length=255)
+
+    def save(self, *args, **kwargs):
+        """Auto-assign order_key if not provided."""
+        if self.order_key is None:
+            from decimal import Decimal
+            from django.db.models import Max
+            max_order_key = ChapterOutline.objects.filter(
+                project=self.project
+            ).aggregate(max_key=Max('order_key'))['max_key']
+            self.order_key = (max_order_key or Decimal('0')) + Decimal('1')
+        super().save(*args, **kwargs)
 
     # Outline details
     pov = models.CharField(max_length=255, blank=True, help_text="Point of view")
     setting = models.CharField(max_length=255, blank=True)
     events = models.TextField(help_text="What happens in this chapter")
     character_development = models.TextField(blank=True)
-    pacing = models.CharField(max_length=10, choices=PACING_CHOICES, default='medium')
+    pacing = models.CharField(max_length=64, choices=PACING_CHOICES, default='medium')
     story_beats = models.TextField(blank=True, help_text="Major plot points")
 
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['number']
-        unique_together = ['project', 'number']
+        ordering = ['order_key']
+        unique_together = ['project', 'order_key']
         indexes = [
+            models.Index(fields=['project', 'order_key']),
             models.Index(fields=['project', 'number']),
         ]
 

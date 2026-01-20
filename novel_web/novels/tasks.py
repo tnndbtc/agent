@@ -3,6 +3,7 @@ from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
 from celery.utils.log import get_task_logger
 from django.utils import timezone
+from django.db import models
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import threading
@@ -600,25 +601,60 @@ def create_outline_task(self, task_id, project_id, num_chapters=1, act_id=None, 
 
         update_task_progress(task_id, 80, "Saving outline...")
 
-        # Get highest existing chapter number to append new outlines
-        existing_outlines = ChapterOutline.objects.filter(project=project).order_by('-number')
-        starting_number = existing_outlines.first().number + 1 if existing_outlines.exists() else 1
+        from decimal import Decimal
 
-        # Adjust chapter numbers to append after existing outlines
-        for chapter_data in outline['chapters']:
-            chapter_data['number'] = starting_number + (chapter_data['number'] - 1)
+        # Get all existing numbers and order_keys
+        existing_outlines = ChapterOutline.objects.filter(project=project)
+        existing_numbers = set(existing_outlines.values_list('number', flat=True))
+        max_order_key = existing_outlines.aggregate(
+            max_key=models.Max('order_key')
+        )['max_key'] or Decimal('0')
+
+        # Find available numbers (gaps first, then append)
+        def find_available_numbers(existing_numbers, count):
+            """Find 'count' available numbers, preferring gaps over appending."""
+            available = []
+
+            if existing_numbers:
+                max_num = max(existing_numbers)
+                # Find gaps first
+                for i in range(1, max_num + 1):
+                    if i not in existing_numbers:
+                        available.append(i)
+                        if len(available) == count:
+                            return available
+
+                # Append after max if not enough gaps
+                for i in range(max_num + 1, max_num + count + 1):
+                    available.append(i)
+                    if len(available) == count:
+                        return available
+            else:
+                # No existing outlines, start from 1
+                available = list(range(1, count + 1))
+
+            return available
+
+        total_chapters = len(outline['chapters'])
+        available_numbers = find_available_numbers(existing_numbers, total_chapters)
+
+        logger.info(f"Create Outline task - Saving {total_chapters} chapters to database (requested: {num_chapters})")
+        logger.info(f"Create Outline task - Assigning numbers: {available_numbers}")
+
+        # Assign numbers and order_keys
+        for i, chapter_data in enumerate(outline['chapters']):
+            chapter_data['number'] = available_numbers[i]
+            chapter_data['order_key'] = max_order_key + Decimal(str(i + 1))
 
         # Save chapter outlines to database with progress updates
-        total_chapters = len(outline['chapters'])
-        logger.info(f"Create Outline task - Saving {total_chapters} chapters to database (requested: {num_chapters})")
-
         for i, chapter_data in enumerate(outline['chapters'], 1):
             chapter_title = chapter_data.get('title', f"Chapter {chapter_data['number']}")
-            logger.debug(f"Create Outline task - Saving chapter {i}/{total_chapters}: {chapter_title}")
+            logger.debug(f"Create Outline task - Saving chapter {i}/{total_chapters}: {chapter_title} (number={chapter_data['number']}, order_key={chapter_data['order_key']})")
             ChapterOutline.objects.create(
                 project=project,
                 act=act,  # Associate with act if provided
                 number=chapter_data['number'],
+                order_key=chapter_data['order_key'],
                 title=chapter_data.get('title', f"Chapter {chapter_data['number']}"),
                 pov=chapter_data.get('pov', ''),
                 setting=chapter_data.get('setting', ''),
@@ -760,19 +796,42 @@ def regenerate_single_outline_task(self, task_id, project_id, chapter_number, us
         # Find and update the specific chapter outline
         if chapter_number <= len(outline['chapters']):
             chapter_data = outline['chapters'][chapter_number - 1]
-            ChapterOutline.objects.update_or_create(
+
+            # Get existing outline to preserve order_key
+            from decimal import Decimal
+            existing_outline = ChapterOutline.objects.filter(
                 project=project,
-                number=chapter_number,
-                defaults={
-                    'title': chapter_data.get('title', f"Chapter {chapter_number}"),
-                    'pov': chapter_data.get('pov', ''),
-                    'setting': chapter_data.get('setting', ''),
-                    'events': chapter_data.get('events', ''),
-                    'character_development': chapter_data.get('character_development', ''),
-                    'pacing': chapter_data.get('pacing', 'medium'),
-                    'story_beats': chapter_data.get('story_beats', '')
-                }
-            )
+                number=chapter_number
+            ).first()
+
+            if existing_outline:
+                # Update existing outline, preserving order_key
+                existing_outline.title = chapter_data.get('title', f"Chapter {chapter_number}")
+                existing_outline.pov = chapter_data.get('pov', '')
+                existing_outline.setting = chapter_data.get('setting', '')
+                existing_outline.events = chapter_data.get('events', '')
+                existing_outline.character_development = chapter_data.get('character_development', '')
+                existing_outline.pacing = chapter_data.get('pacing', 'medium')
+                existing_outline.story_beats = chapter_data.get('story_beats', '')
+                existing_outline.save()
+            else:
+                # Create new outline with appropriate order_key
+                max_order_key = ChapterOutline.objects.filter(
+                    project=project
+                ).aggregate(max_key=models.Max('order_key'))['max_key'] or Decimal('0')
+
+                ChapterOutline.objects.create(
+                    project=project,
+                    number=chapter_number,
+                    order_key=max_order_key + Decimal('1'),
+                    title=chapter_data.get('title', f"Chapter {chapter_number}"),
+                    pov=chapter_data.get('pov', ''),
+                    setting=chapter_data.get('setting', ''),
+                    events=chapter_data.get('events', ''),
+                    character_development=chapter_data.get('character_development', ''),
+                    pacing=chapter_data.get('pacing', 'medium'),
+                    story_beats=chapter_data.get('story_beats', '')
+                )
         else:
             raise ValueError(f"Generated outline doesn't include chapter {chapter_number}")
 

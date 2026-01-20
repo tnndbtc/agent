@@ -582,28 +582,106 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['delete'], url_path='delete_outline/(?P<outline_id>[^/.]+)')
     def delete_outline(self, request, pk=None, outline_id=None):
-        """Delete a chapter outline and renumber subsequent outlines."""
-        from django.db import transaction
-
+        """Delete a chapter outline (allows gaps in numbering)."""
         project = self.get_object()
         outline = get_object_or_404(ChapterOutline, id=outline_id, project=project)
-        deleted_number = outline.number
+        outline.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'], url_path='swap_outlines')
+    def swap_outlines(self, request, pk=None):
+        """Swap two chapter outlines by exchanging their order_keys."""
+        from django.db import transaction
+        from decimal import Decimal
+
+        project = self.get_object()
+        outline1_id = request.data.get('outline1_id')
+        outline2_id = request.data.get('outline2_id')
+
+        if not outline1_id or not outline2_id:
+            return Response(
+                {'error': 'Both outline1_id and outline2_id are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        outline1 = get_object_or_404(ChapterOutline, id=outline1_id, project=project)
+        outline2 = get_object_or_404(ChapterOutline, id=outline2_id, project=project)
 
         with transaction.atomic():
-            # Delete the outline
-            outline.delete()
+            # Swap order_keys
+            outline1.order_key, outline2.order_key = outline2.order_key, outline1.order_key
+            outline1.save(update_fields=['order_key'])
+            outline2.save(update_fields=['order_key'])
 
-            # Renumber all subsequent outlines
-            subsequent_outlines = ChapterOutline.objects.filter(
-                project=project,
-                number__gt=deleted_number
-            ).order_by('number')
+        logger.info(f"Swapped outlines {outline1_id} and {outline2_id} for project {project.id}")
 
-            for outline in subsequent_outlines:
-                outline.number -= 1
-                outline.save(update_fields=['number'])
+        return Response({
+            'status': 'Outlines swapped successfully',
+            'outline1': {'id': str(outline1.id), 'number': outline1.number, 'order_key': str(outline1.order_key)},
+            'outline2': {'id': str(outline2.id), 'number': outline2.number, 'order_key': str(outline2.order_key)}
+        }, status=status.HTTP_200_OK)
 
-        return Response(status=status.HTTP_204_NO_CONTENT)
+    @action(detail=True, methods=['post'], url_path='reorder_outlines')
+    def reorder_outlines(self, request, pk=None):
+        """Reorder chapter outlines by updating their order_keys in bulk."""
+        from django.db import transaction
+        from decimal import Decimal
+
+        project = self.get_object()
+        outline_orders = request.data.get('outline_orders', [])
+        # Expected format: [{'id': 'uuid1', 'order_key': '1.000000'}, {'id': 'uuid2', 'order_key': '2.000000'}, ...]
+
+        if not outline_orders:
+            return Response(
+                {'error': 'outline_orders array is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        with transaction.atomic():
+            for item in outline_orders:
+                outline = get_object_or_404(
+                    ChapterOutline,
+                    id=item['id'],
+                    project=project
+                )
+                outline.order_key = Decimal(str(item['order_key']))
+                outline.save(update_fields=['order_key'])
+
+        logger.info(f"Reordered {len(outline_orders)} outlines for project {project.id}")
+
+        return Response({
+            'status': 'Outlines reordered successfully',
+            'count': len(outline_orders)
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='insert_outline_between')
+    def insert_outline_between(self, request, pk=None):
+        """Calculate order_key for inserting an outline between two existing outlines."""
+        from decimal import Decimal
+
+        project = self.get_object()
+        before_id = request.data.get('before_id')
+        after_id = request.data.get('after_id')
+
+        if not before_id or not after_id:
+            return Response(
+                {'error': 'Both before_id and after_id are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        before_outline = get_object_or_404(ChapterOutline, id=before_id, project=project)
+        after_outline = get_object_or_404(ChapterOutline, id=after_id, project=project)
+
+        # Calculate midpoint
+        new_order_key = (before_outline.order_key + after_outline.order_key) / Decimal('2')
+
+        logger.info(f"Calculated order_key for insertion: {new_order_key} (between {before_outline.order_key} and {after_outline.order_key})")
+
+        return Response({
+            'order_key': str(new_order_key),
+            'before': {'id': str(before_outline.id), 'order_key': str(before_outline.order_key)},
+            'after': {'id': str(after_outline.id), 'order_key': str(after_outline.order_key)}
+        }, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['patch'], url_path='update_outline/(?P<outline_id>[^/.]+)')
     def update_outline(self, request, pk=None, outline_id=None):
@@ -726,7 +804,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         # Gather novel data
         novel_data = {
             'title': project.title,
-            'genre': project.genre,
+            'genre': project.genre_display,
             'author': request.user.get_full_name() or request.user.username,
             'chapters': []
         }
@@ -764,7 +842,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         # Gather novel data
         novel_data = {
             'title': project.title,
-            'genre': project.genre,
+            'genre': project.genre_display,
             'author': request.user.get_full_name() or request.user.username,
             'chapters': []
         }
@@ -792,7 +870,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         return Response({
             'title': project.title,
             'author': request.user.get_full_name() or request.user.username,
-            'genre': project.genre,
+            'genre': project.genre_display,
             'full_text': full_text,
             'total_word_count': project.total_word_count,
             'chapter_count': len(novel_data['chapters'])
