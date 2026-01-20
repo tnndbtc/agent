@@ -246,6 +246,8 @@
                 </div>
                 {% endif %}
 
+                {# Full Plot Structure section hidden per user request #}
+                {% comment %}
                 {% if project.plot.structure %}
                 <div class="plot-field">
                     <div id="plotStructureDisplay" style="display: flex; justify-content: space-between; align-items: flex-start;">
@@ -275,6 +277,7 @@
                     </div>
                 </div>
                 {% endif %}
+                {% endcomment %}
             </div>
             {% else %}
             <div class="empty-state">
@@ -351,7 +354,11 @@
 
                 {# Display Acts if they exist #}
                 {% if has_plot and project.plot.acts.exists %}
+                    {% regroup outlines by act_id as outlines_by_act %}
                     {% for act in project.plot.acts.all %}
+                    {# Check if this act has any outlines #}
+                    {% for act_group in outlines_by_act %}
+                        {% if act_group.grouper == act.id and act_group.list|length > 0 %}
                     <div class="act-section" data-act-id="{{ act.id }}">
                         <div class="act-header" onclick="toggleActSection({{ act.id }})">
                             <h5>
@@ -363,8 +370,7 @@
                             {% endif %}
                         </div>
                         <div class="act-outlines" id="act-outlines-{{ act.id }}">
-                            {% for outline in outlines %}
-                            {% if outline.act_id == act.id %}
+                            {% for outline in act_group.list %}
                     <div class="outline-card" id="outline-card-{{ outline.id }}">
                         <div class="outline-header">
                             <span class="outline-number">{{ outline.number }}</span>
@@ -459,10 +465,11 @@
                         </div>
                         {% endif %}
                     </div>
-                            {% endif %}
                             {% endfor %}
                         </div>
                     </div>
+                        {% endif %}
+                    {% endfor %}
                     {% endfor %}
 
                     {# Display outlines without an act #}
