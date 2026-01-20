@@ -15,7 +15,7 @@ from .models import (
     NovelProject, Plot, Act, Character, Setting,
     ChapterOutline, Chapter, Example, GenerationTask, APIPerformanceMetric,
     ScoreCategory, ScoreCategoryTranslation, ExampleScore,
-    Genre, GenreTranslation, UserProfile
+    Genre, GenreTranslation, UserProfile, UserPrompt
 )
 from .serializers import (
     NovelProjectSerializer, NovelProjectListSerializer,
@@ -26,13 +26,14 @@ from .serializers import (
     CreateCharacterRequestSerializer, WriteChapterRequestSerializer,
     EditRequestSerializer, ScoreRequestSerializer,
     ScoreCategorySerializer, ScoreCategoryTranslationSerializer, ExampleScoreSerializer,
-    GenreSerializer, GenreTranslationSerializer
+    GenreSerializer, GenreTranslationSerializer,
+    UserPromptSerializer, AIModificationRequestSerializer, AIModificationResponseSerializer
 )
 from .services import (
     BrainstormService, PlotService, CharacterService,
     SettingService, OutlineService, WritingService,
     EditingService, ConsistencyService, ScoringService, ExportService,
-    get_language_name, ProjectService
+    get_language_name, ProjectService, AIModificationService
 )
 from .tasks import brainstorm_ideas_task, write_chapter_task, create_outline_task, score_novel_task
 from .permissions import IsOwner
@@ -1327,3 +1328,134 @@ class ActViewSet(viewsets.ModelViewSet):
         if instance.plot.project.user != self.request.user:
             raise serializers.ValidationError("Cannot modify acts from another user's project")
         serializer.save()
+
+
+class UserPromptViewSet(viewsets.ModelViewSet):
+    """ViewSet for UserPrompt model - managing saved prompts."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserPromptSerializer
+
+    def get_queryset(self):
+        """Return prompts belonging to the current user."""
+        return UserPrompt.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        """Create prompt with current user as owner."""
+        serializer.save(user=self.request.user)
+
+    def perform_update(self, serializer):
+        """Only allow users to update their own prompts."""
+        instance = self.get_object()
+        if instance.user != self.request.user:
+            raise serializers.ValidationError("Cannot modify another user's prompt")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        """Only allow users to delete their own prompts."""
+        if instance.user != self.request.user:
+            raise serializers.ValidationError("Cannot delete another user's prompt")
+        instance.delete()
+
+
+class AIModificationViewSet(viewsets.ViewSet):
+    """ViewSet for AI text modification operations."""
+
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=['post'], url_path='modify-text')
+    def modify_text(self, request):
+        """
+        Modify selected text using AI with a custom prompt.
+
+        Expected POST data:
+        {
+            "original_text": "The text to modify",
+            "user_prompt": "Make it more dramatic",
+            "content_type": "character",  // optional: plot, act, character, outline, chapter, text
+            "save_prompt": false,  // optional: whether to save the prompt
+            "prompt_name": "Make dramatic",  // required if save_prompt=true
+            "saved_prompt_id": "uuid"  // optional: use a saved prompt instead of user_prompt
+        }
+        """
+        serializer = AIModificationRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        data = serializer.validated_data
+        user = request.user
+
+        # Handle saved prompt usage
+        if data.get('saved_prompt_id'):
+            try:
+                saved_prompt = UserPrompt.objects.get(
+                    id=data['saved_prompt_id'],
+                    user=user
+                )
+                user_prompt = saved_prompt.prompt_text
+                saved_prompt.increment_usage()
+                logger.info(f"Using saved prompt '{saved_prompt.name}' (ID: {saved_prompt.id})")
+            except UserPrompt.DoesNotExist:
+                return Response(
+                    {'error': 'Saved prompt not found or does not belong to you'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        else:
+            user_prompt = data['user_prompt']
+
+        # Call AI modification service
+        try:
+            result = AIModificationService.modify_text_selection(
+                user=user,
+                original_text=data['original_text'],
+                user_prompt=user_prompt,
+                content_type=data.get('content_type', 'text')
+            )
+
+            # Save prompt if requested
+            saved_prompt_obj = None
+            if data.get('save_prompt') and data.get('prompt_name'):
+                # Check if a prompt with this name already exists
+                existing = UserPrompt.objects.filter(
+                    user=user,
+                    name=data['prompt_name']
+                ).first()
+
+                if existing:
+                    # Update existing prompt
+                    existing.prompt_text = user_prompt
+                    existing.save()
+                    saved_prompt_obj = existing
+                    logger.info(f"Updated existing prompt '{data['prompt_name']}'")
+                else:
+                    # Create new prompt
+                    saved_prompt_obj = UserPrompt.objects.create(
+                        user=user,
+                        name=data['prompt_name'],
+                        prompt_text=user_prompt
+                    )
+                    logger.info(f"Created new saved prompt '{data['prompt_name']}'")
+
+            # Add saved prompt to response if created
+            if saved_prompt_obj:
+                result['saved_prompt'] = UserPromptSerializer(saved_prompt_obj).data
+
+            return Response(result, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Error in AI modification: {e}", exc_info=True)
+            return Response(
+                {'error': f'Failed to modify text: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'], url_path='preset-prompts')
+    def preset_prompts(self, request):
+        """Get preset prompts for quick modifications."""
+        presets = [
+            {'id': 'dramatic', 'name': 'Make more dramatic', 'prompt': 'Rewrite this text to be more dramatic and emotionally intense while maintaining the core meaning.'},
+            {'id': 'simplify', 'name': 'Simplify language', 'prompt': 'Simplify the language in this text to make it clearer and easier to understand.'},
+            {'id': 'detail', 'name': 'Add more detail', 'prompt': 'Expand this text with more vivid details and sensory descriptions.'},
+            {'id': 'shorter', 'name': 'Make it shorter', 'prompt': 'Condense this text to be more concise while keeping the essential information.'},
+            {'id': 'clarity', 'name': 'Improve clarity', 'prompt': 'Improve the clarity and readability of this text without changing its meaning.'},
+        ]
+        return Response(presets, status=status.HTTP_200_OK)

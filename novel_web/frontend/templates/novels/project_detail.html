@@ -1353,6 +1353,7 @@
 </style>
 
 <script src="/static/js/project.js"></script>
+<script src="/static/js/ai-modification.js"></script>
 <script>
 const projectId = '{{ project.id }}';
 
@@ -3016,6 +3017,33 @@ function renumberChapterOutlines() {
 // Call renumbering on page load
 document.addEventListener('DOMContentLoaded', () => {
     renumberChapterOutlines();
+
+    // Enable AI text selection on content elements
+    // Plot themes
+    if (document.getElementById('plotThemesText')) {
+        enableTextSelection('plotThemesText', 'plot');
+    }
+
+    // Act descriptions
+    {% for act in project.plot.acts.all %}
+    if (document.getElementById('actDescriptionText-{{ act.id }}')) {
+        enableTextSelection('actDescriptionText-{{ act.id }}', 'act');
+    }
+    {% endfor %}
+
+    // Character bios
+    {% for character in characters %}
+    if (document.getElementById('characterBio-{{ character.id }}')) {
+        enableTextSelection('characterBio-{{ character.id }}', 'character');
+    }
+    {% endfor %}
+
+    // Outline events (all acts)
+    {% for outline in project.chapter_outlines.all %}
+    if (document.getElementById('outline-events-text-{{ outline.id }}')) {
+        enableTextSelection('outline-events-text-{{ outline.id }}', 'outline');
+    }
+    {% endfor %}
 });
 </script>
 {% endblock %}

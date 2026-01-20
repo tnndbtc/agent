@@ -48,6 +48,32 @@ def save_user_profile(sender, instance, **kwargs):
         instance.profile.save()
 
 
+class UserPrompt(models.Model):
+    """User-saved prompts for AI text modification."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='saved_prompts')
+    name = models.CharField(max_length=100, help_text="User-friendly name for this prompt")
+    prompt_text = models.TextField(help_text="The actual prompt text")
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    usage_count = models.IntegerField(default=0, help_text="Number of times this prompt has been used")
+
+    class Meta:
+        ordering = ['-usage_count', '-updated_at']
+        indexes = [
+            models.Index(fields=['user', '-usage_count']),
+        ]
+
+    def __str__(self):
+        return f"{self.name} by {self.user.username}"
+
+    def increment_usage(self):
+        """Increment usage count when prompt is used."""
+        self.usage_count += 1
+        self.save(update_fields=['usage_count'])
+
+
 class Genre(models.Model):
     """Genre model with multi-language support."""
 

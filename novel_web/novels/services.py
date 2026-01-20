@@ -619,3 +619,93 @@ class ExampleScoringService:
         except Exception as e:
             logger.error(f"Error generating scores: {e}", exc_info=True)
             raise
+
+
+class AIModificationService:
+    """Service for AI-powered text modification with custom prompts."""
+
+    @staticmethod
+    def modify_text_selection(user, original_text, user_prompt, content_type='text'):
+        """
+        Modify selected text based on user's custom prompt.
+
+        Args:
+            user: Django User instance (for token tracking)
+            original_text: The selected text to modify
+            user_prompt: User's modification instructions
+            content_type: Type of content (plot, character, outline, chapter, etc.)
+
+        Returns:
+            dict: {
+                'original_text': str,
+                'modified_text': str,
+                'user_prompt': str,
+                'token_usage': dict
+            }
+        """
+        from langchain_openai import ChatOpenAI
+        from langchain_core.messages import SystemMessage, HumanMessage
+
+        logger.info(f"Modifying {content_type} text (length: {len(original_text)}) with prompt: {user_prompt[:100]}...")
+
+        # Initialize LLM
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+
+        # Create system message tailored to content type
+        content_type_instructions = {
+            'plot': 'You are helping modify plot and story structure content.',
+            'act': 'You are helping modify act descriptions in a three-act story structure.',
+            'character': 'You are helping modify character descriptions and development.',
+            'outline': 'You are helping modify chapter outlines and story beats.',
+            'chapter': 'You are helping modify novel chapter content.',
+            'text': 'You are helping modify narrative text content.'
+        }
+
+        system_instruction = content_type_instructions.get(content_type, content_type_instructions['text'])
+        system_message = f"{system_instruction} Follow the user's instructions precisely and maintain the narrative quality and coherence of the text."
+
+        # Create user message
+        user_message = f"""Original text:
+{original_text}
+
+User's modification request: {user_prompt}
+
+Please provide ONLY the modified text (no explanations, no markers, no comments). Return the complete modified text that should replace the original."""
+
+        # Call OpenAI
+        try:
+            response = llm.invoke([
+                SystemMessage(content=system_message),
+                HumanMessage(content=user_message)
+            ])
+
+            modified_text = response.content.strip()
+
+            # Extract token usage
+            token_usage = {
+                'prompt_tokens': response.response_metadata.get('token_usage', {}).get('prompt_tokens', 0),
+                'completion_tokens': response.response_metadata.get('token_usage', {}).get('completion_tokens', 0),
+                'total_tokens': response.response_metadata.get('token_usage', {}).get('total_tokens', 0)
+            }
+
+            logger.info(f"Successfully modified text. Original length: {len(original_text)}, "
+                       f"Modified length: {len(modified_text)}, Tokens: {token_usage}")
+
+            # Track token usage for user
+            if hasattr(user, 'profile'):
+                user.profile.add_tokens(
+                    prompt_tokens=token_usage['prompt_tokens'],
+                    completion_tokens=token_usage['completion_tokens'],
+                    total_tokens=token_usage['total_tokens']
+                )
+
+            return {
+                'original_text': original_text,
+                'modified_text': modified_text,
+                'user_prompt': user_prompt,
+                'token_usage': token_usage
+            }
+
+        except Exception as e:
+            logger.error(f"Error modifying text: {e}", exc_info=True)
+            raise

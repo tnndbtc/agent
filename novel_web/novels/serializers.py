@@ -5,7 +5,8 @@ from .models import (
     NovelProject, Plot, Act, Character, Setting,
     ChapterOutline, Chapter, Example, GenerationTask,
     Genre, GenreTranslation,
-    ScoreCategory, ScoreCategoryTranslation, ExampleScore
+    ScoreCategory, ScoreCategoryTranslation, ExampleScore,
+    UserPrompt
 )
 
 
@@ -378,3 +379,58 @@ class EditRequestSerializer(serializers.Serializer):
 class ScoreRequestSerializer(serializers.Serializer):
     """Request serializer for scoring."""
     custom_categories = serializers.JSONField(required=False)
+
+
+class UserPromptSerializer(serializers.ModelSerializer):
+    """Serializer for UserPrompt model."""
+
+    class Meta:
+        model = UserPrompt
+        fields = ['id', 'name', 'prompt_text', 'usage_count', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'usage_count', 'created_at', 'updated_at']
+
+
+class AIModificationRequestSerializer(serializers.Serializer):
+    """Request serializer for AI text modification."""
+    original_text = serializers.CharField(
+        help_text="The selected text to modify"
+    )
+    user_prompt = serializers.CharField(
+        help_text="User's modification instructions"
+    )
+    content_type = serializers.ChoiceField(
+        choices=['plot', 'act', 'character', 'outline', 'chapter', 'text'],
+        default='text',
+        help_text="Type of content being modified"
+    )
+    save_prompt = serializers.BooleanField(
+        default=False,
+        help_text="Whether to save this prompt for future use"
+    )
+    prompt_name = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Name for the saved prompt (required if save_prompt is True)"
+    )
+    saved_prompt_id = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+        help_text="ID of a saved prompt to use (will override user_prompt)"
+    )
+
+    def validate(self, data):
+        """Validate that required fields are present based on flags."""
+        if data.get('save_prompt') and not data.get('prompt_name'):
+            raise serializers.ValidationError({
+                'prompt_name': 'Prompt name is required when save_prompt is True.'
+            })
+        return data
+
+
+class AIModificationResponseSerializer(serializers.Serializer):
+    """Response serializer for AI text modification."""
+    original_text = serializers.CharField()
+    modified_text = serializers.CharField()
+    user_prompt = serializers.CharField()
+    token_usage = serializers.JSONField()
+    saved_prompt = UserPromptSerializer(required=False, allow_null=True)

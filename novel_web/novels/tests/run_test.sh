@@ -54,14 +54,16 @@ while [[ $# -gt 0 ]]; do
             echo "  --skip-install    Skip dependency installation"
             echo "  -v, --verbose     Run tests with verbose output"
             echo "  --coverage        Generate coverage report"
-            echo "  --test CLASS      Run specific test class (e.g., TestUserAuthentication)"
+            echo "  --test PATTERN    Run tests matching pattern (e.g., TestAIModification or test_modify_text)"
             echo "  -h, --help        Show this help message"
             echo ""
             echo "Examples:"
-            echo "  $0                              # Run all tests"
-            echo "  $0 --skip-install -v            # Skip install, run with verbose output"
-            echo "  $0 --test TestProjectCreation   # Run specific test class"
-            echo "  $0 --coverage                   # Run with coverage report"
+            echo "  $0                                      # Run all tests"
+            echo "  $0 --skip-install -v                    # Skip install, run with verbose output"
+            echo "  $0 --test TestAIModificationAPI         # Run specific test class"
+            echo "  $0 --test test_modify_text              # Run tests matching pattern"
+            echo "  $0 --test ai_modification               # Run all AI modification tests"
+            echo "  $0 --coverage                           # Run with coverage report"
             exit 0
             ;;
         *)
@@ -134,8 +136,9 @@ echo ""
 echo "Step 4: Running tests..."
 echo "---------------------------------------------------"
 
-# Build pytest command
-PYTEST_CMD="python3 -m pytest novels/tests/test_integration.py"
+# Build pytest command - run all tests in novels/tests directory
+# This will include test_integration.py, test_ai_modification.py, and any other test files
+PYTEST_CMD="python3 -m pytest novels/tests/"
 
 # Add verbosity
 if [ "$VERBOSE" = true ]; then
@@ -151,7 +154,7 @@ fi
 
 # Add specific test
 if [ -n "$SPECIFIC_TEST" ]; then
-    PYTEST_CMD="$PYTEST_CMD::$SPECIFIC_TEST"
+    PYTEST_CMD="$PYTEST_CMD -k $SPECIFIC_TEST"
 fi
 
 # Add color output
@@ -198,11 +201,12 @@ fi
 
 echo ""
 echo "Additional commands:"
-echo "  Run specific test:     $0 --test TestProjectCreation"
-echo "  Run with coverage:     $0 --coverage"
-echo "  Run verbose:           $0 -v"
-echo "  Skip installation:     $0 --skip-install"
-echo "  Show help:             $0 --help"
+echo "  Run specific test:           $0 --test TestAIModificationAPI"
+echo "  Run AI modification tests:   $0 --test ai_modification"
+echo "  Run with coverage:           $0 --coverage"
+echo "  Run verbose:                 $0 -v"
+echo "  Skip installation:           $0 --skip-install"
+echo "  Show help:                   $0 --help"
 echo ""
 
 exit $TEST_EXIT_CODE

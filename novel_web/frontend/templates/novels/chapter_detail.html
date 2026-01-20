@@ -13,6 +13,9 @@
     </div>
 
     <div class="editor-toolbar">
+        <button class="tool-btn" onclick="showAIModifyHelp()" title="{% trans 'AI Modify - Select text to modify with custom prompts' %}">
+            🤖 {% trans "AI Modify" %}
+        </button>
         <button class="tool-btn" onclick="editStyle()" title="{% trans 'Style Edit' %}">
             ✨ {% trans "Style" %}
         </button>
@@ -43,6 +46,7 @@
     </div>
 </div>
 
+<script src="/static/js/ai-modification.js"></script>
 <script>
 const chapterId = '{{ chapter.id }}';
 const projectId = '{{ project.id }}';
@@ -179,5 +183,16 @@ setInterval(() => {
         textarea.dataset.lastSaved = textarea.value;
     }
 }, 30000);
+
+// Enable AI text selection on chapter content
+document.addEventListener('DOMContentLoaded', () => {
+    // Enable text selection on the chapter content textarea
+    enableTextSelection('chapterContent', 'chapter');
+});
+
+// Show AI Modify help/instructions
+function showAIModifyHelp() {
+    showToast('Select any text in the editor, then use the AI modification modal to modify it with custom prompts!', 'info');
+}
 </script>
 {% endblock %}
