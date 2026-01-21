@@ -27,7 +27,6 @@
                 </div>
             </div>
             <div class="project-meta">
-                <p class="genre">{{ project.genre_display|default:"No genre" }}</p>
                 <div class="project-stats">
                     <span>📝 {{ project.chapters.count }} {% trans "chapters" %}</span>
                     <span>📊 {{ project.total_word_count|default:0 }} {% trans "words" %}</span>
@@ -58,20 +57,16 @@
                 <label for="title">{% trans "Project Title" %}</label>
                 <input type="text" id="title" name="title" required>
             </div>
+
+            <!-- Writing Style Selector (Phase 5) -->
             <div class="form-group">
-                <label for="genreSelect">{% trans "Genre" %}</label>
-                <select id="genreSelect" name="genreSelect" onchange="handleGenreChange()">
-                    <option value="">{% trans "Select a genre..." %}</option>
-                    {% for genre in genres %}
-                    <option value="{{ genre.id }}">{{ genre }}</option>
-                    {% endfor %}
-                    <option value="Custom">{% trans "Custom (Enter your own)" %}</option>
+                <label for="styleSelect">{% trans "Writing Style" %} <small style="color: #9CA3AF;">({% trans "optional" %})</small></label>
+                <select id="styleSelect" name="styleSelect">
+                    <option value="">{% trans "Use default style..." %}</option>
+                    <!-- Populated by JavaScript -->
                 </select>
             </div>
-            <div class="form-group" id="customGenreGroup" style="display: none;">
-                <label for="customGenre">{% trans "Custom Genre" %}</label>
-                <input type="text" id="customGenre" name="customGenre" placeholder="{% trans "Enter custom genre..." %}">
-            </div>
+
             <div class="modal-actions">
                 <button type="button" class="btn btn-secondary" onclick="closeModal()">{% trans "Cancel" %}</button>
                 <button type="submit" class="btn btn-primary">{% trans "Create" %}</button>
@@ -97,15 +92,18 @@
 </div>
 
 <script>
-function createNewProject() {
+async function createNewProject() {
     document.getElementById('createProjectModal').style.display = 'flex';
+
+    // Load styles (Phase 5)
+    await initWritingStylesAndTechniques();
+    populateStyleSelect('styleSelect', true, '{% trans "Use default style..." %}');
 }
 
 function closeModal() {
     document.getElementById('createProjectModal').style.display = 'none';
     // Reset form
     document.getElementById('createProjectForm').reset();
-    document.getElementById('customGenreGroup').style.display = 'none';
 }
 
 function showErrorModal(message) {
@@ -118,34 +116,21 @@ function closeErrorModal() {
     document.getElementById('errorMessage').textContent = '';
 }
 
-function handleGenreChange() {
-    const genreSelect = document.getElementById('genreSelect');
-    const customGenreGroup = document.getElementById('customGenreGroup');
-
-    if (genreSelect.value === 'Custom') {
-        customGenreGroup.style.display = 'block';
-    } else {
-        customGenreGroup.style.display = 'none';
-    }
-}
-
 document.getElementById('createProjectForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    const genreSelect = formData.get('genreSelect');
 
-    // Determine the final genre value
-    let genre = '';
-    if (genreSelect === 'Custom') {
-        genre = formData.get('customGenre') || '';
-    } else {
-        genre = genreSelect || '';
-    }
+    // Get selected style (Phase 5)
+    const selectedStyle = formData.get('styleSelect');
 
     const data = {
         title: formData.get('title'),
-        genre: genre,
     };
+
+    // Add style if selected (Phase 5)
+    if (selectedStyle) {
+        data.default_style = parseInt(selectedStyle);
+    }
 
     try {
         showLoading('Creating project...');
@@ -191,8 +176,5 @@ function deleteProject(projectId, projectTitle) {
         showErrorModal('Error deleting project: ' + err.message);
     });
 }
-
-// Genres are now loaded server-side in the template (see lines 65-67)
-// This ensures both Dashboard and Manage Examples pages show the same genre list
 </script>
 {% endblock %}

@@ -248,12 +248,11 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
         if example_id and iterative_mode:
             try:
                 from .models import Example
-                example = Example.objects.prefetch_related('scores__category', 'genre').get(id=example_id)
+                example = Example.objects.prefetch_related('scores__category').get(id=example_id)
 
                 # Extract ONLY metadata (NO content!)
                 example_metadata = {
                     'category': example.category,
-                    'genre': str(example.genre) if example.genre else None,
                     'total_score': float(example.total_score),
                     'scores': [
                         {
@@ -266,7 +265,7 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
                 }
                 target_total_score = float(example.total_score)
                 logger.info(f"Loaded example metadata (NO content): category={example_metadata['category']}, "
-                           f"genre={example_metadata['genre']}, target_score={target_total_score}")
+                           f"target_score={target_total_score}")
             except Exception as e:
                 logger.warning(f"Failed to load example {example_id}: {e}. Continuing without example.")
                 example_metadata = None
@@ -380,10 +379,23 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
                         break
 
                     # Prepare for next iteration with gap analysis
+                    # Build target scores map from example metadata
+                    target_scores_map = {}
+                    if example_metadata and 'scores' in example_metadata:
+                        target_scores_map = {
+                            score['category_name']: score['score']
+                            for score in example_metadata['scores']
+                        }
+
                     previous_scores = {
                         'total': total_score,
+                        'target_total': target_total_score if example_metadata else 0,
                         'by_category': [
-                            {'category_name': cat_name, 'score': score}
+                            {
+                                'category_name': cat_name,
+                                'score': score,
+                                'target_score': target_scores_map.get(cat_name, target_total_score if example_metadata else 0)
+                            }
                             for cat_name, score in scores_by_name.items()
                         ]
                     }
@@ -541,7 +553,6 @@ def create_outline_task(self, task_id, project_id, num_chapters=1, act_id=None, 
 
         plot_data = {
             'title': project.plot.premise,
-            'genre': project.plot.genre,
             'premise': project.plot.premise,
             'themes': project.plot.themes,
             'conflict': project.plot.conflict,
@@ -603,12 +614,19 @@ def create_outline_task(self, task_id, project_id, num_chapters=1, act_id=None, 
 
         from decimal import Decimal
 
-        # Get all existing numbers and order_keys
-        existing_outlines = ChapterOutline.objects.filter(project=project)
-        existing_numbers = set(existing_outlines.values_list('number', flat=True))
-        max_order_key = existing_outlines.aggregate(
+        # Get all existing outlines for global order_key calculation
+        all_existing_outlines = ChapterOutline.objects.filter(project=project)
+        max_order_key = all_existing_outlines.aggregate(
             max_key=models.Max('order_key')
         )['max_key'] or Decimal('0')
+
+        # Get existing numbers for this specific act (or unassigned if act is None)
+        # This ensures each act has its own numbering starting from 1
+        if act:
+            existing_outlines_in_act = ChapterOutline.objects.filter(project=project, act=act)
+        else:
+            existing_outlines_in_act = ChapterOutline.objects.filter(project=project, act__isnull=True)
+        existing_numbers = set(existing_outlines_in_act.values_list('number', flat=True))
 
         # Find available numbers (gaps first, then append)
         def find_available_numbers(existing_numbers, count):
@@ -758,7 +776,6 @@ def regenerate_single_outline_task(self, task_id, project_id, chapter_number, us
 
         plot_data = {
             'title': project.plot.premise,
-            'genre': project.plot.genre,
             'premise': project.plot.premise,
             'themes': project.plot.themes,
             'conflict': project.plot.conflict,
@@ -895,7 +912,6 @@ def score_novel_task(self, task_id, project_id):
         # Gather novel data
         novel_data = {
             'title': project.title,
-            'genre': project.genre if project.genre else '',
             'plot': {},
             'characters': [],
             'chapters': []

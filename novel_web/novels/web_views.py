@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib import messages
 from django.db.models import Q
-from .models import NovelProject, Chapter, GenerationTask, Example, Genre, ScoreCategory, UserProfile
+from .models import NovelProject, Chapter, GenerationTask, Example, ScoreCategory, UserProfile
 
 
 def register(request):
@@ -25,10 +25,8 @@ def register(request):
 def dashboard(request):
     """Dashboard showing all user projects."""
     projects = NovelProject.objects.filter(user=request.user)
-    genres = Genre.objects.filter(public=True).prefetch_related('translations').order_by('name_key')
     return render(request, 'novels/dashboard.html', {
         'projects': projects,
-        'genres': genres
     })
 
 
@@ -86,14 +84,11 @@ def manage_examples(request):
     # Get user's own examples and public examples
     examples = Example.objects.filter(
         Q(public=True) | Q(user=request.user)
-    ).select_related('genre', 'user').prefetch_related('scores__category').order_by('-created_at')
+    ).select_related('user').prefetch_related('scores__category').order_by('-created_at')
 
     # Separate into public and private
     public_examples = examples.filter(public=True)
     private_examples = examples.filter(user=request.user, public=False)
-
-    # Get genres for filtering
-    genres = Genre.objects.filter(public=True).prefetch_related('translations').order_by('name_key')
 
     # Get score categories for form
     score_categories = ScoreCategory.objects.filter(
@@ -103,7 +98,6 @@ def manage_examples(request):
     return render(request, 'novels/manage_examples.html', {
         'public_examples': public_examples,
         'private_examples': private_examples,
-        'genres': genres,
         'score_categories': score_categories
     })
 

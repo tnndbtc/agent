@@ -23,6 +23,7 @@ An AI-powered novel writing assistant that helps authors create complete novels 
 - [Testing](#testing)
 - [Project Structure](#project-structure)
 - [Vector Memory Architecture](#vector-memory-architecture)
+- [5-Layer Prompt Architecture](#5-layer-prompt-architecture)
 - [Configuration](#configuration)
 - [Extending the System](#extending-the-system)
 - [Troubleshooting](#troubleshooting)
@@ -1190,6 +1191,543 @@ To:
 - ✅ **With**: "Write Chapter 10 with semantic awareness of all relevant plot points, character development, world-building details, and previous chapters across the entire 50-chapter project"
 
 The LLM receives **intelligent, contextually-relevant information** via semantic search instead of trying to fit everything into the limited token context window. This enables truly consistent, coherent long-form novel generation.
+
+## 5-Layer Prompt Architecture
+
+### Overview
+
+The Novel Writing Agent uses a **5-layer prompt architecture** that separates concerns and provides a composable, maintainable system for AI prompt generation. This architecture enables multi-language support, reusable writing styles, and consistent AI behavior across different tasks.
+
+### Architecture Layers
+
+```
+┌─────────────────────────────────────────────┐
+│  Layer 5: User Prompt (Short-Lived)        │  ← Task-specific instructions
+├─────────────────────────────────────────────┤
+│  Layer 4: Project Memory (Long-Term)       │  ← Plot, characters, settings
+├─────────────────────────────────────────────┤
+│  Layer 3: Style & Techniques (Composable)  │  ← Writing styles, techniques
+├─────────────────────────────────────────────┤
+│  Layer 2: Role Definition (Agent Identity) │  ← Agent-specific prompts
+├─────────────────────────────────────────────┤
+│  Layer 1: System Policy (Immutable Rules)  │  ← Safety, copyright rules
+└─────────────────────────────────────────────┘
+```
+
+### Layer 1: System Policy (Immutable Rules)
+
+**Purpose**: Enforce unchanging constraints across all AI operations
+
+**Model**: `SystemPolicy` with `SystemPolicyTranslation`
+
+**Examples**:
+- Safety guidelines (no harmful content)
+- Copyright compliance
+- Output format constraints
+- Behavioral boundaries
+
+**Properties**:
+- `name_key`: Unique identifier
+- `policy_type`: safety | copyright | output | behavior
+- `priority`: Lower number = higher priority
+- `is_active`: Whether policy is enforced
+
+**Management**: System-wide, managed by administrators via Django admin
+
+**API Endpoint**: `GET /api/system-policies/` (read-only)
+
+---
+
+### Layer 2: Agent Role (Agent Identity)
+
+**Purpose**: Define specific AI agent personalities and capabilities
+
+**Model**: `AgentRole` with `AgentRoleTranslation`
+
+**Examples**:
+- Brainstormer: Creative idea generation
+- Plotter: Story structure development
+- Writer: Chapter composition
+- Text Modifier: Content editing and refinement
+
+**Properties**:
+- `name_key`: Unique identifier (e.g., 'brainstormer', 'plotter')
+- `module_name`: Associated module name
+- `is_active`: Whether role is available
+
+**Management**: System-wide, managed by administrators via Django admin
+
+**API Endpoint**: `GET /api/agent-roles/` (read-only)
+
+---
+
+### Layer 3: Style & Techniques (Composable)
+
+**Purpose**: Provide reusable writing styles and techniques
+
+#### Writing Styles
+
+**Model**: `WritingStyle` with `WritingStyleTranslation`
+
+**Examples**:
+- Literary Fiction: Slow pacing, long paragraphs, low dialogue
+- Action Thriller: Fast pacing, short paragraphs, high dialogue
+- Romance: Medium pacing, medium paragraphs, high dialogue
+
+**Properties**:
+- `name_key`: Unique identifier
+- `is_system`: True for predefined system styles
+- `public`: Whether publicly available
+- `pacing`: slow | medium | fast
+- `tone`: Description of tone (e.g., "dark", "humorous")
+- `paragraph_length`: short | medium | long
+- `dialogue_ratio`: low | medium | high
+- `cliffhanger_enabled`: Boolean
+
+**API Endpoints**:
+- `GET /api/writing-styles/` - List accessible styles
+- `POST /api/writing-styles/` - Create custom style
+- `PUT /api/writing-styles/{id}/` - Update own style
+- `DELETE /api/writing-styles/{id}/` - Delete own style
+
+#### Writing Techniques
+
+**Model**: `WritingTechnique` with `WritingTechniqueTranslation`
+
+**Examples**:
+- Show Don't Tell: Narrative technique
+- Foreshadowing: Narrative technique
+- Active Voice: Description technique
+- Subtext in Dialogue: Dialogue technique
+
+**Properties**:
+- `name_key`: Unique identifier
+- `is_system`: True for predefined system techniques
+- `public`: Whether publicly available
+- `category`: narrative | dialogue | description | pacing | character
+
+**API Endpoints**:
+- `GET /api/writing-techniques/` - List accessible techniques
+- `POST /api/writing-techniques/` - Create custom technique
+- `PUT /api/writing-techniques/{id}/` - Update own technique
+- `DELETE /api/writing-techniques/{id}/` - Delete own technique
+
+**Composition**: Multiple techniques can be combined with a single style for a project
+
+---
+
+### Layer 4: Project Memory (Long-Term Context)
+
+**Purpose**: Provide project-specific context to AI operations
+
+**Context Types**:
+- `plot`: Plot premise, themes, structure, acts
+- `character`: Key characters (protagonist, antagonist, mentor)
+- `outline`: Chapter outlines
+- `chapter`: Existing chapter content
+- `brainstorm`: Idea generation context
+
+**Dynamically Assembled**: Built from project data (Plot, Characters, Settings)
+
+**Example Context**:
+```
+**Premise:** A young wizard discovers their true heritage
+**Themes:** Coming of age, power vs responsibility
+**Story Structure:**
+- Act 1 (Setup, 25%): Introduction to magical world
+- Act 2 (Confrontation, 50%): Learning magic, facing challenges
+- Act 3 (Resolution, 25%): Final battle and acceptance
+
+**Key Characters:**
+- Alex (protagonist): Orphan with hidden magical powers
+- Morgan (antagonist): Dark wizard seeking revenge
+
+**Primary Setting:** Thornwood Academy - Ancient magical school
+```
+
+---
+
+### Layer 5: User Prompt (Short-Lived)
+
+**Purpose**: Task-specific instructions for current operation
+
+**Examples**:
+- "Generate 3 creative plot ideas for the Fantasy genre"
+- "Write Chapter 5 based on the outline"
+- "Modify this text to be more dramatic"
+
+**Lifespan**: Single operation only
+
+---
+
+### Multi-Language Support
+
+The architecture supports multiple languages through translation models:
+
+**Supported Languages** (as of current implementation):
+- English (`en`)
+- Simplified Chinese (`zh-hans`)
+
+**Extensibility**: Easy to add new languages by:
+1. Adding language code to `LANGUAGE_CHOICES` in models
+2. Creating translations for SystemPolicy, AgentRole, WritingStyle, WritingTechnique
+3. Running the seed command: `python manage.py seed_prompt_architecture`
+
+**Language Selection**:
+- Projects have a `target_language` field (defaults to 'en')
+- PromptAssemblyService uses this to fetch correct translations
+- Fallback mechanism: If translation not found, falls back to English
+
+**Language Output Instruction**: Automatically appended to user message when language is not English:
+```
+**IMPORTANT:** Generate all output in [Language Name].
+```
+
+---
+
+### PromptAssemblyService
+
+**File**: `novels/prompt_assembly.py`
+
+#### Core Methods
+
+**`build_system_prompt(agent_role_key, language_code='en')`**
+
+Builds Layer 1 + Layer 2: System policies + Agent role
+
+```python
+system_prompt = PromptAssemblyService.build_system_prompt(
+    agent_role_key='brainstormer',
+    language_code='zh-hans'
+)
+```
+
+Returns concatenated string of:
+1. Active system policies (in priority order)
+2. Agent role system prompt
+
+---
+
+**`build_style_instructions(project, language_code='en', chapter_outline=None)`**
+
+Builds Layer 3: Style + Techniques instructions
+
+```python
+style_instructions = PromptAssemblyService.build_style_instructions(
+    project=my_project,
+    language_code='en',
+    chapter_outline=outline  # Optional: Override style for specific chapter
+)
+```
+
+Returns concatenated string of:
+1. Writing style instructions (project default or chapter override)
+2. All selected technique instructions
+
+---
+
+**`build_context_prompt(project, context_type, **kwargs)`**
+
+Builds Layer 4: Project memory context
+
+```python
+context = PromptAssemblyService.build_context_prompt(
+    project=my_project,
+    context_type='chapter'  # plot | character | outline | chapter | brainstorm
+)
+```
+
+Returns formatted context including:
+- Plot context (premise, themes, acts)
+- Character context (key characters)
+- Setting context (primary location)
+
+---
+
+**`assemble_full_prompt(...)`**
+
+**Master Method**: Assembles all 5 layers into final (system_message, user_message)
+
+```python
+system_message, user_message = PromptAssemblyService.assemble_full_prompt(
+    agent_role_key='writer',
+    user_prompt='Write Chapter 5 based on the outline',
+    project=my_project,
+    language_code='zh-hans',
+    context_type='chapter',
+    chapter_outline=outline,
+    include_context=True
+)
+```
+
+**Returns**:
+- `system_message`: Layer 1 + Layer 2
+- `user_message`: Layer 4 + Layer 3 + Layer 5 (+ language instruction)
+
+---
+
+### Usage Examples
+
+#### Example 1: Brainstorming Ideas
+
+```python
+from novels.prompt_assembly import PromptAssemblyService
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import SystemMessage, HumanMessage
+
+# Assemble prompt
+system_msg, user_msg = PromptAssemblyService.assemble_full_prompt(
+    agent_role_key='brainstormer',
+    user_prompt='Generate 3 creative plot ideas for the Fantasy genre',
+    project=project,
+    language_code='en',
+    context_type='brainstorm',
+    include_context=False  # No need for project context when brainstorming
+)
+
+# Call LLM
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+response = llm.invoke([
+    SystemMessage(content=system_msg),
+    HumanMessage(content=user_msg)
+])
+```
+
+---
+
+#### Example 2: Writing a Chapter
+
+```python
+# Assemble prompt with full context
+system_msg, user_msg = PromptAssemblyService.assemble_full_prompt(
+    agent_role_key='writer',
+    user_prompt='Write Chapter 5 based on the outline',
+    project=project,
+    language_code='zh-hans',  # Output in Simplified Chinese
+    context_type='chapter',
+    chapter_outline=chapter_outline,
+    include_context=True  # Include plot, characters, settings
+)
+
+# Call LLM
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+response = llm.invoke([
+    SystemMessage(content=system_msg),
+    HumanMessage(content=user_msg)
+])
+```
+
+---
+
+#### Example 3: Modifying Text
+
+```python
+# Text modification uses a different approach
+from novels.services import AIModificationService
+
+result = AIModificationService.modify_text_selection(
+    user=user,
+    original_text="The hero walked into the room.",
+    user_prompt="Make this more dramatic",
+    content_type='chapter'
+)
+
+# Returns: {
+#     'original_text': '...',
+#     'modified_text': '...',
+#     'user_prompt': '...',
+#     'token_usage': {...}
+# }
+```
+
+---
+
+### Database Schema
+
+#### Core Models
+
+```
+SystemPolicy                      AgentRole
+├── SystemPolicyTranslation      ├── AgentRoleTranslation
+
+WritingStyle                     WritingTechnique
+├── WritingStyleTranslation      ├── WritingTechniqueTranslation
+
+NovelProject
+├── default_style (FK → WritingStyle)
+├── selected_techniques (M2M → WritingTechnique)
+├── target_language (CharField)
+
+ChapterOutline
+├── style_override (FK → WritingStyle)  # Optional chapter-specific style
+```
+
+#### Translation Models Pattern
+
+All translation models follow this pattern:
+- Foreign key to parent model with `related_name='translations'`
+- `language_code`: Choice field with supported languages
+- Content fields (e.g., `content`, `system_prompt`, `instructions`)
+- `unique_together` constraint on `(parent, language_code)`
+- Index on `language_code` for fast lookups
+
+---
+
+### Seeding Data
+
+The system includes a management command to populate initial data:
+
+```bash
+python manage.py seed_prompt_architecture
+```
+
+**What it does**:
+1. Creates system policies (safety, copyright, output, behavior)
+2. Creates agent roles (brainstormer, plotter, writer, text_modifier)
+3. Creates writing styles (literary, action, romance, mystery)
+4. Creates writing techniques (show_dont_tell, foreshadowing, etc.)
+5. Creates translations for English and Simplified Chinese
+
+**File**: `novels/management/commands/seed_prompt_architecture.py`
+
+---
+
+### Migration
+
+The 5-layer architecture was introduced in migration `0019_add_prompt_architecture.py`
+
+**Changes**:
+1. Added `target_language` field to `NovelProject`
+2. Created `SystemPolicy` and `SystemPolicyTranslation` models
+3. Created `AgentRole` and `AgentRoleTranslation` models
+4. Created `WritingStyle` and `WritingStyleTranslation` models
+5. Created `WritingTechnique` and `WritingTechniqueTranslation` models
+6. Added relationships to `NovelProject` and `ChapterOutline`
+
+---
+
+### Best Practices
+
+#### For Developers
+
+1. **Always use PromptAssemblyService**: Never construct prompts manually
+2. **Respect language settings**: Always pass `project.target_language` to assembly methods
+3. **Test with multiple languages**: Ensure translations exist for all supported languages
+4. **Use context appropriately**: Match `context_type` to the operation being performed
+5. **Handle missing translations**: PromptAssemblyService falls back to English
+
+#### For Content Creators
+
+1. **System items are protected**: Cannot modify `is_system=True` items
+2. **Share wisely**: Set `public=True` only for well-tested styles/techniques
+3. **Provide translations**: Create translations for all languages you support
+4. **Test combinations**: Try different style + technique combinations
+5. **Use descriptive names**: Make `name_key` and display names clear and intuitive
+
+---
+
+### API Endpoints Summary
+
+| Endpoint | Method | Purpose | Auth |
+|----------|--------|---------|------|
+| `/api/system-policies/` | GET | List active system policies | Required |
+| `/api/agent-roles/` | GET | List active agent roles | Required |
+| `/api/writing-styles/` | GET | List accessible writing styles | Required |
+| `/api/writing-styles/` | POST | Create custom writing style | Required |
+| `/api/writing-styles/{id}/` | PUT | Update own writing style | Required |
+| `/api/writing-styles/{id}/` | DELETE | Delete own writing style | Required |
+| `/api/writing-techniques/` | GET | List accessible writing techniques | Required |
+| `/api/writing-techniques/` | POST | Create custom writing technique | Required |
+| `/api/writing-techniques/{id}/` | PUT | Update own writing technique | Required |
+| `/api/writing-techniques/{id}/` | DELETE | Delete own writing technique | Required |
+
+---
+
+### Refactored Services
+
+The following services have been refactored to use the 5-layer prompt architecture:
+
+#### All Phases Completed ✅
+
+- **AIModificationService** - Text modification using PromptAssemblyService
+- **BrainstormService** - Idea generation using agent_role_key='brainstormer'
+- **PlotService** - Plot creation using agent_role_key='plotter'
+- **OutlineService** - Chapter outline creation using agent_role_key='outliner'
+- **WritingService** - Chapter writing using agent_role_key='writer'
+- **CharacterService** - Character creation using agent_role_key='character_creator'
+- **SettingService** - Setting/location creation using agent_role_key='setting_creator'
+- **EditingService** - Content editing using agent_role_key='editor'
+- **ConsistencyService** - Consistency checking using agent_role_key='consistency_checker'
+
+**All major content generation and editing services have been refactored!**
+
+The Novel Writing Agent now uses the 5-layer prompt architecture consistently across all core operations:
+- Brainstorming & Ideation
+- Plot & Structure
+- Character Development
+- Setting & World-Building
+- Chapter Outlining
+- Content Writing
+- Editing & Refinement
+- Consistency Checking
+
+---
+
+### Prompt Architecture Future Enhancements
+
+#### Short-term
+- Add more languages (Spanish, French, German, Japanese)
+- Create web UI for managing styles and techniques
+- Add versioning for system policies and roles
+- User-specific style libraries
+
+#### Long-term
+- Community marketplace for styles/techniques
+- A/B testing different prompt combinations
+- Analytics on which styles/techniques perform best
+- Machine learning to optimize prompt effectiveness
+
+---
+
+### Prompt Architecture Troubleshooting
+
+#### Issue: Translations not showing up
+
+**Solution**:
+1. Check that translation exists: `WritingStyle.objects.get(name_key='...').translations.all()`
+2. Verify language code matches: Use exact codes like 'zh-hans', not 'zh'
+3. Run seed command if system data is missing
+
+#### Issue: Empty system prompt
+
+**Symptom**: Log shows "Built system prompt for X: 0 chars"
+
+**Solution**:
+1. Check that agent role exists: `AgentRole.objects.filter(name_key='brainstormer', is_active=True)`
+2. Check that translation exists: `role.translations.filter(language_code='en').first()`
+3. Run seed command to populate data
+
+#### Issue: Style not applying
+
+**Solution**:
+1. Check project has `default_style` set: `project.default_style`
+2. For chapters, check if `chapter_outline.style_override` is set
+3. Verify style has translations for the project's `target_language`
+
+---
+
+### References
+
+- **Django Models**: `novels/models.py`
+- **Prompt Assembly**: `novels/prompt_assembly.py`
+- **Serializers**: `novels/serializers.py`
+- **ViewSets**: `novels/views.py`
+- **API Routes**: `novels/api_urls.py`
+- **Admin Config**: `novels/admin.py`
+- **Seed Command**: `novels/management/commands/seed_prompt_architecture.py`
+- **Migration**: `novels/migrations/0019_add_prompt_architecture.py`
+
+---
 
 ## Configuration
 

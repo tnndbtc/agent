@@ -4,72 +4,13 @@ from django.contrib.auth.models import User
 from .models import (
     NovelProject, Plot, Act, Character, Setting,
     ChapterOutline, Chapter, Example, GenerationTask,
-    Genre, GenreTranslation,
     ScoreCategory, ScoreCategoryTranslation, ExampleScore,
-    UserPrompt
+    UserPrompt,
+    SystemPolicy, SystemPolicyTranslation,
+    AgentRole, AgentRoleTranslation,
+    WritingStyle, WritingStyleTranslation,
+    WritingTechnique, WritingTechniqueTranslation
 )
-
-
-class GenreField(serializers.Field):
-    """
-    Custom field that accepts either Genre ID (int) or genre name (string).
-    For backward compatibility with old frontend code.
-    """
-
-    def to_representation(self, value):
-        """Serialize Genre to ID."""
-        if value is None:
-            return None
-        return value.id
-
-    def to_internal_value(self, data):
-        """
-        Deserialize data to Genre instance.
-        Accepts int (Genre ID) or string (genre name for legacy support).
-        """
-        if data is None or data == '':
-            return None
-
-        # If it's an integer or string that looks like an integer, treat as ID
-        if isinstance(data, int) or (isinstance(data, str) and data.isdigit()):
-            try:
-                return Genre.objects.get(pk=int(data))
-            except Genre.DoesNotExist:
-                raise serializers.ValidationError(f"Genre with ID {data} does not exist.")
-
-        # If it's a string, try to find matching Genre by translation name
-        if isinstance(data, str):
-            # Try to find a genre with this translation name in any language
-            genre_translation = GenreTranslation.objects.filter(name__iexact=data).first()
-            if genre_translation:
-                return genre_translation.genre
-            # If no match found, return None (will be stored in genre_text)
-            return None
-
-        raise serializers.ValidationError("Genre must be an integer ID or string name.")
-
-
-class GenreTranslationSerializer(serializers.ModelSerializer):
-    """Serializer for GenreTranslation model."""
-
-    class Meta:
-        model = GenreTranslation
-        fields = ['id', 'language_code', 'name']
-
-
-class GenreSerializer(serializers.ModelSerializer):
-    """Serializer for Genre model with localized display name."""
-
-    display_name = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Genre
-        fields = ['id', 'name_key', 'public', 'display_name']
-        read_only_fields = ['id']
-
-    def get_display_name(self, obj):
-        """Return localized name based on current language."""
-        return str(obj)
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -158,15 +99,13 @@ class NovelProjectSerializer(serializers.ModelSerializer):
     chapter_outlines = ChapterOutlineSerializer(many=True, read_only=True)
     chapters = ChapterListSerializer(many=True, read_only=True)
 
-    # Use custom field that accepts both Genre ID and string
-    genre = GenreField(required=False, allow_null=True)
-
     class Meta:
         model = NovelProject
         fields = [
-            'id', 'user', 'title', 'genre', 'status',
+            'id', 'user', 'title', 'status',
             'total_word_count', 'created_at', 'updated_at',
-            'plot', 'characters', 'settings', 'chapter_outlines', 'chapters'
+            'plot', 'characters', 'settings', 'chapter_outlines', 'chapters',
+            'selected_techniques'
         ]
         read_only_fields = ['id', 'user', 'chroma_collection_name', 'total_word_count', 'created_at', 'updated_at']
 
@@ -181,19 +120,6 @@ class NovelProjectSerializer(serializers.ModelSerializer):
                 })
         return data
 
-    def create(self, validated_data):
-        """Override create to handle genre_text from legacy string genres."""
-        # Check if genre was sent as string in the original data
-        genre_value = self.initial_data.get('genre', '')
-
-        if isinstance(genre_value, str) and genre_value and not genre_value.isdigit():
-            # Store in genre_text field for legacy compatibility
-            validated_data['genre_text'] = genre_value
-            # If GenreField successfully matched to a Genre FK, genre will be set
-            # If not matched, genre will be None and genre_text will be used
-
-        return super().create(validated_data)
-
 
 class NovelProjectListSerializer(serializers.ModelSerializer):
     """Lighter serializer for project list views."""
@@ -203,7 +129,7 @@ class NovelProjectListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = NovelProject
-        fields = ['id', 'title', 'genre', 'status', 'total_word_count', 'chapter_count', 'updated_at', 'user']
+        fields = ['id', 'title', 'status', 'total_word_count', 'chapter_count', 'updated_at', 'user']
         read_only_fields = fields
 
     def get_chapter_count(self, obj):
@@ -256,20 +182,15 @@ class ExampleSerializer(serializers.ModelSerializer):
 
     scores = ExampleScoreSerializer(many=True, read_only=True)
     total_score = serializers.ReadOnlyField()
-    genre_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Example
-        fields = ['id', 'user', 'genre', 'genre_name', 'public', 'is_good', 'category', 'title', 'locale',
+        fields = ['id', 'user', 'public', 'is_good', 'category', 'title', 'locale',
                   'content', 'description', 'issues', 'metadata', 'scores', 'total_score', 'created_at']
-        read_only_fields = ['id', 'user', 'created_at', 'total_score', 'genre_name']
+        read_only_fields = ['id', 'user', 'created_at', 'total_score']
         extra_kwargs = {
             'category': {'allow_null': True, 'required': False},
         }
-
-    def get_genre_name(self, obj):
-        """Return genre name if genre exists."""
-        return str(obj.genre) if obj.genre else None
 
 
 class GenerationTaskSerializer(serializers.ModelSerializer):
@@ -434,3 +355,128 @@ class AIModificationResponseSerializer(serializers.Serializer):
     user_prompt = serializers.CharField()
     token_usage = serializers.JSONField()
     saved_prompt = UserPromptSerializer(required=False, allow_null=True)
+
+
+# ========================================
+# Prompt Architecture Serializers (5-Layer)
+# ========================================
+
+class SystemPolicyTranslationSerializer(serializers.ModelSerializer):
+    """Serializer for SystemPolicyTranslation model."""
+
+    class Meta:
+        model = SystemPolicyTranslation
+        fields = ['id', 'language_code', 'content']
+        read_only_fields = ['id']
+
+
+class SystemPolicySerializer(serializers.ModelSerializer):
+    """Serializer for SystemPolicy model with translations."""
+
+    translations = SystemPolicyTranslationSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = SystemPolicy
+        fields = ['id', 'name_key', 'policy_type', 'is_active', 'priority',
+                  'created_at', 'updated_at', 'translations']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class AgentRoleTranslationSerializer(serializers.ModelSerializer):
+    """Serializer for AgentRoleTranslation model."""
+
+    class Meta:
+        model = AgentRoleTranslation
+        fields = ['id', 'language_code', 'system_prompt']
+        read_only_fields = ['id']
+
+
+class AgentRoleSerializer(serializers.ModelSerializer):
+    """Serializer for AgentRole model with translations."""
+
+    translations = AgentRoleTranslationSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = AgentRole
+        fields = ['id', 'name_key', 'module_name', 'is_active',
+                  'created_at', 'updated_at', 'translations']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class WritingStyleTranslationSerializer(serializers.ModelSerializer):
+    """Serializer for WritingStyleTranslation model."""
+
+    class Meta:
+        model = WritingStyleTranslation
+        fields = ['id', 'language_code', 'name', 'description', 'instructions']
+        read_only_fields = ['id']
+
+
+class WritingStyleSerializer(serializers.ModelSerializer):
+    """Serializer for WritingStyle model with translations and display name."""
+
+    translations = WritingStyleTranslationSerializer(many=True, read_only=True)
+    display_name = serializers.SerializerMethodField()
+    created_by_username = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WritingStyle
+        fields = ['id', 'name_key', 'is_system', 'created_by', 'created_by_username',
+                  'public', 'pacing', 'tone', 'paragraph_length', 'dialogue_ratio',
+                  'cliffhanger_enabled', 'created_at', 'updated_at', 'translations',
+                  'display_name']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by']
+
+    def get_display_name(self, obj):
+        """Return localized name based on current language."""
+        request = self.context.get('request')
+        language_code = getattr(request, 'LANGUAGE_CODE', 'en') if request else 'en'
+
+        translation = obj.translations.filter(language_code=language_code).first()
+        if not translation and language_code != 'en':
+            translation = obj.translations.filter(language_code='en').first()
+
+        return translation.name if translation else obj.name_key
+
+    def get_created_by_username(self, obj):
+        """Return username of creator."""
+        return obj.created_by.username if obj.created_by else None
+
+
+class WritingTechniqueTranslationSerializer(serializers.ModelSerializer):
+    """Serializer for WritingTechniqueTranslation model."""
+
+    class Meta:
+        model = WritingTechniqueTranslation
+        fields = ['id', 'language_code', 'name', 'description', 'instructions']
+        read_only_fields = ['id']
+
+
+class WritingTechniqueSerializer(serializers.ModelSerializer):
+    """Serializer for WritingTechnique model with translations and display name."""
+
+    translations = WritingTechniqueTranslationSerializer(many=True, read_only=True)
+    display_name = serializers.SerializerMethodField()
+    created_by_username = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WritingTechnique
+        fields = ['id', 'name_key', 'is_system', 'created_by', 'created_by_username',
+                  'public', 'category', 'created_at', 'updated_at', 'translations',
+                  'display_name']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by']
+
+    def get_display_name(self, obj):
+        """Return localized name based on current language."""
+        request = self.context.get('request')
+        language_code = getattr(request, 'LANGUAGE_CODE', 'en') if request else 'en'
+
+        translation = obj.translations.filter(language_code=language_code).first()
+        if not translation and language_code != 'en':
+            translation = obj.translations.filter(language_code='en').first()
+
+        return translation.name if translation else obj.name_key
+
+    def get_created_by_username(self, obj):
+        """Return username of creator."""
+        return obj.created_by.username if obj.created_by else None

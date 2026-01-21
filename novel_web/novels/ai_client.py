@@ -107,7 +107,12 @@ Plot Idea: {premise}
 
 Generate the theme in {language}.
 
-Return ONLY the one-sentence theme, nothing else."""
+You MUST return a JSON object with the following structure:
+{{
+    "theme": "One sentence that captures the core theme"
+}}
+
+Return ONLY the JSON object, no additional text or explanation."""
 
     messages = [
         {"role": "system", "content": "You are a literary expert who identifies core themes in stories."},
@@ -119,10 +124,10 @@ Return ONLY the one-sentence theme, nothing else."""
         response = client.chat_completion(
             messages=messages,
             temperature=0.7,
-            max_tokens=100
+            max_tokens=150
         )
 
-        theme = response.choices[0].message.content.strip()
+        content = response.choices[0].message.content.strip()
 
         # Extract token usage
         token_usage = {}
@@ -132,6 +137,28 @@ Return ONLY the one-sentence theme, nothing else."""
                 'completion_tokens': response.usage.completion_tokens,
                 'total_tokens': response.usage.total_tokens
             }
+
+        # Parse JSON response
+        import json
+        import re
+
+        try:
+            # Try to parse as JSON directly
+            if content.startswith('{'):
+                data = json.loads(content)
+                theme = data.get('theme', content)
+            else:
+                # Extract from markdown code block
+                json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
+                if json_match:
+                    data = json.loads(json_match.group(1))
+                    theme = data.get('theme', content)
+                else:
+                    # Fallback: use raw content if not JSON
+                    theme = content
+        except (json.JSONDecodeError, AttributeError) as e:
+            logger.warning(f"Failed to parse theme JSON: {e}, using raw content")
+            theme = content
 
         logger.info(f"Generated theme: {theme}, tokens: {token_usage}")
         return theme, token_usage

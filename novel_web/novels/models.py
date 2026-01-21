@@ -74,72 +74,258 @@ class UserPrompt(models.Model):
         self.save(update_fields=['usage_count'])
 
 
-class Genre(models.Model):
-    """Genre model with multi-language support."""
+class SystemPolicy(models.Model):
+    """System-wide immutable policies for AI behavior."""
 
-    id = models.AutoField(primary_key=True)
-    name_key = models.CharField(max_length=50, unique=True, help_text="Translation key for genre (e.g., 'fantasy', 'sci_fi')")
-    public = models.BooleanField(default=True, help_text="Whether this genre is publicly available")
+    POLICY_TYPE_CHOICES = [
+        ('safety', 'Safety'),
+        ('copyright', 'Copyright'),
+        ('output', 'Output Constraints'),
+        ('behavior', 'Behavior Boundaries'),
+    ]
+
+    name_key = models.CharField(max_length=50, unique=True, help_text="Unique identifier for this policy")
+    policy_type = models.CharField(max_length=20, choices=POLICY_TYPE_CHOICES)
+    is_active = models.BooleanField(default=True, help_text="Whether this policy is enforced")
+    priority = models.IntegerField(default=0, help_text="Lower number = higher priority")
     created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['name_key']
+        ordering = ['priority', 'name_key']
+        verbose_name_plural = "System policies"
         indexes = [
-            models.Index(fields=['public']),
+            models.Index(fields=['is_active', 'priority']),
         ]
 
     def __str__(self):
-        """Return translated genre name based on current language."""
-        current_lang = get_language() or 'en'
-
-        # Use prefetched translations if available to avoid N+1 queries
-        if hasattr(self, '_prefetched_objects_cache') and 'translations' in self._prefetched_objects_cache:
-            # Iterate through prefetched translations
-            for translation in self.translations.all():
-                if translation.language_code == current_lang:
-                    return translation.name
-            # Fallback to English
-            for translation in self.translations.all():
-                if translation.language_code == 'en':
-                    return translation.name
-        else:
-            # No prefetch available, use filter (backwards compatibility)
-            translation = self.translations.filter(language_code=current_lang).first()
-            if translation:
-                return translation.name
-            # Fallback to English
-            en_translation = self.translations.filter(language_code='en').first()
-            if en_translation:
-                return en_translation.name
-
-        return self.name_key
-
-    def get_translation(self, language_code):
-        """Get translation for specific language."""
-        translation = self.translations.filter(language_code=language_code).first()
-        return translation.name if translation else self.name_key
+        return f"{self.name_key} ({self.policy_type})"
 
 
-class GenreTranslation(models.Model):
-    """Translation model for Genre names."""
+class SystemPolicyTranslation(models.Model):
+    """Translations for system policies."""
 
     LANGUAGE_CHOICES = [
         ('en', 'English'),
         ('zh-hans', 'Simplified Chinese'),
     ]
 
-    genre = models.ForeignKey(Genre, on_delete=models.CASCADE, related_name='translations')
+    policy = models.ForeignKey(SystemPolicy, on_delete=models.CASCADE, related_name='translations')
     language_code = models.CharField(max_length=10, choices=LANGUAGE_CHOICES)
-    name = models.CharField(max_length=100, help_text="Translated genre name")
+    content = models.TextField(help_text="Policy text in this language")
 
     class Meta:
-        unique_together = [['genre', 'language_code']]
+        unique_together = [['policy', 'language_code']]
         indexes = [
             models.Index(fields=['language_code']),
         ]
 
     def __str__(self):
-        return f"{self.genre.name_key} - {self.language_code}: {self.name}"
+        return f"{self.policy.name_key} - {self.language_code}"
+
+
+class AgentRole(models.Model):
+    """AI agent role definitions for different modules."""
+
+    name_key = models.CharField(max_length=50, unique=True, help_text="Unique identifier for this role")
+    module_name = models.CharField(max_length=100, help_text="Associated module name")
+    is_active = models.BooleanField(default=True, help_text="Whether this role is available")
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name_key']
+        indexes = [
+            models.Index(fields=['is_active']),
+        ]
+
+    def __str__(self):
+        return f"{self.name_key} ({self.module_name})"
+
+
+class AgentRoleTranslation(models.Model):
+    """Translations for agent role system prompts."""
+
+    LANGUAGE_CHOICES = [
+        ('en', 'English'),
+        ('zh-hans', 'Simplified Chinese'),
+    ]
+
+    role = models.ForeignKey(AgentRole, on_delete=models.CASCADE, related_name='translations')
+    language_code = models.CharField(max_length=10, choices=LANGUAGE_CHOICES)
+    system_prompt = models.TextField(help_text="Role definition/system prompt in this language")
+
+    class Meta:
+        unique_together = [['role', 'language_code']]
+        indexes = [
+            models.Index(fields=['language_code']),
+        ]
+
+    def __str__(self):
+        return f"{self.role.name_key} - {self.language_code}"
+
+
+class WritingStyle(models.Model):
+    """Reusable writing styles (genre-specific or user-created)."""
+
+    PACING_CHOICES = [
+        ('slow', 'Slow'),
+        ('medium', 'Medium'),
+        ('fast', 'Fast'),
+    ]
+
+    PARAGRAPH_LENGTH_CHOICES = [
+        ('short', 'Short'),
+        ('medium', 'Medium'),
+        ('long', 'Long'),
+    ]
+
+    DIALOGUE_RATIO_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+    ]
+
+    name_key = models.CharField(max_length=50, help_text="Unique identifier for this style")
+    is_system = models.BooleanField(default=False, help_text="True for predefined system styles")
+    created_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='writing_styles',
+        help_text="User who created this style (NULL for system styles)"
+    )
+    public = models.BooleanField(default=False, help_text="Whether this style is publicly available")
+
+    # Style parameters
+    pacing = models.CharField(max_length=20, choices=PACING_CHOICES, default='medium')
+    tone = models.CharField(max_length=100, blank=True)
+    paragraph_length = models.CharField(max_length=20, choices=PARAGRAPH_LENGTH_CHOICES, default='medium')
+    dialogue_ratio = models.CharField(max_length=20, choices=DIALOGUE_RATIO_CHOICES, default='medium')
+    cliffhanger_enabled = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-is_system', 'name_key']
+        indexes = [
+            models.Index(fields=['is_system', 'public']),
+            models.Index(fields=['created_by']),
+        ]
+        unique_together = [['name_key', 'created_by']]
+
+    def __str__(self):
+        if self.is_system:
+            return f"{self.name_key} (System)"
+        return f"{self.name_key} by {self.created_by.username if self.created_by else 'Unknown'}"
+
+    def is_accessible_by(self, user):
+        """Check if style is accessible by given user."""
+        if self.is_system or self.public:
+            return True
+        if self.created_by_id and self.created_by_id == user.id:
+            return True
+        return False
+
+
+class WritingStyleTranslation(models.Model):
+    """Translations for writing style names and instructions."""
+
+    LANGUAGE_CHOICES = [
+        ('en', 'English'),
+        ('zh-hans', 'Simplified Chinese'),
+    ]
+
+    style = models.ForeignKey(WritingStyle, on_delete=models.CASCADE, related_name='translations')
+    language_code = models.CharField(max_length=10, choices=LANGUAGE_CHOICES)
+    name = models.CharField(max_length=100, help_text="Display name in this language")
+    description = models.TextField(blank=True, help_text="Style description")
+    instructions = models.TextField(help_text="Style-specific prompt instructions")
+
+    class Meta:
+        unique_together = [['style', 'language_code']]
+        indexes = [
+            models.Index(fields=['language_code']),
+        ]
+
+    def __str__(self):
+        return f"{self.style.name_key} - {self.language_code}: {self.name}"
+
+
+class WritingTechnique(models.Model):
+    """Composable writing techniques (e.g., 'show don't tell', 'foreshadowing')."""
+
+    CATEGORY_CHOICES = [
+        ('narrative', 'Narrative'),
+        ('dialogue', 'Dialogue'),
+        ('description', 'Description'),
+        ('pacing', 'Pacing'),
+        ('character', 'Character Development'),
+    ]
+
+    name_key = models.CharField(max_length=50, unique=True, help_text="Unique identifier for this technique")
+    is_system = models.BooleanField(default=False, help_text="True for predefined system techniques")
+    created_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='writing_techniques',
+        help_text="User who created this technique (NULL for system techniques)"
+    )
+    public = models.BooleanField(default=False, help_text="Whether this technique is publicly available")
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
+
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-is_system', 'category', 'name_key']
+        indexes = [
+            models.Index(fields=['is_system', 'public']),
+            models.Index(fields=['created_by']),
+            models.Index(fields=['category']),
+        ]
+
+    def __str__(self):
+        if self.is_system:
+            return f"{self.name_key} (System)"
+        return f"{self.name_key} by {self.created_by.username if self.created_by else 'Unknown'}"
+
+    def is_accessible_by(self, user):
+        """Check if technique is accessible by given user."""
+        if self.is_system or self.public:
+            return True
+        if self.created_by_id and self.created_by_id == user.id:
+            return True
+        return False
+
+
+class WritingTechniqueTranslation(models.Model):
+    """Translations for writing technique names and instructions."""
+
+    LANGUAGE_CHOICES = [
+        ('en', 'English'),
+        ('zh-hans', 'Simplified Chinese'),
+    ]
+
+    technique = models.ForeignKey(WritingTechnique, on_delete=models.CASCADE, related_name='translations')
+    language_code = models.CharField(max_length=10, choices=LANGUAGE_CHOICES)
+    name = models.CharField(max_length=100, help_text="Display name in this language")
+    description = models.TextField(blank=True, help_text="Technique description")
+    instructions = models.TextField(help_text="Technique-specific prompt instructions")
+
+    class Meta:
+        unique_together = [['technique', 'language_code']]
+        indexes = [
+            models.Index(fields=['language_code']),
+        ]
+
+    def __str__(self):
+        return f"{self.technique.name_key} - {self.language_code}: {self.name}"
+
 
 
 class ScoreCategory(models.Model):
@@ -194,7 +380,12 @@ class ScoreCategory(models.Model):
         """Return translated name for system categories, raw name for user categories."""
         if self.is_system:
             current_lang = get_language() or 'en'
-            translation = self.translations.filter(language_code=current_lang).first()
+            # Use prefetched translations if available to avoid N+1 queries
+            if hasattr(self, '_prefetched_objects_cache') and 'translations' in self._prefetched_objects_cache:
+                translations = self._prefetched_objects_cache['translations']
+                translation = next((t for t in translations if t.language_code == current_lang), None)
+            else:
+                translation = self.translations.filter(language_code=current_lang).first()
             return translation.name if translation else self.name
         return self.name
 
@@ -248,12 +439,32 @@ class NovelProject(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='novel_projects')
     title = models.CharField(max_length=255)
-    genre_text = models.CharField(max_length=100, blank=True, help_text="Legacy genre text - will be migrated to Genre model")
-    genre = models.ForeignKey(Genre, on_delete=models.SET_NULL, null=True, blank=True, related_name='projects')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
 
     # ChromaDB collection name (unique per project)
     chroma_collection_name = models.CharField(max_length=255, unique=True, editable=False)
+
+    # Prompt architecture settings
+    default_style = models.ForeignKey(
+        'WritingStyle',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='projects_using',
+        help_text="Default writing style for this project"
+    )
+    selected_techniques = models.ManyToManyField(
+        'WritingTechnique',
+        blank=True,
+        related_name='projects_using',
+        help_text="Writing techniques applied to this project"
+    )
+    target_language = models.CharField(
+        max_length=10,
+        default='en',
+        choices=[('en', 'English'), ('zh-hans', 'Simplified Chinese')],
+        help_text="Target output language for AI generation"
+    )
 
     # Metadata
     created_at = models.DateTimeField(default=timezone.now)
@@ -270,18 +481,6 @@ class NovelProject(models.Model):
     def __str__(self):
         return f"{self.title} by {self.user.username}"
 
-    @property
-    def genre_display(self):
-        """Return the genre display string (localized if using Genre model, or genre_text for legacy)."""
-        if self.genre:
-            # Use Genre model's __str__ which returns translated name
-            return str(self.genre)
-        elif self.genre_text:
-            # Use legacy genre_text field
-            return self.genre_text
-        else:
-            return None
-
     def save(self, *args, **kwargs):
         if not self.chroma_collection_name:
             self.chroma_collection_name = f"project_{self.id.hex[:16]}"
@@ -295,8 +494,6 @@ class Plot(models.Model):
 
     # Basic plot elements
     premise = models.TextField(help_text="One-paragraph premise")
-    genre_text = models.CharField(max_length=100, blank=True, help_text="Legacy genre text - will be migrated to Genre model")
-    genre = models.ForeignKey(Genre, on_delete=models.SET_NULL, null=True, blank=True, related_name='plots')
     themes = models.TextField(blank=True, help_text="Main themes, comma-separated")
     conflict = models.TextField(blank=True, help_text="Central conflict")
 
@@ -491,6 +688,16 @@ class ChapterOutline(models.Model):
     pacing = models.CharField(max_length=64, choices=PACING_CHOICES, default='medium')
     story_beats = models.TextField(blank=True, help_text="Major plot points")
 
+    # Writing style override
+    style_override = models.ForeignKey(
+        'WritingStyle',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='chapter_outlines_using',
+        help_text="Override writing style for this chapter (uses project default if not set)"
+    )
+
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -521,6 +728,16 @@ class Chapter(models.Model):
     word_count = models.IntegerField(default=0)
     language = models.CharField(max_length=50, default='English')
     writing_style = models.CharField(max_length=50, default='literary')
+
+    # Writing style override (new prompt architecture)
+    style_override = models.ForeignKey(
+        'WritingStyle',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='chapters_using',
+        help_text="Override writing style for this chapter (uses project default if not set)"
+    )
 
     # Versioning
     version = models.IntegerField(default=1)
@@ -615,8 +832,7 @@ class Example(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='examples')
 
-    # Genre and visibility
-    genre = models.ForeignKey(Genre, null=True, blank=True, on_delete=models.SET_NULL, related_name='examples')
+    # Visibility
     public = models.BooleanField(default=False, db_index=True, help_text="Whether this example is publicly available")
 
     # Basic information
@@ -644,7 +860,12 @@ class Example(models.Model):
     @property
     def total_score(self):
         """Calculate weighted total score from all category scores."""
-        return sum(score.weighted_score for score in self.scores.all())
+        # Use prefetched scores if available to avoid N+1 queries
+        if hasattr(self, '_prefetched_objects_cache') and 'scores' in self._prefetched_objects_cache:
+            scores = self._prefetched_objects_cache['scores']
+        else:
+            scores = self.scores.all()
+        return sum(score.weighted_score for score in scores)
 
     def __str__(self):
         quality = "Good" if self.is_good else "Bad"

@@ -3,8 +3,11 @@ from django.contrib import admin
 from .models import (
     NovelProject, Plot, Character, Setting,
     ChapterOutline, Chapter, Example, GenerationTask,
-    Genre, GenreTranslation,
-    ScoreCategory, ScoreCategoryTranslation, ExampleScore
+    ScoreCategory, ScoreCategoryTranslation, ExampleScore,
+    SystemPolicy, SystemPolicyTranslation,
+    AgentRole, AgentRoleTranslation,
+    WritingStyle, WritingStyleTranslation,
+    WritingTechnique, WritingTechniqueTranslation
 )
 
 
@@ -20,7 +23,7 @@ class NovelProjectAdmin(admin.ModelAdmin):
 @admin.register(Plot)
 class PlotAdmin(admin.ModelAdmin):
     """Admin for Plot."""
-    list_display = ['project', 'genre', 'updated_at']
+    list_display = ['project', 'updated_at']
     search_fields = ['project__title']
 
 
@@ -53,31 +56,6 @@ class ChapterAdmin(admin.ModelAdmin):
     list_display = ['chapter_number', 'title', 'project', 'word_count', 'is_draft', 'updated_at']
     list_filter = ['is_draft', 'language', 'writing_style']
     search_fields = ['title', 'project__title']
-
-
-class GenreTranslationInline(admin.TabularInline):
-    """Inline admin for GenreTranslation."""
-    model = GenreTranslation
-    extra = 0
-    fields = ['language_code', 'name']
-
-
-@admin.register(Genre)
-class GenreAdmin(admin.ModelAdmin):
-    """Admin for Genre."""
-    list_display = ['id', 'name_key', 'public', 'created_at']
-    list_filter = ['public']
-    search_fields = ['name_key']
-    readonly_fields = ['created_at']
-    inlines = [GenreTranslationInline]
-    fieldsets = (
-        ('Basic Info', {
-            'fields': ('name_key', 'public')
-        }),
-        ('Timestamps', {
-            'fields': ('created_at',)
-        }),
-    )
 
 
 class ScoreCategoryTranslationInline(admin.TabularInline):
@@ -120,8 +98,8 @@ class ExampleScoreInline(admin.TabularInline):
 @admin.register(Example)
 class ExampleAdmin(admin.ModelAdmin):
     """Admin for Example."""
-    list_display = ['category', 'is_good', 'genre', 'public', 'user', 'total_score', 'created_at']
-    list_filter = ['is_good', 'category', 'public', 'genre']
+    list_display = ['category', 'is_good', 'public', 'user', 'total_score', 'created_at']
+    list_filter = ['is_good', 'category', 'public']
     search_fields = ['content', 'description']
     readonly_fields = ['total_score', 'created_at']
     inlines = [ExampleScoreInline]
@@ -133,3 +111,110 @@ class GenerationTaskAdmin(admin.ModelAdmin):
     list_display = ['task_type', 'status', 'progress', 'project', 'created_at']
     list_filter = ['task_type', 'status']
     readonly_fields = ['created_at', 'started_at', 'completed_at']
+
+
+# ========================================
+# Prompt Architecture Admin (5-Layer)
+# ========================================
+
+class SystemPolicyTranslationInline(admin.TabularInline):
+    """Inline admin for SystemPolicyTranslation."""
+    model = SystemPolicyTranslation
+    extra = 0
+    fields = ['language_code', 'content']
+
+
+@admin.register(SystemPolicy)
+class SystemPolicyAdmin(admin.ModelAdmin):
+    """Admin for SystemPolicy."""
+    list_display = ['name_key', 'policy_type', 'is_active', 'priority', 'created_at']
+    list_filter = ['policy_type', 'is_active']
+    search_fields = ['name_key']
+    readonly_fields = ['created_at', 'updated_at']
+    inlines = [SystemPolicyTranslationInline]
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('name_key', 'policy_type', 'is_active', 'priority')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+
+
+class AgentRoleTranslationInline(admin.TabularInline):
+    """Inline admin for AgentRoleTranslation."""
+    model = AgentRoleTranslation
+    extra = 0
+    fields = ['language_code', 'system_prompt']
+
+
+@admin.register(AgentRole)
+class AgentRoleAdmin(admin.ModelAdmin):
+    """Admin for AgentRole."""
+    list_display = ['name_key', 'module_name', 'is_active', 'created_at']
+    list_filter = ['is_active']
+    search_fields = ['name_key', 'module_name']
+    readonly_fields = ['created_at', 'updated_at']
+    inlines = [AgentRoleTranslationInline]
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('name_key', 'module_name', 'is_active')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+
+
+class WritingStyleTranslationInline(admin.TabularInline):
+    """Inline admin for WritingStyleTranslation."""
+    model = WritingStyleTranslation
+    extra = 0
+    fields = ['language_code', 'name', 'description', 'instructions']
+
+
+@admin.register(WritingStyle)
+class WritingStyleAdmin(admin.ModelAdmin):
+    """Admin for WritingStyle."""
+    list_display = ['name_key', 'is_system', 'created_by', 'public', 'pacing', 'created_at']
+    list_filter = ['is_system', 'public', 'pacing', 'paragraph_length', 'dialogue_ratio']
+    search_fields = ['name_key', 'created_by__username']
+    readonly_fields = ['created_at', 'updated_at']
+    inlines = [WritingStyleTranslationInline]
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('name_key', 'is_system', 'created_by', 'public')
+        }),
+        ('Style Parameters', {
+            'fields': ('pacing', 'tone', 'paragraph_length', 'dialogue_ratio', 'cliffhanger_enabled')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+
+
+class WritingTechniqueTranslationInline(admin.TabularInline):
+    """Inline admin for WritingTechniqueTranslation."""
+    model = WritingTechniqueTranslation
+    extra = 0
+    fields = ['language_code', 'name', 'description', 'instructions']
+
+
+@admin.register(WritingTechnique)
+class WritingTechniqueAdmin(admin.ModelAdmin):
+    """Admin for WritingTechnique."""
+    list_display = ['name_key', 'is_system', 'created_by', 'public', 'category', 'created_at']
+    list_filter = ['is_system', 'public', 'category']
+    search_fields = ['name_key', 'created_by__username']
+    readonly_fields = ['created_at', 'updated_at']
+    inlines = [WritingTechniqueTranslationInline]
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('name_key', 'is_system', 'created_by', 'public', 'category')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )

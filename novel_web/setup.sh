@@ -39,8 +39,8 @@ show_menu() {
     echo ""
     echo "1)  Setup Docker (Build and start containers)"
     echo "2)  Setup Local Development"
-    echo "3)  Setup Database/Users (Run migrations and create superuser)"
-    echo "4)  Run Migrations (Update database schema)"
+    echo "3)  Create Superuser"
+    echo "4)  Run Migrations and Seed System Data"
     echo "5)  Clean up (Remove and recreate all Docker volumes and data)"
     echo "0)  Exit"
     echo ""
@@ -143,8 +143,8 @@ setup_docker() {
     echo "  Admin:   http://localhost:8000/admin/"
     echo ""
     log_warn "Next steps:"
-    log_warn "  - Run option 3 to setup database and create superuser"
-    log_warn "  - Or run option 4 to just apply migrations"
+    log_warn "  - Run option 4 to apply migrations and seed system data"
+    log_warn "  - Run option 3 to create a superuser account"
     echo ""
     echo "Useful commands:"
     echo "  View logs:    docker compose logs -f"
@@ -234,11 +234,11 @@ setup_local() {
     echo ""
 }
 
-# Setup Database and Users - Run migrations and create superuser
-setup_database() {
+# Create Superuser - Create Django admin superuser account
+create_superuser() {
     echo ""
     echo "=================================="
-    echo "Setup Database and Users"
+    echo "Create Superuser"
     echo "=================================="
     echo ""
 
@@ -246,51 +246,27 @@ setup_database() {
     if command -v docker &> /dev/null && [ -f "docker-compose.yml" ] && docker compose ps web 2>/dev/null | grep -q "Up"; then
         log_info "Using Docker setup..."
 
-        log_info "Running migrations..."
-        docker compose exec web python manage.py makemigrations || log_warn "No new migrations to create"
-        docker compose exec web python manage.py migrate
-
-        echo ""
-        log_info "Migrations completed!"
-
-        echo ""
-        read -p "Create superuser now? (y/n): " create_super
-        if [ "$create_super" = "y" ]; then
-            set +e  # Temporarily disable exit on error
-            docker compose exec web python manage.py createsuperuser
-            if [ $? -eq 0 ]; then
-                log_info "Superuser created successfully!"
-            else
-                log_warn "Superuser creation cancelled or failed. You can create one later with:"
-                log_warn "  docker compose exec web python manage.py createsuperuser"
-            fi
-            set -e  # Re-enable exit on error
+        set +e  # Temporarily disable exit on error
+        docker compose exec web python manage.py createsuperuser
+        if [ $? -eq 0 ]; then
+            log_info "Superuser created successfully!"
+        else
+            log_warn "Superuser creation cancelled or failed."
         fi
+        set -e  # Re-enable exit on error
 
     elif [ -d "venv" ]; then
         log_info "Using local setup..."
         source venv/bin/activate
 
-        log_info "Running migrations..."
-        python manage.py makemigrations || log_warn "No new migrations to create"
-        python manage.py migrate
-
-        echo ""
-        log_info "Migrations completed!"
-
-        echo ""
-        read -p "Create superuser now? (y/n): " create_super
-        if [ "$create_super" = "y" ]; then
-            set +e  # Temporarily disable exit on error
-            python manage.py createsuperuser
-            if [ $? -eq 0 ]; then
-                log_info "Superuser created successfully!"
-            else
-                log_warn "Superuser creation cancelled or failed. You can create one later with:"
-                log_warn "  python manage.py createsuperuser"
-            fi
-            set -e  # Re-enable exit on error
+        set +e  # Temporarily disable exit on error
+        python manage.py createsuperuser
+        if [ $? -eq 0 ]; then
+            log_info "Superuser created successfully!"
+        else
+            log_warn "Superuser creation cancelled or failed."
         fi
+        set -e  # Re-enable exit on error
 
     else
         log_error "No setup found. Please run option 1 (Docker) or 2 (Local) first."
@@ -299,7 +275,7 @@ setup_database() {
 
     echo ""
     echo "=================================="
-    log_info "Database setup complete!"
+    log_info "Superuser creation complete!"
     echo "=================================="
     echo ""
 }
@@ -387,6 +363,10 @@ print('✓ Database tables exist')
             docker compose exec web python manage.py migrate --verbosity 2
         fi
         set -e  # Re-enable exit on error
+
+        echo ""
+        log_info "Seeding system data (writing styles, techniques, policies, agent roles)..."
+        docker compose exec web python manage.py seed_prompt_architecture || log_warn "Seeding completed or already done"
 
         echo ""
         log_info "Step 3: Final migration status:"
@@ -487,6 +467,10 @@ print('✓ Database tables exist')
         set -e  # Re-enable exit on error
 
         echo ""
+        log_info "Seeding system data (writing styles, techniques, policies, agent roles)..."
+        python manage.py seed_prompt_architecture || log_warn "Seeding completed or already done"
+
+        echo ""
         log_info "Step 3: Final migration status:"
         python manage.py showmigrations | head -20
 
@@ -562,7 +546,7 @@ cleanup_docker() {
     log_info "Clean up and recreation completed!"
     echo ""
     log_info "New containers have been created with fresh databases."
-    log_info "You may need to run option 3 to setup database and create a superuser."
+    log_info "Run option 4 to apply migrations and seed data, then option 3 to create a superuser."
     echo ""
 }
 
@@ -572,7 +556,7 @@ while true; do
     case $choice in
         1) setup_docker; read -p "Press Enter to continue..." ;;
         2) setup_local; read -p "Press Enter to continue..." ;;
-        3) setup_database; read -p "Press Enter to continue..." ;;
+        3) create_superuser; read -p "Press Enter to continue..." ;;
         4) run_migrations; read -p "Press Enter to continue..." ;;
         5) cleanup_docker; read -p "Press Enter to continue..." ;;
         0) echo "Exiting..."; exit 0 ;;

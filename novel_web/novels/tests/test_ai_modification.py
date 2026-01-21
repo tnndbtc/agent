@@ -2,7 +2,11 @@
 import pytest
 from django.contrib.auth.models import User
 from rest_framework.test import APIClient
-from novels.models import UserPrompt, NovelProject, Chapter, ChapterOutline, Plot
+from novels.models import (
+    UserPrompt, NovelProject, Chapter, ChapterOutline, Plot,
+    SystemPolicy, SystemPolicyTranslation,
+    AgentRole, AgentRoleTranslation
+)
 from unittest.mock import patch, MagicMock
 
 
@@ -27,6 +31,46 @@ def project(user):
         user=user,
         title='Test Novel',
         genre_text='Fantasy'
+    )
+
+
+@pytest.fixture(autouse=True)
+def seed_prompt_architecture(db):
+    """Seed minimal prompt architecture data for tests."""
+    # Create text_modifier role
+    role, _ = AgentRole.objects.get_or_create(
+        name_key='text_modifier',
+        defaults={
+            'module_name': 'AIModificationService',
+            'is_active': True
+        }
+    )
+
+    # Add English translation
+    AgentRoleTranslation.objects.get_or_create(
+        role=role,
+        language_code='en',
+        defaults={
+            'system_prompt': 'You are a text editing assistant that helps improve and modify narrative content based on user instructions. You maintain the original voice and style while applying the requested changes.'
+        }
+    )
+
+    # Create a basic system policy
+    policy, _ = SystemPolicy.objects.get_or_create(
+        name_key='output_format_policy',
+        defaults={
+            'policy_type': 'output',
+            'priority': 0,
+            'is_active': True
+        }
+    )
+
+    SystemPolicyTranslation.objects.get_or_create(
+        policy=policy,
+        language_code='en',
+        defaults={
+            'content': 'Output must be well-formatted narrative prose. Do not include meta-commentary, explanations, or markers unless specifically requested.'
+        }
     )
 
 
@@ -413,7 +457,7 @@ class TestAIModificationService:
 
     @patch('langchain_openai.ChatOpenAI')
     def test_content_type_specific_instructions(self, mock_openai, user):
-        """Test that different content types get appropriate system messages."""
+        """Test that prompt architecture assembles system messages correctly."""
         from novels.services import AIModificationService
 
         mock_response = MagicMock()
@@ -436,10 +480,11 @@ class TestAIModificationService:
             content_type="character"
         )
 
-        # Verify the system message included character-specific instruction
+        # Verify the system message includes text editing role instructions
         call_args = mock_llm.invoke.call_args[0][0]
         system_msg = call_args[0].content
-        assert "character" in system_msg.lower()
+        assert "text editing" in system_msg.lower() or "modify" in system_msg.lower()
+        assert len(system_msg) > 0  # System message should not be empty
 
     @patch('langchain_openai.ChatOpenAI')
     def test_all_content_types(self, mock_openai, user):

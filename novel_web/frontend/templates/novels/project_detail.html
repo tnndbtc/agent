@@ -23,12 +23,13 @@
                     <span class="status-badge status-{{ project.status }}">{{ project.get_status_display }}</span>
                 </div>
                 <div class="info-item">
-                    <label style="font-weight: bold;">{% trans "Genre" %}</label>
-                    <span>{{ project.genre_display|default:"Not set" }}</span>
-                </div>
-                <div class="info-item">
                     <label style="font-weight: bold;">{% trans "Total Words" %}</label>
                     <span>{{ project.total_word_count|default:0 }}</span>
+                </div>
+                <div class="info-item">
+                    <label style="font-weight: bold;">{% trans "Writing Techniques" %}</label>
+                    <div id="techniquesDisplay" style="color: #6B7280;">{% trans "Loading..." %}</div>
+                    <button onclick="openEditTechniquesModal()" class="btn btn-sm" style="margin-top: 0.5rem;">{% trans "Edit Techniques" %}</button>
                 </div>
                 <div class="info-item">
                     <label style="font-weight: bold;">{% trans "Chapters" %}</label>
@@ -50,7 +51,6 @@
                         <div class="idea-premise" style="font-size: 1rem; margin-bottom: 1rem;">
                             {% firstof idea.premise idea.description "No description" %}
                         </div>
-                        <!-- Genre tag hidden as requested -->
                     </div>
                     {% endfor %}
                 </div>
@@ -81,8 +81,6 @@
                                   placeholder="Describe your plot idea...">{% firstof previous_ideas.0.premise previous_ideas.0.description "" %}</textarea>
                     </div>
 
-                    <!-- Genre field hidden as requested -->
-
                     <div style="display: flex; gap: 1rem;">
                         <button type="submit" class="btn btn-primary" style="flex: 1;">
                             💾 Save Changes
@@ -97,7 +95,7 @@
             {% else %}
             <!-- Original Brainstorm Page - Only shown when no ideas exist -->
             <div class="info-message">
-                <p>{% trans "Generate creative plot ideas for your novel. You can customize the genre, theme, and number of ideas to generate." %}</p>
+                <p>{% trans "Generate creative plot ideas for your novel. You can customize the theme and number of ideas to generate." %}</p>
             </div>
 
             <!-- Mode Toggle -->
@@ -112,8 +110,6 @@
 
             <!-- AI Generation Form -->
             <form id="brainstormForm" class="form-card" style="display: block;">
-                <!-- Genre field hidden as requested -->
-
                 <div class="form-group">
                     <label for="theme">{% trans "Theme" %} ({% trans "optional" %})</label>
                     <input type="text" id="theme" name="theme" class="form-control"
@@ -148,8 +144,6 @@
                               placeholder="Describe your plot idea..."></textarea>
                 </div>
 
-                <!-- Genre field hidden as requested -->
-
                 <div id="progressContainer" class="progress-container">
                     <div class="progress-bar">
                         <div id="progressBarFill" class="progress-bar-fill">0%</div>
@@ -175,7 +169,6 @@
             {% if has_plot %}
             <div class="plot-display">
                 <!-- Premise hidden as requested -->
-                <!-- Genre section hidden as requested -->
                 <div class="plot-field">
                     <div id="plotThemesDisplay" style="display: flex; justify-content: space-between; align-items: flex-start;">
                         <div style="flex: 1;">
@@ -753,6 +746,18 @@
                         </button>
                     </div>
                 </div>
+                <!-- Phase 5: Writing Styles Management -->
+                <button class="tool-card" onclick="openStyleBrowser()">
+                    <span class="tool-icon">🎨</span>
+                    <h4>{% trans "Manage Styles" %}</h4>
+                    <p>{% trans "Browse and create custom writing styles" %}</p>
+                </button>
+                <!-- Phase 5: Writing Techniques Management -->
+                <button class="tool-card" onclick="openTechniqueBrowser()">
+                    <span class="tool-icon">✨</span>
+                    <h4>{% trans "Manage Techniques" %}</h4>
+                    <p>{% trans "Browse and create writing techniques" %}</p>
+                </button>
             </div>
         </div>
     </div>
@@ -769,6 +774,16 @@
             <div class="config-section">
                 <label for="chapterWordCount" class="config-label">{% trans "How many words should this chapter be?" %}</label>
                 <input type="number" id="chapterWordCount" class="form-control" min="10" max="10000" value="10" placeholder="Enter word count (10-10000)">
+            </div>
+
+            <!-- Phase 5: Chapter-Level Style Override -->
+            <div class="config-section">
+                <label for="chapterStyleOverride" class="config-label">{% trans "Writing Style (Optional)" %}</label>
+                <select id="chapterStyleOverride" class="form-control">
+                    <option value="">{% trans "Use project default" %}</option>
+                    <!-- Populated by JavaScript -->
+                </select>
+                <small class="form-text">{% trans "Override the project's default writing style for this chapter only" %}</small>
             </div>
 
             <div class="config-section">
@@ -1027,16 +1042,6 @@
     margin-bottom: 1rem;
     color: #1f2937;
     font-size: 1.2rem;
-}
-
-.brainstorm-section .genre-display {
-    padding: 0.75rem;
-    background: #e0e7ff;
-    border: 1px solid #c7d2fe;
-    border-radius: 6px;
-    color: #4338ca;
-    font-weight: 500;
-    font-size: 1rem;
 }
 
 .progress-container {
@@ -1352,6 +1357,228 @@
 }
 </style>
 
+<!-- Phase 5: Style Browser Modal -->
+<div class="modal" id="styleBrowserModal" style="display: none;">
+    <div class="modal-content modal-large">
+        <div class="modal-header">
+            <h3>{% trans "Browse Writing Styles" %}</h3>
+            <button class="modal-close" onclick="closeStyleBrowser()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="filter-tabs" id="styleFilterTabs">
+                <button class="filter-tab active" data-filter="all" onclick="displayStylesInBrowser('all')">{% trans "All" %}</button>
+                <button class="filter-tab" data-filter="system" onclick="displayStylesInBrowser('system')">{% trans "System" %}</button>
+                <button class="filter-tab" data-filter="public" onclick="displayStylesInBrowser('public')">{% trans "Public" %}</button>
+                <button class="filter-tab" data-filter="custom" onclick="displayStylesInBrowser('custom')">{% trans "My Custom" %}</button>
+            </div>
+            <div id="stylesList" class="styles-grid">
+                <!-- Populated by JavaScript -->
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-primary" onclick="openCreateStyleModal()">{% trans "Create New Style" %}</button>
+            <button type="button" class="btn btn-secondary" onclick="closeStyleBrowser()">{% trans "Close" %}</button>
+        </div>
+    </div>
+</div>
+
+<!-- Phase 5: Technique Browser Modal -->
+<div class="modal" id="techniqueBrowserModal" style="display: none;">
+    <div class="modal-content modal-large">
+        <div class="modal-header">
+            <h3>{% trans "Browse Writing Techniques" %}</h3>
+            <button class="modal-close" onclick="closeTechniqueBrowser()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="filter-tabs" id="techniqueFilterTabs">
+                <button class="filter-tab active" data-filter="all" onclick="displayTechniquesInBrowser('all')">{% trans "All" %}</button>
+                <button class="filter-tab" data-filter="narrative" onclick="displayTechniquesInBrowser('narrative')">{% trans "Narrative" %}</button>
+                <button class="filter-tab" data-filter="dialogue" onclick="displayTechniquesInBrowser('dialogue')">{% trans "Dialogue" %}</button>
+                <button class="filter-tab" data-filter="description" onclick="displayTechniquesInBrowser('description')">{% trans "Description" %}</button>
+                <button class="filter-tab" data-filter="pacing" onclick="displayTechniquesInBrowser('pacing')">{% trans "Pacing" %}</button>
+                <button class="filter-tab" data-filter="character" onclick="displayTechniquesInBrowser('character')">{% trans "Character" %}</button>
+            </div>
+            <div id="techniquesList" class="techniques-grid">
+                <!-- Populated by JavaScript -->
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-primary" onclick="openCreateTechniqueModal()">{% trans "Create New Technique" %}</button>
+            <button type="button" class="btn btn-secondary" onclick="closeTechniqueBrowser()">{% trans "Close" %}</button>
+        </div>
+    </div>
+</div>
+
+<!-- Phase 5: Create Custom Style Modal -->
+<div class="modal" id="createStyleModal" style="display: none;">
+    <div class="modal-content modal-large">
+        <div class="modal-header">
+            <h3>{% trans "Create Custom Writing Style" %}</h3>
+            <button class="modal-close" onclick="closeCreateStyleModal()">&times;</button>
+        </div>
+        <form id="createStyleForm" class="modal-form" onsubmit="submitCreateStyle(event)">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="style_name_key">{% trans "Style Name (Key)" %} <small style="color: #dc2626;">*</small></label>
+                    <input type="text" id="style_name_key" name="name_key" required placeholder="e.g., dark_fantasy">
+                    <small class="form-text">{% trans "Unique identifier (lowercase, underscores only)" %}</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="style_display_name">{% trans "Display Name" %} <small style="color: #dc2626;">*</small></label>
+                    <input type="text" id="style_display_name" name="style_name" required placeholder="e.g., Dark Fantasy">
+                </div>
+
+                <div class="form-group">
+                    <label for="style_description">{% trans "Description" %}</label>
+                    <textarea id="style_description" name="description" rows="3" placeholder="{% trans 'Describe what makes this style unique...' %}"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="style_instructions">{% trans "Writing Instructions" %}</label>
+                    <textarea id="style_instructions" name="instructions" rows="4" placeholder="{% trans 'Detailed instructions for the AI on how to write in this style...' %}"></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="style_pacing">{% trans "Pacing" %} <small style="color: #dc2626;">*</small></label>
+                        <select id="style_pacing" name="pacing" required>
+                            <option value="">{% trans "Select pacing..." %}</option>
+                            <option value="slow">{% trans "Slow" %}</option>
+                            <option value="moderate">{% trans "Moderate" %}</option>
+                            <option value="fast">{% trans "Fast" %}</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="style_tone">{% trans "Tone" %}</label>
+                        <input type="text" id="style_tone" name="tone" placeholder="e.g., mysterious, humorous">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="style_paragraph_length">{% trans "Paragraph Length" %} <small style="color: #dc2626;">*</small></label>
+                        <select id="style_paragraph_length" name="paragraph_length" required>
+                            <option value="">{% trans "Select length..." %}</option>
+                            <option value="short">{% trans "Short" %}</option>
+                            <option value="medium">{% trans "Medium" %}</option>
+                            <option value="long">{% trans "Long" %}</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="style_dialogue_ratio">{% trans "Dialogue Ratio" %} <small style="color: #dc2626;">*</small></label>
+                        <select id="style_dialogue_ratio" name="dialogue_ratio" required>
+                            <option value="">{% trans "Select ratio..." %}</option>
+                            <option value="low">{% trans "Low" %}</option>
+                            <option value="moderate">{% trans "Moderate" %}</option>
+                            <option value="high">{% trans "High" %}</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="style_cliffhanger" name="cliffhanger_enabled">
+                        {% trans "Enable Cliffhangers" %}
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="style_public" name="public">
+                        {% trans "Make Public (share with other users)" %}
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeCreateStyleModal()">{% trans "Cancel" %}</button>
+                <button type="submit" class="btn btn-primary">{% trans "Create Style" %}</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Phase 5: Create Custom Technique Modal -->
+<div class="modal" id="createTechniqueModal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>{% trans "Create Custom Writing Technique" %}</h3>
+            <button class="modal-close" onclick="closeCreateTechniqueModal()">&times;</button>
+        </div>
+        <form id="createTechniqueForm" class="modal-form" onsubmit="submitCreateTechnique(event)">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="technique_name_key">{% trans "Technique Name (Key)" %} <small style="color: #dc2626;">*</small></label>
+                    <input type="text" id="technique_name_key" name="name_key" required placeholder="e.g., foreshadowing">
+                    <small class="form-text">{% trans "Unique identifier (lowercase, underscores only)" %}</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="technique_display_name">{% trans "Display Name" %} <small style="color: #dc2626;">*</small></label>
+                    <input type="text" id="technique_display_name" name="technique_name" required placeholder="e.g., Foreshadowing">
+                </div>
+
+                <div class="form-group">
+                    <label for="technique_category">{% trans "Category" %} <small style="color: #dc2626;">*</small></label>
+                    <select id="technique_category" name="category" required>
+                        <option value="">{% trans "Select category..." %}</option>
+                        <option value="narrative">{% trans "Narrative" %}</option>
+                        <option value="dialogue">{% trans "Dialogue" %}</option>
+                        <option value="description">{% trans "Description" %}</option>
+                        <option value="pacing">{% trans "Pacing" %}</option>
+                        <option value="character">{% trans "Character" %}</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="technique_description">{% trans "Description" %}</label>
+                    <textarea id="technique_description" name="description" rows="3" placeholder="{% trans 'Describe this technique...' %}"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="technique_instructions">{% trans "Writing Instructions" %}</label>
+                    <textarea id="technique_instructions" name="instructions" rows="4" placeholder="{% trans 'Detailed instructions for the AI on how to apply this technique...' %}"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="technique_public" name="public">
+                        {% trans "Make Public (share with other users)" %}
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeCreateTechniqueModal()">{% trans "Cancel" %}</button>
+                <button type="submit" class="btn btn-primary">{% trans "Create Technique" %}</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Project Techniques Modal -->
+<div id="editTechniquesModal" class="modal-overlay" style="display: none;">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <h3>{% trans "Edit Writing Techniques" %}</h3>
+            <button class="modal-close" onclick="closeEditTechniquesModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="color: #6B7280; margin-bottom: 1rem;">{% trans "Select the writing techniques to use for this project:" %}</p>
+            <div id="techniquesCheckboxList" style="max-height: 400px; overflow-y: auto;">
+                <!-- Will be populated by JavaScript -->
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeEditTechniquesModal()">{% trans "Cancel" %}</button>
+            <button type="button" class="btn btn-primary" onclick="saveProjectTechniques()">{% trans "Save" %}</button>
+        </div>
+    </div>
+</div>
+
 <script src="/static/js/project.js"></script>
 <script src="/static/js/ai-modification.js"></script>
 <script>
@@ -1360,8 +1587,7 @@ const projectId = '{{ project.id }}';
 // Brainstorm functionality - currentIdea initialization
 let currentIdea = {{ previous_ideas|length }} > 0 ? {
     title: '{{ previous_ideas.0.title|default:"My Idea"|escapejs }}',
-    premise: `{{ previous_ideas.0.premise|default:""|escapejs }}`,
-    genre: '{{ previous_ideas.0.genre|default:"General"|escapejs }}'
+    premise: `{{ previous_ideas.0.premise|default:""|escapejs }}`
 } : null;
 
 // Brainstorm functionality - Idea management functions
@@ -1552,11 +1778,9 @@ if (manualForm) {
     manualForm.addEventListener('submit', async function(e) {
         e.preventDefault();
 
-        const projectGenre = '{{ project.genre_display|default:"General"|escapejs }}';
         const manualIdea = {
             title: 'My Idea',
-            premise: document.getElementById('manual_premise').value,
-            genre: projectGenre
+            premise: document.getElementById('manual_premise').value
         };
 
         try {
@@ -1596,11 +1820,9 @@ if (editForm) {
     editForm.addEventListener('submit', async function(e) {
         e.preventDefault();
 
-        const projectGenre = '{{ project.genre_display|default:"General"|escapejs }}';
         const updatedIdea = {
             title: 'My Idea',
-            premise: document.getElementById('edit_premise').value,
-            genre: projectGenre
+            premise: document.getElementById('edit_premise').value
         };
 
         try {
@@ -1652,14 +1874,7 @@ if (brainstormForm) {
     brainstormForm.addEventListener('submit', async function(e) {
         e.preventDefault();
 
-        const projectGenre = '{{ project.genre_display|default:""|escapejs }}';
-        if (!projectGenre) {
-            showToast('Please set a genre for your project first', 'error');
-            return;
-        }
-
         const formData = {
-            genre: projectGenre,
             theme: document.getElementById('theme').value || undefined,
             num_ideas: parseInt(document.getElementById('num_ideas').value)
         };
@@ -1801,7 +2016,6 @@ function displayIdeas(ideas) {
         card.innerHTML = `
             <div class="idea-title">${idea.title || 'Idea ' + (index + 1)}</div>
             <div class="idea-premise">${idea.premise || idea.description || ''}</div>
-            ${idea.genre ? `<div class="idea-tags"><span class="tag">${idea.genre}</span></div>` : ''}
         `;
 
         card.addEventListener('click', () => selectIdea(card, idea));
@@ -2157,6 +2371,9 @@ async function writeChapterFromOutline(outlineId) {
     // Set default word count
     document.getElementById('chapterWordCount').value = '10';
 
+    // Phase 5: Populate style override dropdown
+    populateStyleSelect('chapterStyleOverride', true, '{% trans "Use project default" %}');
+
     // Load examples
     await loadExamples();
 }
@@ -2178,6 +2395,12 @@ async function executeChapterWrite(exampleId = null) {
             writing_style: 'literary',
             target_word_count: words
         };
+
+        // Phase 5: Add style override if selected
+        const selectedStyleId = document.getElementById('chapterStyleOverride')?.value;
+        if (selectedStyleId) {
+            requestBody.style_override = parseInt(selectedStyleId);
+        }
 
         // Add example_id if selected
         if (exampleId) {
@@ -2345,7 +2568,6 @@ function filterExamples() {
                 <div class="example-meta">
                     <span>📁 ${example.category || 'General'}</span>
                     <span>🌐 ${example.locale || 'English'}</span>
-                    ${example.genre_name ? `<span>📚 ${example.genre_name}</span>` : ''}
                 </div>
                 ${scoresText ? `<div class="example-scores">${scoresText}</div>` : ''}
             </div>
@@ -2673,7 +2895,7 @@ function showNovelTextModal(data) {
     header.innerHTML = `
         <div>
             <h2 style="margin: 0; color: #111827; font-size: 24px;">${escapeHtml(data.title)}</h2>
-            <p style="margin: 8px 0 0 0; color: #6B7280; font-size: 14px;">by ${escapeHtml(data.author)} | ${escapeHtml(data.genre)} | ${data.chapter_count} chapters | ${data.total_word_count} words</p>
+            <p style="margin: 8px 0 0 0; color: #6B7280; font-size: 14px;">by ${escapeHtml(data.author)} | ${data.chapter_count} chapters | ${data.total_word_count} words</p>
         </div>
         <button class="btn btn-sm btn-danger" onclick="closeNovelTextModal()">✕ Close</button>
     `;
@@ -3006,17 +3228,33 @@ async function saveOutline(outlineId) {
     }
 }
 
-// Renumber all chapter outlines sequentially based on their display order
+// Renumber chapter outlines per-act (each act starts from 1)
 function renumberChapterOutlines() {
-    const outlineNumbers = document.querySelectorAll('.outline-number');
-    outlineNumbers.forEach((element, index) => {
-        element.textContent = index + 1;
+    // Renumber outlines within each act section
+    const actOutlineSections = document.querySelectorAll('.act-outlines');
+    actOutlineSections.forEach(actSection => {
+        const outlineNumbers = actSection.querySelectorAll('.outline-number');
+        outlineNumbers.forEach((element, index) => {
+            element.textContent = index + 1;
+        });
     });
+
+    // Also handle case when no acts exist (all outlines in .outlines-list)
+    const outlinesListSection = document.querySelector('.outlines-list');
+    if (outlinesListSection) {
+        const outlineNumbers = outlinesListSection.querySelectorAll('.outline-number');
+        outlineNumbers.forEach((element, index) => {
+            element.textContent = index + 1;
+        });
+    }
 }
 
 // Call renumbering on page load
 document.addEventListener('DOMContentLoaded', () => {
     renumberChapterOutlines();
+
+    // Phase 5: Initialize writing styles and techniques
+    initWritingStylesAndTechniques(projectId);
 
     // Enable AI text selection on content elements
     // Plot themes
@@ -3044,6 +3282,108 @@ document.addEventListener('DOMContentLoaded', () => {
         enableTextSelection('outline-events-text-{{ outline.id }}', 'outline');
     }
     {% endfor %}
+
+    // Load project techniques on page load
+    loadProjectTechniques();
 });
+
+// ========================================
+// Writing Techniques Management Functions
+// ========================================
+
+async function loadProjectTechniques() {
+    try {
+        const response = await apiRequest(`/api/projects/${projectId}/`);
+        const project = response;
+        const techniquesDisplay = document.getElementById('techniquesDisplay');
+
+        if (project.selected_techniques && project.selected_techniques.length > 0) {
+            // Fetch technique details
+            const techniquesResponse = await apiRequest('/api/writing-techniques/');
+            const allTechniques = techniquesResponse;
+
+            const selectedTechniques = allTechniques.filter(t =>
+                project.selected_techniques.includes(t.id)
+            );
+
+            const techniqueNames = selectedTechniques.map(t => t.display_name || t.name_key).join(', ');
+            techniquesDisplay.textContent = techniqueNames;
+            techniquesDisplay.style.color = '#111827';
+        } else {
+            techniquesDisplay.textContent = '{% trans "No techniques selected" %}';
+            techniquesDisplay.style.color = '#6B7280';
+        }
+    } catch (error) {
+        console.error('Error loading techniques:', error);
+        document.getElementById('techniquesDisplay').textContent = '{% trans "Error loading techniques" %}';
+    }
+}
+
+async function openEditTechniquesModal() {
+    try {
+        // Fetch all available techniques
+        const techniquesResponse = await apiRequest('/api/writing-techniques/');
+        const allTechniques = techniquesResponse;
+
+        // Fetch current project techniques
+        const projectResponse = await apiRequest(`/api/projects/${projectId}/`);
+        const selectedTechniqueIds = projectResponse.selected_techniques || [];
+
+        // Populate checkboxes
+        const checkboxList = document.getElementById('techniquesCheckboxList');
+        checkboxList.innerHTML = allTechniques.map(technique => `
+            <div style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB;">
+                <label style="display: flex; align-items: flex-start; cursor: pointer;">
+                    <input
+                        type="checkbox"
+                        value="${technique.id}"
+                        ${selectedTechniqueIds.includes(technique.id) ? 'checked' : ''}
+                        style="margin-right: 0.5rem; margin-top: 0.25rem;"
+                    >
+                    <div>
+                        <div style="font-weight: 500;">${technique.display_name || technique.name_key}</div>
+                        ${technique.description ? `<div style="color: #6B7280; font-size: 0.875rem; margin-top: 0.25rem;">${technique.description}</div>` : ''}
+                    </div>
+                </label>
+            </div>
+        `).join('');
+
+        // Show modal
+        document.getElementById('editTechniquesModal').style.display = 'flex';
+    } catch (error) {
+        console.error('Error opening techniques modal:', error);
+        showToast('{% trans "Error loading techniques" %}', 'error');
+    }
+}
+
+function closeEditTechniquesModal() {
+    document.getElementById('editTechniquesModal').style.display = 'none';
+}
+
+async function saveProjectTechniques() {
+    try {
+        // Get selected technique IDs
+        const checkboxes = document.querySelectorAll('#techniquesCheckboxList input[type="checkbox"]:checked');
+        const selectedIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+        // Update project
+        await apiRequest(`/api/projects/${projectId}/`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+                selected_techniques: selectedIds
+            })
+        });
+
+        showToast('{% trans "Techniques updated successfully" %}', 'success');
+        closeEditTechniquesModal();
+
+        // Reload techniques display
+        await loadProjectTechniques();
+    } catch (error) {
+        console.error('Error saving techniques:', error);
+        showToast('{% trans "Error saving techniques" %}', 'error');
+    }
+}
+
 </script>
 {% endblock %}

@@ -68,30 +68,26 @@ class TestUserAuthentication:
 class TestProjectCreation:
     """Test project creation functionality."""
 
-    def test_create_project_via_api(self, authenticated_client, test_user, test_genres):
+    def test_create_project_via_api(self, authenticated_client, test_user):
         """Test creating a project via API endpoint."""
         response = authenticated_client.post('/api/projects/', {
             'title': 'My Test Novel',
-            'genre': test_genres['sci_fi'].id,
         })
 
         assert response.status_code == 201
         assert 'id' in response.data
         assert response.data['title'] == 'My Test Novel'
-        assert response.data['genre'] == test_genres['sci_fi'].id
 
         # Verify project was created in database
         project = NovelProject.objects.get(id=response.data['id'])
         assert project.user == test_user
         assert project.title == 'My Test Novel'
-        assert project.genre == test_genres['sci_fi']
         assert project.chroma_collection_name is not None
 
     def test_create_project_unauthenticated(self, api_client):
         """Test creating project fails without authentication."""
         response = api_client.post('/api/projects/', {
             'title': 'Unauthorized Novel',
-            'genre': 'Fantasy',
         })
 
         # Accept both 401 Unauthorized and 403 Forbidden
@@ -491,7 +487,7 @@ class TestChapterGeneration:
 class TestCompleteWorkflow:
     """Test the complete novel creation workflow from start to finish."""
 
-    def test_complete_novel_workflow(self, client, api_client, mock_all_openai, test_genres):
+    def test_complete_novel_workflow(self, client, api_client, mock_all_openai):
         """
         Test complete workflow:
         1. User registration/login
@@ -517,7 +513,6 @@ class TestCompleteWorkflow:
         # Step 2: Create project
         project_response = api_client.post('/api/projects/', {
             'title': 'My Complete Novel',
-            'genre': test_genres['fantasy'].id,
         })
         assert project_response.status_code == 201
         project_id = project_response.data['id']
@@ -595,13 +590,12 @@ class TestCompleteWorkflow:
         assert ChapterOutline.objects.filter(project=project).count() == 3
         assert Chapter.objects.filter(project=project).count() == 3
 
-    def test_workflow_maintains_consistency(self, authenticated_client, test_user, mock_all_openai, test_genres):
+    def test_workflow_maintains_consistency(self, authenticated_client, test_user, mock_all_openai):
         """Test that the workflow maintains data consistency throughout."""
         # Create project
         project = NovelProject.objects.create(
             user=test_user,
-            title='Consistency Test Novel',
-            genre=test_genres['mystery']
+            title='Consistency Test Novel'
         )
 
         # Create plot

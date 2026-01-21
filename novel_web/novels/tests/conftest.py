@@ -8,13 +8,88 @@ from unittest.mock import Mock, patch, MagicMock
 from django.contrib.auth.models import User
 from django.conf import settings
 from rest_framework.test import APIClient
-from novels.models import NovelProject, Plot, Act, Genre, GenreTranslation, ScoreCategory, ScoreCategoryTranslation, Example, ExampleScore
+from novels.models import NovelProject, Plot, Act, ScoreCategory, ScoreCategoryTranslation, Example, ExampleScore
 from novels.tests.mocks.openai_responses import get_mock_response_for_prompt
+
+
+# ============================================================================
+# Pytest Configuration Hooks
+# ============================================================================
+
+def pytest_configure(config):
+    """
+    Pytest hook that runs before Django is set up.
+    Patch the OpenAI logging function and client to prevent real API calls during tests.
+    """
+    from novels.tests.mocks.openai_responses import get_mock_response_for_prompt
+
+    # Patch patch_openai_for_logging to do nothing during tests
+    patcher1 = patch('novels.ai_client.patch_openai_for_logging', lambda: None)
+    patcher1.start()
+
+    # Create a mock OpenAI client that will be used everywhere
+    def create_mock_response(prompt_text):
+        """Create a mock response that mimics OpenAI API response structure."""
+        mock_response = Mock()
+        response_content = get_mock_response_for_prompt(prompt_text)
+
+        mock_message = Mock()
+        mock_message.content = response_content
+        mock_choice = Mock()
+        mock_choice.message = mock_message
+        mock_response.choices = [mock_choice]
+
+        mock_usage = Mock()
+        mock_usage.prompt_tokens = 100
+        mock_usage.completion_tokens = 200
+        mock_usage.total_tokens = 300
+        mock_response.usage = mock_usage
+
+        return mock_response
+
+    def mock_create(*args, **kwargs):
+        """Mock the chat.completions.create method."""
+        messages = kwargs.get('messages', args[0] if args else [])
+        prompt_text = ""
+        if isinstance(messages, list):
+            for msg in messages:
+                if isinstance(msg, dict) and 'content' in msg:
+                    prompt_text += msg['content'] + " "
+                elif hasattr(msg, 'content'):
+                    prompt_text += msg.content + " "
+        return create_mock_response(prompt_text)
+
+    # Create mock client with proper structure
+    mock_completions = Mock()
+    mock_completions.create = Mock(side_effect=mock_create)
+    mock_chat = Mock()
+    mock_chat.completions = mock_completions
+    mock_client = Mock()
+    mock_client.chat = mock_chat
+
+    # Patch OpenAI class at ALL import locations (not just source)
+    patcher2 = patch('openai.OpenAI', return_value=mock_client)
+    patcher2.start()
+
+    # Patch at the usage point in novels.ai_client
+    patcher3 = patch('novels.ai_client.OpenAI', return_value=mock_client)
+    patcher3.start()
+
+    # Store patchers so we can stop them later
+    config._openai_patches = [patcher1, patcher2, patcher3]
+
+
+def pytest_unconfigure(config):
+    """Clean up patches after tests complete."""
+    if hasattr(config, '_openai_patches'):
+        for patcher in config._openai_patches:
+            patcher.stop()
 
 
 # ============================================================================
 # Django and Database Configuration
 # ============================================================================
+
 
 @pytest.fixture(scope='session')
 def django_db_setup(django_db_setup, django_db_blocker):
@@ -67,36 +142,6 @@ def authenticated_client(api_client, test_user):
     """Create an authenticated API client."""
     api_client.force_authenticate(user=test_user)
     return api_client
-
-
-# ============================================================================
-# Genre Fixtures
-# ============================================================================
-
-@pytest.fixture
-def test_genres(db):
-    """Create test genres with translations."""
-    genres = {}
-
-    # Create Fantasy genre
-    fantasy_genre = Genre.objects.create(name_key='fantasy', public=True)
-    GenreTranslation.objects.create(genre=fantasy_genre, language_code='en', name='Fantasy')
-    GenreTranslation.objects.create(genre=fantasy_genre, language_code='zh-hans', name='奇幻')
-    genres['fantasy'] = fantasy_genre
-
-    # Create Science Fiction genre
-    scifi_genre = Genre.objects.create(name_key='sci_fi', public=True)
-    GenreTranslation.objects.create(genre=scifi_genre, language_code='en', name='Science Fiction')
-    GenreTranslation.objects.create(genre=scifi_genre, language_code='zh-hans', name='科幻')
-    genres['sci_fi'] = scifi_genre
-
-    # Create Mystery genre
-    mystery_genre = Genre.objects.create(name_key='mystery', public=True)
-    GenreTranslation.objects.create(genre=mystery_genre, language_code='en', name='Mystery')
-    GenreTranslation.objects.create(genre=mystery_genre, language_code='zh-hans', name='悬疑')
-    genres['mystery'] = mystery_genre
-
-    return genres
 
 
 # ============================================================================
@@ -176,12 +221,11 @@ def test_score_categories(db):
 # ============================================================================
 
 @pytest.fixture
-def test_example(db, test_user, test_genres, test_score_categories):
+def test_example(db, test_user, test_score_categories):
     """Create a test example with scores."""
     # Create example
     example = Example.objects.create(
         user=test_user,
-        genre=test_genres['fantasy'],
         public=True,
         is_good=True,
         category='opening',
@@ -237,12 +281,11 @@ and it began to glow with a soft blue light.''',
 # ============================================================================
 
 @pytest.fixture
-def test_project(db, test_user, test_genres):
+def test_project(db, test_user):
     """Create a test project."""
     return NovelProject.objects.create(
         user=test_user,
         title='Test Novel Project',
-        genre=test_genres['fantasy'],
         status='draft'
     )
 
@@ -351,7 +394,8 @@ def mock_openai_chat():
          patch('novel_agent.modules.chapter_writer.ChatOpenAI', return_value=mock_instance), \
          patch('novel_agent.modules.editor.ChatOpenAI', return_value=mock_instance), \
          patch('novel_agent.modules.consistency_checker.ChatOpenAI', return_value=mock_instance), \
-         patch('novel_agent.modules.setting_generator.ChatOpenAI', return_value=mock_instance):
+         patch('novel_agent.modules.setting_generator.ChatOpenAI', return_value=mock_instance), \
+         patch('langchain_openai.ChatOpenAI', return_value=mock_instance):
         yield mock_instance
 
 
@@ -432,12 +476,75 @@ def mock_example_scorer():
         yield mock_scorer
 
 
+@pytest.fixture(autouse=True)
+def mock_openai_client():
+    """Mock the raw OpenAI client to prevent real API calls."""
+    from novels.tests.mocks.openai_responses import get_mock_response_for_prompt
+
+    # Create mock response object
+    def create_mock_response(prompt_text):
+        """Create a mock response that mimics OpenAI API response structure."""
+        mock_response = Mock()
+
+        # Get appropriate mock content based on prompt
+        response_content = get_mock_response_for_prompt(prompt_text)
+
+        # Mock the response structure
+        mock_message = Mock()
+        mock_message.content = response_content
+
+        mock_choice = Mock()
+        mock_choice.message = mock_message
+
+        mock_response.choices = [mock_choice]
+
+        # Mock token usage
+        mock_usage = Mock()
+        mock_usage.prompt_tokens = 100
+        mock_usage.completion_tokens = 200
+        mock_usage.total_tokens = 300
+
+        mock_response.usage = mock_usage
+
+        return mock_response
+
+    # Create mock completion method
+    def mock_create(*args, **kwargs):
+        """Mock the chat.completions.create method."""
+        messages = kwargs.get('messages', args[0] if args else [])
+
+        # Extract prompt text from messages
+        prompt_text = ""
+        if isinstance(messages, list):
+            for msg in messages:
+                if isinstance(msg, dict) and 'content' in msg:
+                    prompt_text += msg['content'] + " "
+                elif hasattr(msg, 'content'):
+                    prompt_text += msg.content + " "
+
+        return create_mock_response(prompt_text)
+
+    # Create mock client instance with nested structure
+    mock_completions = Mock()
+    mock_completions.create = Mock(side_effect=mock_create)
+
+    mock_chat = Mock()
+    mock_chat.completions = mock_completions
+
+    mock_client = Mock()
+    mock_client.chat = mock_chat
+
+    # Patch the OpenAI client class
+    with patch('openai.OpenAI', return_value=mock_client):
+        yield mock_client
+
+
 # ============================================================================
 # Combined Mock Fixture for Full Integration Tests
 # ============================================================================
 
 @pytest.fixture
-def mock_all_openai(mock_openai_chat, mock_openai_embeddings, mock_chroma, mock_channel_layer, mock_example_scorer):
+def mock_all_openai(mock_openai_chat, mock_openai_embeddings, mock_chroma, mock_channel_layer, mock_example_scorer, mock_openai_client):
     """
     Combined fixture that mocks all OpenAI and related services.
     Use this for integration tests to ensure no real API calls are made.
@@ -447,7 +554,8 @@ def mock_all_openai(mock_openai_chat, mock_openai_embeddings, mock_chroma, mock_
         'embeddings': mock_openai_embeddings,
         'chroma': mock_chroma,
         'channel_layer': mock_channel_layer,
-        'scorer': mock_example_scorer
+        'scorer': mock_example_scorer,
+        'client': mock_openai_client
     }
 
 
@@ -458,9 +566,8 @@ def mock_all_openai(mock_openai_chat, mock_openai_embeddings, mock_chroma, mock_
 @pytest.fixture
 def create_idea_data():
     """Factory fixture to create brainstorm idea data."""
-    def _create_data(num_ideas=1, genre='Fantasy', theme='Adventure'):
+    def _create_data(num_ideas=1, theme='Adventure'):
         return {
-            'genre': genre,
             'theme': theme,
             'num_ideas': num_ideas
         }

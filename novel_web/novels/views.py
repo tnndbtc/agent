@@ -15,7 +15,8 @@ from .models import (
     NovelProject, Plot, Act, Character, Setting,
     ChapterOutline, Chapter, Example, GenerationTask, APIPerformanceMetric,
     ScoreCategory, ScoreCategoryTranslation, ExampleScore,
-    Genre, GenreTranslation, UserProfile, UserPrompt
+    UserProfile, UserPrompt,
+    SystemPolicy, AgentRole, WritingStyle, WritingTechnique
 )
 from .serializers import (
     NovelProjectSerializer, NovelProjectListSerializer,
@@ -26,15 +27,17 @@ from .serializers import (
     CreateCharacterRequestSerializer, WriteChapterRequestSerializer,
     EditRequestSerializer, ScoreRequestSerializer,
     ScoreCategorySerializer, ScoreCategoryTranslationSerializer, ExampleScoreSerializer,
-    GenreSerializer, GenreTranslationSerializer,
-    UserPromptSerializer, AIModificationRequestSerializer, AIModificationResponseSerializer
+    UserPromptSerializer, AIModificationRequestSerializer, AIModificationResponseSerializer,
+    SystemPolicySerializer, AgentRoleSerializer,
+    WritingStyleSerializer, WritingTechniqueSerializer
 )
 from .services import (
     BrainstormService, PlotService, CharacterService,
     SettingService, OutlineService, WritingService,
     EditingService, ConsistencyService, ScoringService, ExportService,
-    get_language_name, ProjectService, AIModificationService
+    ProjectService, AIModificationService
 )
+from .prompt_assembly import get_language_name
 from .tasks import brainstorm_ideas_task, write_chapter_task, create_outline_task, score_novel_task
 from .permissions import IsOwner
 from .ai_client import generate_theme_from_idea
@@ -187,10 +190,6 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             'arc': plot_data.get('arc', '')
         }
 
-        # Only set genre if project has one
-        if project.genre:
-            defaults['genre'] = project.genre
-
         plot, created = Plot.objects.update_or_create(
             project=project,
             defaults=defaults
@@ -232,7 +231,6 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             service = ProjectService(project)
             service.memory.store_plot({
                 'title': plot.premise,
-                'genre': str(plot.genre) if plot.genre else '',
                 'premise': plot.premise,
                 'conflict': plot.conflict,
                 'theme': plot.themes,
@@ -246,7 +244,6 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         # Auto-generate protagonist character
         character_plot_data = {
             'title': plot.premise,
-            'genre': plot.genre,
             'premise': plot.premise,
             'themes': plot.themes
         }
@@ -408,7 +405,6 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
 
         plot_data = {
             'title': project.plot.premise,
-            'genre': project.plot.genre,
             'premise': project.plot.premise,
             'themes': project.plot.themes
         }
@@ -742,7 +738,6 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
 
         # If language not specified in request, use user's UI language preference
         if 'language' not in validated_data or not validated_data['language']:
-            from novels.services import get_language_name
             user_language_code = getattr(request, 'LANGUAGE_CODE', 'en')
             validated_data['language'] = get_language_name(user_language_code)
 
@@ -805,7 +800,6 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         # Gather novel data
         novel_data = {
             'title': project.title,
-            'genre': project.genre_display,
             'author': request.user.get_full_name() or request.user.username,
             'chapters': []
         }
@@ -843,7 +837,6 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         # Gather novel data
         novel_data = {
             'title': project.title,
-            'genre': project.genre_display,
             'author': request.user.get_full_name() or request.user.username,
             'chapters': []
         }
@@ -859,7 +852,6 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         # Build full text
         full_text = f"{project.title}\n"
         full_text += f"by {request.user.get_full_name() or request.user.username}\n"
-        full_text += f"Genre: {project.genre}\n"
         full_text += "=" * 80 + "\n\n"
 
         for chapter in novel_data['chapters']:
@@ -871,7 +863,6 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         return Response({
             'title': project.title,
             'author': request.user.get_full_name() or request.user.username,
-            'genre': project.genre_display,
             'full_text': full_text,
             'total_word_count': project.total_word_count,
             'chapter_count': len(novel_data['chapters'])
@@ -1046,30 +1037,21 @@ class GenerationTaskViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(stats)
 
 
-class GenreViewSet(viewsets.ReadOnlyModelViewSet):
-    """ViewSet for Genre model - read-only access to available genres."""
-
-    permission_classes = [IsAuthenticated]
-    serializer_class = GenreSerializer
-
-    def get_queryset(self):
-        """Return all public genres with translations."""
-        return Genre.objects.filter(public=True).prefetch_related('translations').order_by('name_key')
-
-
 class ExampleViewSet(viewsets.ModelViewSet):
     """ViewSet for Example model."""
 
     permission_classes = [IsAuthenticated]
     serializer_class = ExampleSerializer
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['genre', 'public', 'is_good', 'category']
+    filterset_fields = ['public', 'is_good', 'category']
 
     def get_queryset(self):
         """Return user's own examples and all public examples."""
         return Example.objects.filter(
             Q(public=True) | Q(user=self.request.user)
-        ).select_related('genre', 'user').prefetch_related('scores__category').distinct()
+        ).select_related('user').prefetch_related(
+            'scores__category__translations'
+        ).distinct()
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -1129,7 +1111,7 @@ class ExampleViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='suggest-metadata')
     def suggest_metadata(self, request):
-        """Suggest title, category, genre, and locale for example content using OpenAI."""
+        """Suggest title, category, and locale for example content using OpenAI."""
         from langchain_openai import ChatOpenAI
 
         content = request.data.get('content', '')
@@ -1140,14 +1122,11 @@ class ExampleViewSet(viewsets.ModelViewSet):
             )
 
         # Get available choices
-        from novels.models import Genre
         category_choices = [choice[0] for choice in Example.CATEGORY_CHOICES]
         locale_choices = [choice[0] for choice in Example.LOCALE_CHOICES]
-        genre_objects = Genre.objects.filter(public=True)
-        genre_names = [str(genre) for genre in genre_objects]
 
         try:
-            llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+            llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
 
             prompt = f"""Analyze the following writing example and suggest appropriate metadata.
 
@@ -1156,16 +1135,14 @@ Content:
 
 Please suggest:
 1. A short one-line title (max 100 characters)
-2. Category (choose from: {', '.join(category_choices)})
-3. Genre (choose from: {', '.join(genre_names) if genre_names else 'General'})
-4. Locale/Language (choose from: {', '.join(locale_choices)})
+2. Category - choose EXACTLY ONE from this list: {', '.join(category_choices)}
+3. Locale/Language - choose EXACTLY ONE from this list: {', '.join(locale_choices)}
 
-Respond in JSON format:
+IMPORTANT: You must respond with ONLY a valid JSON object in this exact format, with no additional text before or after and no markdown formatting:
 {{
-    "title": "suggested title",
-    "category": "category name",
-    "genre": "genre name",
-    "locale": "locale name"
+    "title": "your suggested title here",
+    "category": "one of the categories from the list",
+    "locale": "one of the locales from the list"
 }}
 """
 
@@ -1209,6 +1186,11 @@ Respond in JSON format:
 
             # Try to extract JSON from the response
             import re
+            # Strip markdown code blocks if present
+            content_text = re.sub(r'```json\s*|\s*```', '', content_text)
+            content_text = content_text.strip()
+
+            # Try to find JSON object
             json_match = re.search(r'\{[^{}]*\}', content_text, re.DOTALL)
             if json_match:
                 suggestions = json.loads(json_match.group())
@@ -1216,12 +1198,31 @@ Respond in JSON format:
                 # Fallback: try to parse the entire response
                 suggestions = json.loads(content_text)
 
-            # Validate and clean suggestions
+            # Validate and clean suggestions with case-insensitive matching
+            suggested_category = suggestions.get('category', '')
+            validated_category = ''
+            if suggested_category:
+                # Case-insensitive lookup
+                suggested_lower = suggested_category.lower()
+                for choice in category_choices:
+                    if choice.lower() == suggested_lower:
+                        validated_category = choice  # Use the canonical lowercase value
+                        break
+
+            suggested_locale = suggestions.get('locale', 'English')
+            validated_locale = 'English'
+            if suggested_locale:
+                # Case-insensitive lookup
+                suggested_lower = suggested_locale.lower()
+                for choice in locale_choices:
+                    if choice.lower() == suggested_lower:
+                        validated_locale = choice  # Use the canonical value
+                        break
+
             result = {
                 'title': suggestions.get('title', '')[:200],  # Max 200 chars
-                'category': suggestions.get('category', '') if suggestions.get('category') in category_choices else '',
-                'genre': suggestions.get('genre', ''),
-                'locale': suggestions.get('locale', 'English') if suggestions.get('locale') in locale_choices else 'English',
+                'category': validated_category,
+                'locale': validated_locale,
                 'token_usage': token_usage
             }
 
@@ -1459,3 +1460,99 @@ class AIModificationViewSet(viewsets.ViewSet):
             {'id': 'clarity', 'name': 'Improve clarity', 'prompt': 'Improve the clarity and readability of this text without changing its meaning.'},
         ]
         return Response(presets, status=status.HTTP_200_OK)
+
+
+# ========================================
+# Prompt Architecture ViewSets (5-Layer)
+# ========================================
+
+class SystemPolicyViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for SystemPolicy model - read-only access to system policies."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = SystemPolicySerializer
+
+    def get_queryset(self):
+        """Return all active system policies with translations."""
+        return SystemPolicy.objects.filter(is_active=True).prefetch_related('translations').order_by('priority', 'name_key')
+
+
+class AgentRoleViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for AgentRole model - read-only access to agent roles."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = AgentRoleSerializer
+
+    def get_queryset(self):
+        """Return all active agent roles with translations."""
+        return AgentRole.objects.filter(is_active=True).prefetch_related('translations').order_by('name_key')
+
+
+class WritingStyleViewSet(viewsets.ModelViewSet):
+    """ViewSet for WritingStyle model."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = WritingStyleSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        """Return accessible styles (system styles + public styles + user's private styles)."""
+        return WritingStyle.objects.filter(
+            Q(is_system=True) | Q(public=True) | Q(created_by=self.request.user)
+        ).prefetch_related('translations').distinct()
+
+    def perform_create(self, serializer):
+        """Create style with current user as creator."""
+        serializer.save(created_by=self.request.user)
+
+    def perform_update(self, serializer):
+        """Only allow users to update their own non-system styles."""
+        instance = self.get_object()
+        if instance.is_system:
+            raise serializers.ValidationError("Cannot modify system styles")
+        if instance.created_by != self.request.user:
+            raise serializers.ValidationError("Cannot modify another user's style")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        """Only allow users to delete their own non-system styles."""
+        if instance.is_system:
+            raise serializers.ValidationError("Cannot delete system styles")
+        if instance.created_by != self.request.user:
+            raise serializers.ValidationError("Cannot delete another user's style")
+        instance.delete()
+
+
+class WritingTechniqueViewSet(viewsets.ModelViewSet):
+    """ViewSet for WritingTechnique model."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = WritingTechniqueSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        """Return accessible techniques (system techniques + public techniques + user's private techniques)."""
+        return WritingTechnique.objects.filter(
+            Q(is_system=True) | Q(public=True) | Q(created_by=self.request.user)
+        ).prefetch_related('translations').distinct()
+
+    def perform_create(self, serializer):
+        """Create technique with current user as creator."""
+        serializer.save(created_by=self.request.user)
+
+    def perform_update(self, serializer):
+        """Only allow users to update their own non-system techniques."""
+        instance = self.get_object()
+        if instance.is_system:
+            raise serializers.ValidationError("Cannot modify system techniques")
+        if instance.created_by != self.request.user:
+            raise serializers.ValidationError("Cannot modify another user's technique")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        """Only allow users to delete their own non-system techniques."""
+        if instance.is_system:
+            raise serializers.ValidationError("Cannot delete system techniques")
+        if instance.created_by != self.request.user:
+            raise serializers.ValidationError("Cannot delete another user's technique")
+        instance.delete()

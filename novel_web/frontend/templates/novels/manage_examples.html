@@ -8,17 +8,9 @@
 <div class="dashboard">
     <div class="dashboard-header">
         <h2>{% trans "Manage Examples" %}</h2>
-        <div style="display: flex; gap: 1rem;">
-            <select id="genreFilter" class="form-control" style="width: 200px;" onchange="filterByGenre()">
-                <option value="">{% trans "All Genres" %}</option>
-                {% for genre in genres %}
-                <option value="{{ genre.id }}">{{ genre }}</option>
-                {% endfor %}
-            </select>
-            <button class="btn btn-primary" onclick="openCreateModal()">
-                ➕ {% trans "Create Example" %}
-            </button>
-        </div>
+        <button class="btn btn-primary" onclick="openCreateModal()">
+            ➕ {% trans "Create Example" %}
+        </button>
     </div>
 
     <!-- Public Examples Section -->
@@ -27,11 +19,8 @@
         {% if public_examples %}
         <div class="examples-grid" id="publicExamplesGrid">
             {% for example in public_examples %}
-            <div class="example-card" data-genre="{{ example.genre.id|default:'' }}" data-example-id="{{ example.id }}">
+            <div class="example-card" data-example-id="{{ example.id }}">
                 <div class="example-header">
-                    {% if example.genre %}
-                    <span class="genre-badge">{{ example.genre }}</span>
-                    {% endif %}
                     <span class="category-badge category-{{ example.category }}">{{ example.get_category_display }}</span>
                     <span class="quality-badge {% if example.is_good %}good{% else %}bad{% endif %}">
                         {% if example.is_good %}✓ {% trans "Good" %}{% else %}✗ {% trans "Bad" %}{% endif %}
@@ -82,11 +71,8 @@
         {% if private_examples %}
         <div class="examples-grid" id="privateExamplesGrid">
             {% for example in private_examples %}
-            <div class="example-card" data-genre="{{ example.genre.id|default:'' }}" data-example-id="{{ example.id }}">
+            <div class="example-card" data-example-id="{{ example.id }}">
                 <div class="example-header">
-                    {% if example.genre %}
-                    <span class="genre-badge">{{ example.genre }}</span>
-                    {% endif %}
                     <span class="category-badge category-{{ example.category }}">{{ example.get_category_display }}</span>
                     <span class="quality-badge {% if example.is_good %}good{% else %}bad{% endif %}">
                         {% if example.is_good %}✓ {% trans "Good" %}{% else %}✗ {% trans "Bad" %}{% endif %}
@@ -192,21 +178,6 @@
             </div>
 
             <div class="form-group">
-                <label for="genre">{% trans "Genre" %}</label>
-                <select id="genre" name="genre" class="form-control" onchange="handleGenreChange()">
-                    <option value="">{% trans "No specific genre" %}</option>
-                    {% for genre in genres %}
-                    <option value="{{ genre.id }}">{{ genre }}</option>
-                    {% endfor %}
-                    <option value="Custom">{% trans "Custom (Enter your own)" %}</option>
-                </select>
-            </div>
-            <div class="form-group" id="customGenreGroup" style="display: none;">
-                <label for="customGenre">{% trans "Custom Genre" %}</label>
-                <input type="text" id="customGenre" name="customGenre" class="form-control" placeholder="{% trans "Enter custom genre..." %}">
-            </div>
-
-            <div class="form-group">
                 <label>
                     <input type="checkbox" id="isGood" name="is_good" checked>
                     {% trans "This is a good example" %}
@@ -279,14 +250,6 @@
     gap: 0.5rem;
     margin-bottom: 1rem;
     flex-wrap: wrap;
-}
-
-.genre-badge {
-    background: #3b82f6;
-    color: white;
-    padding: 0.25rem 0.75rem;
-    border-radius: 12px;
-    font-size: 0.875rem;
 }
 
 .category-badge {
@@ -438,25 +401,12 @@ function openCreateModal() {
 
     // Hide progress
     document.getElementById('scoreProgressContainer').style.display = 'none';
-    document.getElementById('customGenreGroup').style.display = 'none';
 }
 
 function closeModal() {
     document.getElementById('exampleModal').style.display = 'none';
     currentExampleId = null;
-    document.getElementById('customGenreGroup').style.display = 'none';
     document.getElementById('scoreProgressContainer').style.display = 'none';
-}
-
-function handleGenreChange() {
-    const genreSelect = document.getElementById('genre');
-    const customGenreGroup = document.getElementById('customGenreGroup');
-
-    if (genreSelect.value === 'Custom') {
-        customGenreGroup.style.display = 'block';
-    } else {
-        customGenreGroup.style.display = 'none';
-    }
 }
 
 async function editExample(exampleId) {
@@ -475,29 +425,6 @@ async function editExample(exampleId) {
         document.getElementById('locale').value = response.locale || 'English';
         document.getElementById('description').value = response.description || '';
         document.getElementById('category').value = response.category || '';
-
-        // Handle genre - check if it's a predefined genre ID or custom text
-        const genreSelect = document.getElementById('genre');
-        const customGenreGroup = document.getElementById('customGenreGroup');
-        const customGenreInput = document.getElementById('customGenre');
-
-        if (response.genre) {
-            // Check if the genre value exists in the select options
-            const optionExists = Array.from(genreSelect.options).some(option => option.value == response.genre);
-            if (optionExists) {
-                genreSelect.value = response.genre;
-                customGenreGroup.style.display = 'none';
-            } else {
-                // It's a custom genre
-                genreSelect.value = 'Custom';
-                customGenreInput.value = response.genre;
-                customGenreGroup.style.display = 'block';
-            }
-        } else {
-            genreSelect.value = '';
-            customGenreGroup.style.display = 'none';
-        }
-
         document.getElementById('isGood').checked = response.is_good || false;
         document.getElementById('public').checked = response.public || false;
 
@@ -535,16 +462,6 @@ async function editExample(exampleId) {
 document.getElementById('exampleForm').addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    // Determine the final genre value
-    const genreSelect = document.getElementById('genre').value;
-    let genre = null;
-    if (genreSelect === 'Custom') {
-        const customGenreValue = document.getElementById('customGenre').value.trim();
-        genre = customGenreValue || null;
-    } else if (genreSelect) {
-        genre = genreSelect;
-    }
-
     const categoryValue = document.getElementById('category').value;
     const data = {
         content: document.getElementById('content').value,
@@ -552,7 +469,6 @@ document.getElementById('exampleForm').addEventListener('submit', async (e) => {
         locale: document.getElementById('locale').value,
         description: document.getElementById('description').value,
         category: categoryValue || null,
-        genre: genre,
         is_good: document.getElementById('isGood').checked,
         public: document.getElementById('public').checked
     };
@@ -635,20 +551,6 @@ async function deleteExample(exampleId) {
     }
 }
 
-function filterByGenre() {
-    const genreId = document.getElementById('genreFilter').value;
-    const allCards = document.querySelectorAll('.example-card');
-
-    allCards.forEach(card => {
-        const cardGenre = card.dataset.genre;
-        if (!genreId || cardGenre === genreId) {
-            card.style.display = 'block';
-        } else {
-            card.style.display = 'none';
-        }
-    });
-}
-
 // Enable Generate Scores button when content is entered
 document.getElementById('content').addEventListener('input', function() {
     const hasContent = this.value.trim().length > 0;
@@ -698,24 +600,6 @@ document.getElementById('generateScoresBtn').addEventListener('click', async fun
             }
             if (metadataResponse.locale) {
                 document.getElementById('locale').value = metadataResponse.locale;
-            }
-            if (metadataResponse.genre) {
-                // Check if genre matches a predefined genre
-                const genreSelect = document.getElementById('genre');
-                const genreOptions = Array.from(genreSelect.options);
-                const matchingOption = genreOptions.find(opt =>
-                    opt.textContent.toLowerCase() === metadataResponse.genre.toLowerCase()
-                );
-
-                if (matchingOption) {
-                    genreSelect.value = matchingOption.value;
-                    document.getElementById('customGenreGroup').style.display = 'none';
-                } else {
-                    // Use custom genre
-                    genreSelect.value = 'Custom';
-                    document.getElementById('customGenre').value = metadataResponse.genre;
-                    document.getElementById('customGenreGroup').style.display = 'block';
-                }
             }
 
             // Show token usage if available
