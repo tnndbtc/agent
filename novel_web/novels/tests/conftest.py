@@ -298,7 +298,7 @@ def test_plot_with_acts(db, test_project):
     # Create plot
     plot = Plot.objects.create(
         project=test_project,
-        premise="A young wizard discovers their destiny and must battle an evil dark lord",
+        # Removed 'premise' - deprecated field
         conflict="Battle between light and darkness",
         themes="Coming of age, accepting responsibility, good vs evil",
         structure="Classic three-act structure with clear turning points",

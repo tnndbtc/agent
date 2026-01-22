@@ -98,6 +98,7 @@ class NovelProjectSerializer(serializers.ModelSerializer):
     settings = SettingSerializer(many=True, read_only=True)
     chapter_outlines = ChapterOutlineSerializer(many=True, read_only=True)
     chapters = ChapterListSerializer(many=True, read_only=True)
+    default_style_display = serializers.SerializerMethodField()
 
     class Meta:
         model = NovelProject
@@ -105,9 +106,22 @@ class NovelProjectSerializer(serializers.ModelSerializer):
             'id', 'user', 'title', 'status',
             'total_word_count', 'created_at', 'updated_at',
             'plot', 'characters', 'settings', 'chapter_outlines', 'chapters',
-            'selected_techniques'
+            'selected_techniques', 'default_style', 'default_style_display'
         ]
         read_only_fields = ['id', 'user', 'chroma_collection_name', 'total_word_count', 'created_at', 'updated_at']
+
+    def get_default_style_display(self, obj):
+        """Return minimal default style info (id and display_name)."""
+        if obj.default_style:
+            request = self.context.get('request')
+            language_code = getattr(request, 'LANGUAGE_CODE', 'en') if request else 'en'
+            translation = obj.default_style.translations.filter(language_code=language_code).first()
+            return {
+                'id': obj.default_style.id,
+                'name_key': obj.default_style.name_key,
+                'display_name': translation.name if translation else obj.default_style.name_key
+            }
+        return None
 
     def validate(self, data):
         """Custom validation for unique title per user."""
@@ -126,14 +140,24 @@ class NovelProjectListSerializer(serializers.ModelSerializer):
 
     user = UserSerializer(read_only=True)
     chapter_count = serializers.SerializerMethodField()
+    default_style_name = serializers.SerializerMethodField()
 
     class Meta:
         model = NovelProject
-        fields = ['id', 'title', 'status', 'total_word_count', 'chapter_count', 'updated_at', 'user']
+        fields = ['id', 'title', 'status', 'total_word_count', 'chapter_count', 'updated_at', 'user', 'default_style_name']
         read_only_fields = fields
 
     def get_chapter_count(self, obj):
         return obj.chapters.count()
+
+    def get_default_style_name(self, obj):
+        """Return localized style name or None."""
+        if obj.default_style:
+            request = self.context.get('request')
+            language_code = getattr(request, 'LANGUAGE_CODE', 'en') if request else 'en'
+            translation = obj.default_style.translations.filter(language_code=language_code).first()
+            return translation.name if translation else obj.default_style.name_key
+        return None
 
 
 class ScoreCategoryTranslationSerializer(serializers.ModelSerializer):
@@ -217,9 +241,9 @@ class BrainstormRequestSerializer(serializers.Serializer):
 
 
 class PlotIdeaSerializer(serializers.Serializer):
-    """Serializer for plot ideas."""
+    """Serializer for plot ideas (from brainstorming)."""
     title = serializers.CharField()
-    premise = serializers.CharField()
+    premise = serializers.CharField(required=False, allow_blank=True)  # Optional - not persisted to Plot model
     conflict = serializers.CharField()
     hook = serializers.CharField()
 

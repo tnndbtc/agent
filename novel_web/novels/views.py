@@ -100,11 +100,12 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         project = self.get_object()
         idea_data = request.data.get('idea')
 
-        if not idea_data or not idea_data.get('premise'):
+        if not idea_data:
             return Response(
-                {'error': 'Idea premise is required'},
+                {'error': 'Idea data is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        # Removed premise requirement - premise field is deprecated
 
         # Create a completed generation task with the manual idea
         from django.utils import timezone
@@ -183,7 +184,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         # Note: genre is now a ForeignKey to Genre model, not a text field
         # If project has a genre, copy it to the plot; otherwise leave as None
         defaults = {
-            'premise': plot_data.get('premise', ''),
+            # Removed 'premise' - deprecated field that caused pollution
             'themes': theme_sentence,  # Use generated one-sentence theme instead of plot_data themes
             'conflict': plot_data.get('conflict', ''),
             'structure': plot_data.get('structure', ''),
@@ -230,8 +231,8 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         try:
             service = ProjectService(project)
             service.memory.store_plot({
-                'title': plot.premise,
-                'premise': plot.premise,
+                'title': project.title,  # Use project title instead of deprecated premise
+                # Removed 'premise' key - deprecated field
                 'conflict': plot.conflict,
                 'theme': plot.themes,
                 'arc': plot.arc,
@@ -243,9 +244,10 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
 
         # Auto-generate protagonist character
         character_plot_data = {
-            'title': plot.premise,
-            'premise': plot.premise,
-            'themes': plot.themes
+            'title': project.title,  # Use project title instead of deprecated premise
+            # Removed 'premise' key - deprecated field
+            'themes': plot.themes,
+            'conflict': plot.conflict  # More specific than premise
         }
 
         # Generate and save protagonist
@@ -404,9 +406,10 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             )
 
         plot_data = {
-            'title': project.plot.premise,
-            'premise': project.plot.premise,
-            'themes': project.plot.themes
+            'title': project.title,  # Use project title instead of deprecated premise
+            # Removed 'premise' key - deprecated field
+            'themes': project.plot.themes,
+            'conflict': project.plot.conflict  # More specific than premise
         }
 
         char_type = serializer.validated_data['character_type']
@@ -883,7 +886,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         plot = project.plot
 
         # Update allowed fields
-        allowed_fields = ['themes', 'structure', 'premise', 'conflict']
+        allowed_fields = ['themes', 'structure', 'conflict']  # Removed 'premise' - deprecated
         updated = False
 
         for field in allowed_fields:

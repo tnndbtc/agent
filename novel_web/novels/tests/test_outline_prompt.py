@@ -49,7 +49,7 @@ class TestOutlinePromptExplicitness:
 
             # Call OutlineService.create_outline with num_chapters=1
             plot_data = {
-                'premise': 'A test story about testing',
+                # Removed 'premise' - deprecated field
                 'themes': 'Testing, Quality Assurance',
                 'conflict': 'Bugs vs Developers'
             }
@@ -131,7 +131,7 @@ class TestOutlinePromptExplicitness:
 
             OutlineService.create_outline(
                 project=test_project,
-                plot_data={'premise': 'Test'},
+                plot_data={'themes': 'Test themes', 'conflict': 'Test conflict'},
                 num_chapters=3,
                 user_language='en'
             )

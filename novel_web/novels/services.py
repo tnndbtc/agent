@@ -585,8 +585,7 @@ class CharacterService:
 
         # Add plot data
         if plot_data:
-            if plot_data.get('premise'):
-                user_prompt += f"**Premise:** {plot_data['premise']}\n"
+            # Removed premise - deprecated field that caused pollution
             if plot_data.get('genre'):
                 user_prompt += f"**Genre:** {plot_data['genre']}\n"
             if plot_data.get('themes'):
@@ -697,8 +696,7 @@ Return ONLY the JSON array, no additional text or explanation."""
 
         # Add plot data
         if plot_data:
-            if plot_data.get('premise'):
-                user_prompt += f"**Premise:** {plot_data['premise']}\n"
+            # Removed premise - deprecated field that caused pollution
             if plot_data.get('genre'):
                 user_prompt += f"**Genre:** {plot_data['genre']}\n"
             if plot_data.get('conflict'):
@@ -806,8 +804,7 @@ Return ONLY the JSON object, no additional text or explanation."""
 
         # Add plot data
         if plot_data:
-            if plot_data.get('premise'):
-                user_prompt += f"**Premise:** {plot_data['premise']}\n"
+            # Removed premise - deprecated field that caused pollution
             if plot_data.get('genre'):
                 user_prompt += f"**Genre:** {plot_data['genre']}\n"
             user_prompt += "\n"
@@ -903,8 +900,7 @@ class SettingService:
 
         # Add plot data
         if plot_data:
-            if plot_data.get('premise'):
-                user_prompt += f"**Premise:** {plot_data['premise']}\n"
+            # Removed premise - deprecated field that caused pollution
             if plot_data.get('genre'):
                 user_prompt += f"**Genre:** {plot_data['genre']}\n"
             if plot_data.get('themes'):
@@ -1067,17 +1063,25 @@ class OutlineService:
         # Build user prompt
         user_prompt = f"Create {num_chapters} chapter outline(s) for this story.\n\n"
 
+        # Add act emphasis if generating outline for specific act
+        if plot_data and plot_data.get('act_context'):
+            act_ctx = plot_data['act_context']
+            user_prompt += f"**THIS OUTLINE IS FOR ACT {act_ctx['act_number']} ({act_ctx['subject']}, {act_ctx['percentage']}% of story)**\n\n"
+            user_prompt += f"**Act Focus:** {act_ctx['description']}\n\n"
+            user_prompt += f"Ensure this chapter outline aligns with the **{act_ctx['subject']}** phase of the story.\n\n"
+            user_prompt += "---\n\n"
+
         # Add plot data
         if plot_data:
             user_prompt += "**Plot Information:**\n"
-            if plot_data.get('premise'):
-                user_prompt += f"Premise: {plot_data['premise']}\n"
+            # Removed premise - it was causing pollution in generated outlines
+            # Acts and themes provide better structured context (added via prompt_assembly)
             if plot_data.get('themes'):
                 user_prompt += f"Themes: {plot_data['themes']}\n"
             if plot_data.get('conflict'):
                 user_prompt += f"Conflict: {plot_data['conflict']}\n"
-            if plot_data.get('structure'):
-                user_prompt += f"\nStory Structure:\n{plot_data['structure'][:500]}\n"
+            # Removed structure field - it contains premise JSON which pollutes the outline
+            # Act context is now emphasized above, and prompt_assembly adds full act details
             user_prompt += "\n"
 
         # Add original idea if provided
@@ -1085,8 +1089,8 @@ class OutlineService:
             user_prompt += "**Original Idea:**\n"
             if idea_data.get('title'):
                 user_prompt += f"Title: {idea_data['title']}\n"
-            if idea_data.get('premise') or idea_data.get('description'):
-                user_prompt += f"Premise: {idea_data.get('premise') or idea_data.get('description')}\n"
+            # Removed premise/description - pollutes generated outlines
+            # Theme and conflict are more specific and actionable
             user_prompt += "\n"
 
         # Determine singular or plural
@@ -1240,36 +1244,53 @@ class WritingService:
                    f"target_words: {target_word_count}, has_example_metadata: {example_metadata is not None}")
 
         # Extract outline data (handle both dict and model instance)
-        if hasattr(chapter_outline, '__dict__'):
-            # It's a model instance
+        if hasattr(chapter_outline, '__dict__') and hasattr(chapter_outline, 'events'):
+            # It's a ChapterOutline model instance
             outline_data = {
                 'number': chapter_outline.number,
                 'title': chapter_outline.title,
-                'summary': chapter_outline.summary,
-                'pacing': chapter_outline.pacing,
-                'key_events': chapter_outline.key_events or [],
+                'pov': getattr(chapter_outline, 'pov', ''),
                 'setting': getattr(chapter_outline, 'setting', ''),
+                'events': getattr(chapter_outline, 'events', ''),
+                'character_development': getattr(chapter_outline, 'character_development', ''),
+                'pacing': chapter_outline.pacing,
+                'story_beats': getattr(chapter_outline, 'story_beats', ''),
             }
             chapter_outline_model = chapter_outline
         else:
-            # It's a dict
+            # It's a dict (legacy support)
             outline_data = chapter_outline
             chapter_outline_model = None
 
         # Build user prompt
         user_prompt = f"Write Chapter {outline_data.get('number', 1)}: {outline_data.get('title', 'Untitled')}\n\n"
 
-        user_prompt += "**Chapter Outline:**\n"
-        user_prompt += f"Summary: {outline_data.get('summary', '')}\n"
-        user_prompt += f"Pacing: {outline_data.get('pacing', 'medium')}\n"
+        # Add explicit act emphasis if this chapter belongs to an act
+        if chapter_outline_model and hasattr(chapter_outline_model, 'act') and chapter_outline_model.act:
+            act = chapter_outline_model.act
+            user_prompt += f"**IMPORTANT - Current Story Act:**\n"
+            user_prompt += f"This chapter is part of Act {act.act_number}: {act.subject} ({act.percentage}% of story)\n"
+            user_prompt += f"Act Focus: {act.description}\n"
+            user_prompt += f"Ensure the chapter's content, tone, and pacing align with this act's purpose.\n\n"
 
-        if outline_data.get('key_events'):
-            user_prompt += "\nKey Events:\n"
-            for event in outline_data['key_events']:
-                user_prompt += f"- {event}\n"
+        user_prompt += "**Chapter Outline:**\n"
+
+        if outline_data.get('pov'):
+            user_prompt += f"POV: {outline_data['pov']}\n"
 
         if outline_data.get('setting'):
-            user_prompt += f"\nSetting: {outline_data['setting']}\n"
+            user_prompt += f"Setting: {outline_data['setting']}\n"
+
+        if outline_data.get('events'):
+            user_prompt += f"Events: {outline_data['events']}\n"
+
+        if outline_data.get('character_development'):
+            user_prompt += f"Character Development: {outline_data['character_development']}\n"
+
+        user_prompt += f"Pacing: {outline_data.get('pacing', 'medium')}\n"
+
+        if outline_data.get('story_beats'):
+            user_prompt += f"Story Beats: {outline_data['story_beats']}\n"
 
         user_prompt += f"\n**Target Word Count:** {target_word_count} words\n\n"
 
@@ -1323,6 +1344,14 @@ class WritingService:
             chapter_outline=chapter_outline_model,
             include_context=True
         )
+
+        # Log act context for debugging
+        act_info = "UNASSIGNED"
+        if chapter_outline_model and hasattr(chapter_outline_model, 'act') and chapter_outline_model.act:
+            act_info = f"Act {chapter_outline_model.act.act_number}: {chapter_outline_model.act.subject}"
+        logger.info(f"=== WRITING CHAPTER FOR {act_info} ===")
+        # Removed full prompt logging to avoid duplication
+        # The ai_client.py monkey-patch already logs all OpenAI API calls with full prompts
 
         # Call OpenAI
         llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7, max_tokens=4096)

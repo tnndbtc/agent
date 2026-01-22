@@ -30,6 +30,11 @@
                 <div class="project-stats">
                     <span>📝 {{ project.chapters.count }} {% trans "chapters" %}</span>
                     <span>📊 {{ project.total_word_count|default:0 }} {% trans "words" %}</span>
+                    {% if project.default_style %}
+                    <span>🎨 {% for trans in project.default_style.translations.all %}{% if trans.language_code == LANGUAGE_CODE %}{{ trans.name }}{% endif %}{% endfor %}</span>
+                    {% else %}
+                    <span style="color: #6B7280;">🎨 {% trans "No style set" %}</span>
+                    {% endif %}
                 </div>
                 <p class="updated">{% trans "Updated" %} {{ project.updated_at|timesince }} {% trans "ago" %}</p>
             </div>

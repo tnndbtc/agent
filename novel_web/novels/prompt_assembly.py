@@ -165,15 +165,35 @@ class PromptAssemblyService:
         # Include plot context for story-related tasks
         if context_type in ['plot', 'brainstorm', 'outline', 'character', 'chapter']:
             if hasattr(project, 'plot'):
-                parts.append(f"**Premise:** {project.plot.premise}")
+                # Removed premise - it was causing pollution in outline/chapter generation
+                # Acts and themes provide better structured context
                 parts.append(f"**Themes:** {project.plot.themes}")
 
                 if project.plot.acts.exists():
-                    acts = "\n".join([
-                        f"- Act {act.act_number} ({act.subject}, {act.percentage}%): {act.description}"
-                        for act in project.plot.acts.all()
-                    ])
-                    parts.append(f"**Story Structure:**\n{acts}")
+                    # Check if we have a specific chapter_outline to determine relevant act
+                    chapter_outline = kwargs.get('chapter_outline')
+                    relevant_act = chapter_outline.act if chapter_outline and hasattr(chapter_outline, 'act') else None
+
+                    if relevant_act and context_type == 'chapter':
+                        # Include ONLY the relevant act in full detail
+                        act_details = f"- Act {relevant_act.act_number} ({relevant_act.subject}, {relevant_act.percentage}%): {relevant_act.description}"
+                        parts.append(f"**Current Act (for this chapter):**\n{act_details}")
+
+                        # Include brief context about other acts (first 100 chars of description)
+                        other_acts = project.plot.acts.exclude(id=relevant_act.id).order_by('act_number')
+                        if other_acts.exists():
+                            other_acts_summary = "\n".join([
+                                f"- Act {act.act_number} ({act.subject}): {act.description[:100]}..."
+                                for act in other_acts
+                            ])
+                            parts.append(f"**Overall Story Structure (for context):**\n{other_acts_summary}")
+                    else:
+                        # Fallback: Include all acts (for outline generation, plot tasks, or unassigned chapters)
+                        acts = "\n".join([
+                            f"- Act {act.act_number} ({act.subject}, {act.percentage}%): {act.description}"
+                            for act in project.plot.acts.all()
+                        ])
+                        parts.append(f"**Story Structure:**\n{acts}")
 
                 logger.debug(f"Added plot context for {project.title}")
 
@@ -256,5 +276,7 @@ class PromptAssemblyService:
         user_message = "\n\n---\n\n".join(user_parts)
 
         logger.info(f"Final prompt: system={len(system_message)} chars, user={len(user_message)} chars")
+        # Removed DEBUG logging of full prompt content to avoid duplication
+        # The ai_client.py monkey-patch already logs all OpenAI API calls
 
         return system_message, user_message

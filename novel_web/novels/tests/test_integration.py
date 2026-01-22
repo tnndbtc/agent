@@ -178,7 +178,7 @@ class TestPlotAndCharacterGeneration:
         # Verify plot was created
         assert 'plot' in response.data
         plot = Plot.objects.get(project=test_project)
-        assert plot.premise is not None
+        assert plot.themes is not None  # Changed from premise - deprecated field
 
         # Verify protagonist was auto-created
         assert 'protagonist' in response.data
@@ -231,7 +231,8 @@ class TestOutlineGeneration:
         # First create a plot
         Plot.objects.create(
             project=test_project,
-            premise='Test premise',
+            # Removed 'premise' - deprecated field
+            themes='Test themes',
             conflict='Test conflict'
         )
 
@@ -273,7 +274,8 @@ class TestOutlineGeneration:
         # Create plot
         Plot.objects.create(
             project=test_project,
-            premise='Test premise',
+            # Removed 'premise' - deprecated field
+            themes='Test themes',
             conflict='Test conflict'
         )
 
@@ -320,7 +322,8 @@ class TestChapterGeneration:
         # Setup: Create plot and outlines
         Plot.objects.create(
             project=test_project,
-            premise='Test premise',
+            # Removed 'premise' - deprecated field
+            themes='Test themes',
             conflict='Test conflict'
         )
 
@@ -379,7 +382,7 @@ class TestChapterGeneration:
     def test_write_chapter_updates_word_count(self, authenticated_client, test_project, mock_all_openai):
         """Test writing a chapter correctly calculates word count."""
         # Setup
-        Plot.objects.create(project=test_project, premise='Test premise')
+        Plot.objects.create(project=test_project, themes='Test themes', conflict='Test conflict')
         outline = ChapterOutline.objects.create(
             project=test_project,
             number=1,
@@ -412,7 +415,7 @@ class TestChapterGeneration:
     ):
         """Test writing chapter with example in iterative mode (quality targeting)."""
         # Setup: Create plot and outline
-        Plot.objects.create(project=test_project, premise='Test premise')
+        Plot.objects.create(project=test_project, themes='Test themes', conflict='Test conflict')
         outline = ChapterOutline.objects.create(
             project=test_project,
             number=1,

@@ -27,6 +27,11 @@
                     <span>{{ project.total_word_count|default:0 }}</span>
                 </div>
                 <div class="info-item">
+                    <label style="font-weight: bold;">{% trans "Writing Style" %}</label>
+                    <div id="styleDisplay" style="color: #6B7280;">{% trans "Loading..." %}</div>
+                    <button onclick="openEditStyleModal()" class="btn btn-sm" style="margin-top: 0.5rem;">{% trans "Edit Style" %}</button>
+                </div>
+                <div class="info-item">
                     <label style="font-weight: bold;">{% trans "Writing Techniques" %}</label>
                     <div id="techniquesDisplay" style="color: #6B7280;">{% trans "Loading..." %}</div>
                     <button onclick="openEditTechniquesModal()" class="btn btn-sm" style="margin-top: 0.5rem;">{% trans "Edit Techniques" %}</button>
@@ -1556,6 +1561,26 @@
                 <button type="submit" class="btn btn-primary">{% trans "Create Technique" %}</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- Edit Project Writing Style Modal -->
+<div id="editStyleModal" class="modal-overlay" style="display: none;">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <h3>{% trans "Edit Writing Style" %}</h3>
+            <button class="modal-close" onclick="closeEditStyleModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="color: #6B7280; margin-bottom: 1rem;">{% trans "Select the default writing style for this project:" %}</p>
+            <div id="styleRadioList" style="max-height: 400px; overflow-y: auto;">
+                <!-- Will be populated by JavaScript -->
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeEditStyleModal()">{% trans "Cancel" %}</button>
+            <button type="button" class="btn btn-primary" onclick="saveProjectStyle()">{% trans "Save" %}</button>
+        </div>
     </div>
 </div>
 
@@ -3283,8 +3308,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     {% endfor %}
 
-    // Load project techniques on page load
+    // Load project techniques and style on page load
     loadProjectTechniques();
+    loadProjectStyle();
 });
 
 // ========================================
@@ -3382,6 +3408,180 @@ async function saveProjectTechniques() {
     } catch (error) {
         console.error('Error saving techniques:', error);
         showToast('{% trans "Error saving techniques" %}', 'error');
+    }
+}
+
+// ========================================
+// Writing Style Management Functions
+// ========================================
+
+async function loadProjectStyle() {
+    try {
+        const response = await apiRequest(`/api/projects/${projectId}/`);
+        const project = response;
+        const styleDisplay = document.getElementById('styleDisplay');
+
+        if (project.default_style_display) {
+            styleDisplay.textContent = project.default_style_display.display_name || project.default_style_display.name_key || '{% trans "Unknown style" %}';
+            styleDisplay.style.color = '#111827';
+        } else {
+            styleDisplay.textContent = '{% trans "No style selected" %}';
+            styleDisplay.style.color = '#6B7280';
+        }
+    } catch (error) {
+        console.error('Error loading style:', error);
+        document.getElementById('styleDisplay').textContent = '{% trans "Error loading style" %}';
+    }
+}
+
+async function openEditStyleModal() {
+    try {
+        // Fetch all available styles
+        const stylesResponse = await apiRequest('/api/writing-styles/');
+        const allStyles = stylesResponse;
+
+        // Fetch current project style
+        const projectResponse = await apiRequest(`/api/projects/${projectId}/`);
+        const currentStyleId = projectResponse.default_style || null;
+
+        // Group styles by type
+        const systemStyles = allStyles.filter(s => s.is_system);
+        const publicStyles = allStyles.filter(s => !s.is_system && s.public);
+        const privateStyles = allStyles.filter(s => !s.is_system && !s.public);
+
+        // Build HTML with grouped radio buttons
+        let html = '';
+
+        // None option
+        html += `
+            <div style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input
+                        type="radio"
+                        name="projectStyle"
+                        value=""
+                        ${!currentStyleId ? 'checked' : ''}
+                        style="margin-right: 0.5rem;"
+                    >
+                    <div style="color: #6B7280;">{% trans "No style (default)" %}</div>
+                </label>
+            </div>
+        `;
+
+        // System styles
+        if (systemStyles.length > 0) {
+            html += '<div style="padding: 0.5rem; background: #F9FAFB; font-weight: 600; margin-top: 0.5rem;">{% trans "System Styles" %}</div>';
+            systemStyles.forEach(style => {
+                html += `
+                    <div style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB;">
+                        <label style="display: flex; align-items: flex-start; cursor: pointer;">
+                            <input
+                                type="radio"
+                                name="projectStyle"
+                                value="${style.id}"
+                                ${currentStyleId === style.id ? 'checked' : ''}
+                                style="margin-right: 0.5rem; margin-top: 0.25rem;"
+                            >
+                            <div>
+                                <div style="font-weight: 500;">${style.display_name || style.name_key}</div>
+                                ${style.translations && style.translations.length > 0 && style.translations[0].description ?
+                                    `<div style="color: #6B7280; font-size: 0.875rem; margin-top: 0.25rem;">${style.translations[0].description}</div>` :
+                                    ''}
+                            </div>
+                        </label>
+                    </div>
+                `;
+            });
+        }
+
+        // Public styles
+        if (publicStyles.length > 0) {
+            html += '<div style="padding: 0.5rem; background: #F9FAFB; font-weight: 600; margin-top: 0.5rem;">{% trans "Public Styles" %}</div>';
+            publicStyles.forEach(style => {
+                html += `
+                    <div style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB;">
+                        <label style="display: flex; align-items: flex-start; cursor: pointer;">
+                            <input
+                                type="radio"
+                                name="projectStyle"
+                                value="${style.id}"
+                                ${currentStyleId === style.id ? 'checked' : ''}
+                                style="margin-right: 0.5rem; margin-top: 0.25rem;"
+                            >
+                            <div>
+                                <div style="font-weight: 500;">${style.display_name || style.name_key}</div>
+                                ${style.translations && style.translations.length > 0 && style.translations[0].description ?
+                                    `<div style="color: #6B7280; font-size: 0.875rem; margin-top: 0.25rem;">${style.translations[0].description}</div>` :
+                                    ''}
+                            </div>
+                        </label>
+                    </div>
+                `;
+            });
+        }
+
+        // Private styles
+        if (privateStyles.length > 0) {
+            html += '<div style="padding: 0.5rem; background: #F9FAFB; font-weight: 600; margin-top: 0.5rem;">{% trans "My Styles" %}</div>';
+            privateStyles.forEach(style => {
+                html += `
+                    <div style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB;">
+                        <label style="display: flex; align-items: flex-start; cursor: pointer;">
+                            <input
+                                type="radio"
+                                name="projectStyle"
+                                value="${style.id}"
+                                ${currentStyleId === style.id ? 'checked' : ''}
+                                style="margin-right: 0.5rem; margin-top: 0.25rem;"
+                            >
+                            <div>
+                                <div style="font-weight: 500;">${style.display_name || style.name_key}</div>
+                                ${style.translations && style.translations.length > 0 && style.translations[0].description ?
+                                    `<div style="color: #6B7280; font-size: 0.875rem; margin-top: 0.25rem;">${style.translations[0].description}</div>` :
+                                    ''}
+                            </div>
+                        </label>
+                    </div>
+                `;
+            });
+        }
+
+        document.getElementById('styleRadioList').innerHTML = html;
+
+        // Show modal
+        document.getElementById('editStyleModal').style.display = 'flex';
+    } catch (error) {
+        console.error('Error opening style modal:', error);
+        showToast('{% trans "Error loading styles" %}', 'error');
+    }
+}
+
+function closeEditStyleModal() {
+    document.getElementById('editStyleModal').style.display = 'none';
+}
+
+async function saveProjectStyle() {
+    try {
+        // Get selected style ID
+        const selectedRadio = document.querySelector('input[name="projectStyle"]:checked');
+        const selectedStyleId = selectedRadio ? (selectedRadio.value || null) : null;
+
+        // Update project
+        await apiRequest(`/api/projects/${projectId}/`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+                default_style: selectedStyleId ? parseInt(selectedStyleId) : null
+            })
+        });
+
+        showToast('{% trans "Style updated successfully" %}', 'success');
+        closeEditStyleModal();
+
+        // Reload style display
+        await loadProjectStyle();
+    } catch (error) {
+        console.error('Error saving style:', error);
+        showToast('{% trans "Error saving style" %}', 'error');
     }
 }
 

@@ -242,6 +242,10 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
             'story_beats': outline.story_beats
         }
 
+        # Validate that we're using the correct outline for this chapter number
+        # This prevents the bug where wrong outline associations cause chapter data loss
+        logger.debug(f"Validating outline.number={outline.number} for chapter generation")
+
         # Load example metadata if example_id provided (metadata only, NO content!)
         example_metadata = None
         target_total_score = None
@@ -294,9 +298,10 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
                 logger.info(f"{iteration_msg} - Calling WritingService.write_chapter with language='{language}'")
 
                 # Pass example_metadata (NO content!), iteration, and previous_scores
+                # Pass full outline model (not dict) to preserve act relationship
                 chapter_data, token_usage = WritingService.write_chapter(
                     project,
-                    outline_data,
+                    outline,
                     writing_style=writing_style,
                     language=language,
                     target_word_count=target_word_count,
@@ -454,12 +459,38 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
 
         update_task_progress(task_id, 80, "Saving chapter...")
 
+        # DEBUG: Log all existing chapters BEFORE any changes
+        existing_chapters = Chapter.objects.filter(project=project).order_by('chapter_number')
+        logger.warning(f"[BUG DEBUG] BEFORE creating chapter {chapter_data['chapter_number']}:")
+        for ch in existing_chapters:
+            logger.warning(f"  - Chapter {ch.chapter_number}: outline={ch.outline.number if ch.outline else 'None'}, "
+                          f"id={ch.id}, content_preview={ch.content[:50] if ch.content else 'None'}...")
+        logger.warning(f"[BUG DEBUG] Total existing chapters: {existing_chapters.count()}")
+
+        # Validate chapter_number matches outline.number to prevent data loss bug
+        if outline.number != chapter_data['chapter_number']:
+            error_msg = (f"Chapter number mismatch: outline.number={outline.number} but "
+                        f"chapter_data['chapter_number']={chapter_data['chapter_number']}. "
+                        f"This would cause wrong outline associations and data loss.")
+            logger.error(error_msg)
+            task.status = 'failed'
+            task.error_message = error_msg
+            task.save()
+            update_task_progress(task_id, 0, f"Error: {error_msg}")
+            return
+
+        logger.warning(f"[BUG DEBUG] About to call update_or_create for chapter {chapter_data['chapter_number']}")
+        logger.warning(f"[BUG DEBUG] Outline to be linked: {outline.number} (id={outline.id})")
+
         # Create or update chapter
+        # IMPORTANT: Do NOT include 'outline' in defaults - it causes a bug where
+        # wrong outline associations can overwrite existing chapters due to OneToOneField
         chapter, created = Chapter.objects.update_or_create(
             project=project,
             chapter_number=chapter_data['chapter_number'],
+            version=1,  # Explicit version in lookup
             defaults={
-                'outline': outline,
+                # 'outline' intentionally NOT here - set separately below
                 'title': chapter_data['title'],
                 'content': chapter_data['content'],
                 'summary': chapter_data.get('summary', ''),
@@ -469,6 +500,28 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
                 'is_draft': True
             }
         )
+
+        logger.warning(f"[BUG DEBUG] update_or_create result: created={created}, chapter_id={chapter.id}, "
+                      f"chapter_number={chapter.chapter_number}, current_outline={chapter.outline.number if chapter.outline else 'None'}")
+
+        # Set outline separately to avoid OneToOneField conflicts
+        # Only update if it's a new chapter or the outline has changed
+        if created or chapter.outline != outline:
+            logger.warning(f"[BUG DEBUG] Setting outline separately: chapter {chapter.chapter_number} outline {outline.number}")
+            logger.info(f"{'Setting' if created else 'Updating'} outline for chapter {chapter.chapter_number}: {outline.number}")
+            chapter.outline = outline
+            chapter.save(update_fields=['outline'])
+            logger.warning(f"[BUG DEBUG] Outline set successfully. Chapter {chapter.chapter_number} now has outline {chapter.outline.number}")
+        else:
+            logger.warning(f"[BUG DEBUG] Outline unchanged for chapter {chapter.chapter_number} (already {chapter.outline.number})")
+
+        # DEBUG: Log all chapters AFTER changes
+        all_chapters_after = Chapter.objects.filter(project=project).order_by('chapter_number')
+        logger.warning(f"[BUG DEBUG] AFTER creating chapter {chapter_data['chapter_number']}:")
+        for ch in all_chapters_after:
+            logger.warning(f"  - Chapter {ch.chapter_number}: outline={ch.outline.number if ch.outline else 'None'}, "
+                          f"id={ch.id}, content_preview={ch.content[:50] if ch.content else 'None'}...")
+        logger.warning(f"[BUG DEBUG] Total chapters now: {all_chapters_after.count()}")
 
         update_task_progress(task_id, 95, "Finalizing...")
 
@@ -552,8 +605,8 @@ def create_outline_task(self, task_id, project_id, num_chapters=1, act_id=None, 
             raise ValueError("Project must have a plot before creating outline")
 
         plot_data = {
-            'title': project.plot.premise,
-            'premise': project.plot.premise,
+            'title': project.title,  # Use project title instead of deprecated premise
+            # Removed 'premise' key - it was causing pollution in generated outlines
             'themes': project.plot.themes,
             'conflict': project.plot.conflict,
             'structure': project.plot.structure,
@@ -620,13 +673,11 @@ def create_outline_task(self, task_id, project_id, num_chapters=1, act_id=None, 
             max_key=models.Max('order_key')
         )['max_key'] or Decimal('0')
 
-        # Get existing numbers for this specific act (or unassigned if act is None)
-        # This ensures each act has its own numbering starting from 1
-        if act:
-            existing_outlines_in_act = ChapterOutline.objects.filter(project=project, act=act)
-        else:
-            existing_outlines_in_act = ChapterOutline.objects.filter(project=project, act__isnull=True)
-        existing_numbers = set(existing_outlines_in_act.values_list('number', flat=True))
+        # Get existing numbers from ALL outlines in the project (global numbering)
+        # Chapters are numbered sequentially across the entire novel (1, 2, 3, 4, 5...)
+        # NOT per-act (which would cause chapter number collisions)
+        all_project_outlines = ChapterOutline.objects.filter(project=project)
+        existing_numbers = set(all_project_outlines.values_list('number', flat=True))
 
         # Find available numbers (gaps first, then append)
         def find_available_numbers(existing_numbers, count):
@@ -656,6 +707,8 @@ def create_outline_task(self, task_id, project_id, num_chapters=1, act_id=None, 
         total_chapters = len(outline['chapters'])
         available_numbers = find_available_numbers(existing_numbers, total_chapters)
 
+        logger.warning(f"[NUMBERING FIX] Create Outline task - Existing chapter numbers: {sorted(existing_numbers) if existing_numbers else 'None'}")
+        logger.warning(f"[NUMBERING FIX] Create Outline task - Assigning global numbers: {available_numbers} (act={act.act_number if act else 'None'})")
         logger.info(f"Create Outline task - Saving {total_chapters} chapters to database (requested: {num_chapters})")
         logger.info(f"Create Outline task - Assigning numbers: {available_numbers}")
 
@@ -775,8 +828,8 @@ def regenerate_single_outline_task(self, task_id, project_id, chapter_number, us
             raise ValueError("Project must have a plot before regenerating outline")
 
         plot_data = {
-            'title': project.plot.premise,
-            'premise': project.plot.premise,
+            'title': project.title,  # Use project title instead of deprecated premise
+            # Removed 'premise' key - it was causing pollution in generated outlines
             'themes': project.plot.themes,
             'conflict': project.plot.conflict,
             'structure': project.plot.structure,
@@ -919,8 +972,9 @@ def score_novel_task(self, task_id, project_id):
 
         if hasattr(project, 'plot'):
             novel_data['plot'] = {
-                'premise': project.plot.premise,
-                'themes': project.plot.themes
+                # Removed 'premise' - deprecated field
+                'themes': project.plot.themes,
+                'conflict': project.plot.conflict  # More specific than premise
             }
 
         update_task_progress(task_id, 17, "Analyzing content...")

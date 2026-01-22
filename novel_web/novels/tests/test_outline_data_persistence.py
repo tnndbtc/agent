@@ -59,7 +59,7 @@ class TestOutlineDataPersistence:
 
             # Call OutlineService to create outline
             plot_data = {
-                'premise': 'A hero must save the kingdom',
+                # Removed 'premise' - deprecated field
                 'themes': 'Courage, sacrifice',
                 'conflict': 'Evil threatens the land'
             }
@@ -128,7 +128,7 @@ class TestOutlineDataPersistence:
 
             outline_data, _ = OutlineService.create_outline(
                 project=test_project,
-                plot_data={'premise': 'Test'},
+                plot_data={'themes': 'Test themes', 'conflict': 'Test conflict'},
                 num_chapters=1,
                 user_language='en'
             )
@@ -189,7 +189,7 @@ class TestOutlineDataPersistence:
 
             outline_data, _ = OutlineService.create_outline(
                 project=test_project,
-                plot_data={'premise': 'Test'},
+                plot_data={'themes': 'Test themes', 'conflict': 'Test conflict'},
                 num_chapters=3,
                 user_language='en'
             )

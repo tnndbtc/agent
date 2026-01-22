@@ -493,7 +493,6 @@ class Plot(models.Model):
     project = models.OneToOneField(NovelProject, on_delete=models.CASCADE, related_name='plot')
 
     # Basic plot elements
-    premise = models.TextField(help_text="One-paragraph premise")
     themes = models.TextField(blank=True, help_text="Main themes, comma-separated")
     conflict = models.TextField(blank=True, help_text="Central conflict")
 

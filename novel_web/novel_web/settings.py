@@ -268,7 +268,7 @@ LOGGING = {
     'loggers': {
         'novels': {
             'handlers': ['console'],
-            'level': 'INFO',
+            'level': 'DEBUG',
             'propagate': False,
         },
         'novel_agent': {
