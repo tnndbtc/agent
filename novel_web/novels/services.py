@@ -327,35 +327,37 @@ class PlotService:
         # Build user prompt requesting JSON format for reliable parsing
         user_prompt = f"""Create a detailed three-act plot structure based on this idea:
 
-**Title:** {idea_data.get('title', 'Untitled')}
-**Premise:** {idea_data.get('premise', '')}
+**Idea:** {idea_data.get('premise', '')}
 **Hook:** {idea_data.get('hook', '')}
 
-You MUST return a JSON object with the following structure:
+You MUST return a JSON object with the following structure for acts and characters:
 {{
-    "premise": "One-paragraph summary of the story",
     "genre": "Story genre",
-    "themes": "Main themes (comma-separated)",
     "conflict": "Central conflict description",
-    "arc": "Overall story arc",
     "acts": [
         {{
             "act_number": 1,
             "subject": "SETUP",
-            "percentage": 25,
             "description": "Detailed description of Act 1 - introduce characters, world, and establish the status quo"
         }},
         {{
             "act_number": 2,
             "subject": "CONFRONTATION",
-            "percentage": 50,
             "description": "Detailed description of Act 2 - rising action, complications, character growth through challenges"
         }},
         {{
             "act_number": 3,
             "subject": "RESOLUTION",
-            "percentage": 25,
             "description": "Detailed description of Act 3 - climax and resolution of the conflict"
+        }}
+    ],
+    "characters": [
+        {{
+            "name": "Character name",
+            "role": "protagonist/antagonist/mentor/etc",
+            "background": "Character background",
+            "personality": "Character personality traits",
+            "motivation": "What drives this character"
         }}
     ]
 }}
@@ -408,11 +410,11 @@ Return ONLY the JSON object, no additional text or explanation."""
                 plot = {
                     'premise': '',
                     'genre': '',
-                    'themes': '',
                     'conflict': '',
                     'structure': content,
                     'arc': '',
-                    'acts': []
+                    'acts': [],
+                    'characters': []
                 }
 
                 premise_match = re.search(r'Premise[:\s]+(.+?)(?=\n\n|\nGenre:|\Z)', content, re.DOTALL | re.IGNORECASE)
@@ -443,15 +445,15 @@ Return ONLY the JSON object, no additional text or explanation."""
             plot = {
                 'premise': plot_json.get('premise', ''),
                 'genre': plot_json.get('genre', ''),
-                'themes': plot_json.get('themes', ''),
                 'conflict': plot_json.get('conflict', ''),
                 'arc': plot_json.get('arc', ''),
                 'acts': plot_json.get('acts', []),
+                'characters': plot_json.get('characters', []),
                 'structure': json.dumps(plot_json, indent=2)  # Keep JSON as structure for legacy compatibility
             }
 
             # Validate that we have all required fields
-            required_fields = ['premise', 'conflict', 'acts']
+            required_fields = ['conflict', 'acts']
             missing_fields = [field for field in required_fields if not plot.get(field)]
             if missing_fields:
                 logger.warning(f"Plot generation missing fields: {missing_fields}")
@@ -522,7 +524,7 @@ Format as numbered list."""
             structure_text: The plot structure text containing ACT markers
 
         Returns:
-            list: List of dicts with keys: act_number, subject, percentage, description
+            list: List of dicts with keys: act_number, subject, description
         """
         import re
 
@@ -531,7 +533,7 @@ Format as numbered list."""
         acts = []
 
         # Pattern to match:
-        # ACT 1 - SETUP (optional percentage)
+        # ACT 1 - SETUP
         # ... content ...
         # ACT 2 - CONFRONTATION
         act_pattern = r'ACT\s+(\d+)\s*[-–]\s*(\w+)[^\n]*\n(.*?)(?=ACT\s+\d+|$)'
@@ -542,9 +544,6 @@ Format as numbered list."""
             logger.warning("No acts found in structure text using regex pattern")
             return acts
 
-        # Default percentages for 3-act structure
-        default_percentages = {1: 25, 2: 50, 3: 25}
-
         for match in matches:
             act_num_str, subject, description = match
             act_num = int(act_num_str)
@@ -552,12 +551,12 @@ Format as numbered list."""
             act_data = {
                 'act_number': act_num,
                 'subject': subject.upper().strip(),
-                'percentage': default_percentages.get(act_num, 33),
+                # percentage field removed in migration 0023
                 'description': description.strip()
             }
 
             acts.append(act_data)
-            logger.info(f"Parsed Act {act_num}: {act_data['subject']} ({act_data['percentage']}%)")
+            logger.info(f"Parsed Act {act_num}: {act_data['subject']}")
 
         return acts
 
@@ -1066,7 +1065,7 @@ class OutlineService:
         # Add act emphasis if generating outline for specific act
         if plot_data and plot_data.get('act_context'):
             act_ctx = plot_data['act_context']
-            user_prompt += f"**THIS OUTLINE IS FOR ACT {act_ctx['act_number']} ({act_ctx['subject']}, {act_ctx['percentage']}% of story)**\n\n"
+            user_prompt += f"**THIS OUTLINE IS FOR ACT {act_ctx['act_number']} ({act_ctx['subject']})**\n\n"
             user_prompt += f"**Act Focus:** {act_ctx['description']}\n\n"
             user_prompt += f"Ensure this chapter outline aligns with the **{act_ctx['subject']}** phase of the story.\n\n"
             user_prompt += "---\n\n"
@@ -1269,7 +1268,7 @@ class WritingService:
         if chapter_outline_model and hasattr(chapter_outline_model, 'act') and chapter_outline_model.act:
             act = chapter_outline_model.act
             user_prompt += f"**IMPORTANT - Current Story Act:**\n"
-            user_prompt += f"This chapter is part of Act {act.act_number}: {act.subject} ({act.percentage}% of story)\n"
+            user_prompt += f"This chapter is part of Act {act.act_number}: {act.subject}\n"
             user_prompt += f"Act Focus: {act.description}\n"
             user_prompt += f"Ensure the chapter's content, tone, and pacing align with this act's purpose.\n\n"
 

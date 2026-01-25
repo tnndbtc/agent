@@ -166,8 +166,8 @@ class PromptAssemblyService:
         if context_type in ['plot', 'brainstorm', 'outline', 'character', 'chapter']:
             if hasattr(project, 'plot'):
                 # Removed premise - it was causing pollution in outline/chapter generation
-                # Acts and themes provide better structured context
-                parts.append(f"**Themes:** {project.plot.themes}")
+                # Removed themes field in migration 0023
+                # Acts provide better structured context
 
                 if project.plot.acts.exists():
                     # Check if we have a specific chapter_outline to determine relevant act
@@ -176,7 +176,7 @@ class PromptAssemblyService:
 
                     if relevant_act and context_type == 'chapter':
                         # Include ONLY the relevant act in full detail
-                        act_details = f"- Act {relevant_act.act_number} ({relevant_act.subject}, {relevant_act.percentage}%): {relevant_act.description}"
+                        act_details = f"- Act {relevant_act.act_number} ({relevant_act.subject}): {relevant_act.description}"
                         parts.append(f"**Current Act (for this chapter):**\n{act_details}")
 
                         # Include brief context about other acts (first 100 chars of description)
@@ -190,7 +190,7 @@ class PromptAssemblyService:
                     else:
                         # Fallback: Include all acts (for outline generation, plot tasks, or unassigned chapters)
                         acts = "\n".join([
-                            f"- Act {act.act_number} ({act.subject}, {act.percentage}%): {act.description}"
+                            f"- Act {act.act_number} ({act.subject}): {act.description}"
                             for act in project.plot.acts.all()
                         ])
                         parts.append(f"**Story Structure:**\n{acts}")

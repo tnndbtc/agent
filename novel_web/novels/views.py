@@ -134,8 +134,12 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         # Get user's language preference
         user_language = getattr(request, 'LANGUAGE_CODE', 'en')
 
-        logger.info(f"Create Plot API called - User: {request.user.username}, Project: {project.id}, "
-                   f"Language: {user_language}, Input: {serializer.validated_data}")
+        logger.info("=" * 80)
+        logger.info("CREATE PLOT API - INPUT PROMPT")
+        logger.info(f"User: {request.user.username}, Project: {project.id}, Language: {user_language}")
+        # logger.info(f"Input Data: {serializer.validated_data}")
+        logger.info(f"CREATE PLOT API - INPUT DATA: {serializer.validated_data}")
+        logger.info("=" * 80)
 
         # Delete old plot and characters first
         try:
@@ -160,7 +164,14 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             'total_tokens': 0
         }
 
+        logger.info("-" * 80)
+        logger.info("Calling PlotService.create_full_plot...")
         plot_data, plot_tokens = PlotService.create_full_plot(project, serializer.validated_data['idea_data'], user_language=user_language)
+        logger.info("-" * 80)
+        logger.info("CREATE PLOT API - RESPONSE")
+        logger.info(f"Generated Plot Data: {plot_data}")
+        logger.info("-" * 80)
+
         # Accumulate plot tokens
         if plot_tokens:
             total_tokens_used['prompt_tokens'] += plot_tokens.get('prompt_tokens', 0)
@@ -168,24 +179,12 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             total_tokens_used['total_tokens'] += plot_tokens.get('total_tokens', 0)
             logger.info(f"Plot generation tokens: {plot_tokens}")
 
-        # Generate one-sentence theme from the idea
-        target_language = get_language_name(user_language)
-        logger.info(f"Generating one-sentence theme - user_language: {user_language}, target_language: {target_language}")
-        theme_sentence, theme_tokens = generate_theme_from_idea(serializer.validated_data['idea_data'], language=target_language)
-        logger.info(f"Generated theme: {theme_sentence}")
-        # Accumulate theme tokens
-        if theme_tokens:
-            total_tokens_used['prompt_tokens'] += theme_tokens.get('prompt_tokens', 0)
-            total_tokens_used['completion_tokens'] += theme_tokens.get('completion_tokens', 0)
-            total_tokens_used['total_tokens'] += theme_tokens.get('total_tokens', 0)
-            logger.info(f"Theme generation tokens: {theme_tokens}")
-
         # Save to database
         # Note: genre is now a ForeignKey to Genre model, not a text field
         # If project has a genre, copy it to the plot; otherwise leave as None
         defaults = {
             # Removed 'premise' - deprecated field that caused pollution
-            'themes': theme_sentence,  # Use generated one-sentence theme instead of plot_data themes
+            # Removed 'themes' - no longer generating themes separately
             'conflict': plot_data.get('conflict', ''),
             'structure': plot_data.get('structure', ''),
             'arc': plot_data.get('arc', '')
@@ -220,7 +219,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
                     plot=plot,
                     act_number=act_data['act_number'],
                     subject=act_data['subject'],
-                    percentage=act_data['percentage'],
+                    # percentage field removed in migration 0023
                     description=act_data['description']
                 )
                 logger.info(f"Created Act {act_data['act_number']}: {act_data['subject']}")
@@ -234,7 +233,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
                 'title': project.title,  # Use project title instead of deprecated premise
                 # Removed 'premise' key - deprecated field
                 'conflict': plot.conflict,
-                'theme': plot.themes,
+                # Removed 'theme' key - themes no longer generated
                 'arc': plot.arc,
                 'structure': plot.structure
             })
@@ -242,64 +241,109 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.warning(f"Failed to store plot in ChromaDB memory: {e}")
 
-        # Auto-generate protagonist character
-        character_plot_data = {
-            'title': project.title,  # Use project title instead of deprecated premise
-            # Removed 'premise' key - deprecated field
-            'themes': plot.themes,
-            'conflict': plot.conflict  # More specific than premise
-        }
-
-        # Generate and save protagonist
-        protagonist_options, protagonist_tokens = CharacterService.create_protagonists(
-            project, character_plot_data, num_options=1, user_language=user_language
-        )
-        # Accumulate protagonist tokens
-        if protagonist_tokens:
-            total_tokens_used['prompt_tokens'] += protagonist_tokens.get('prompt_tokens', 0)
-            total_tokens_used['completion_tokens'] += protagonist_tokens.get('completion_tokens', 0)
-            total_tokens_used['total_tokens'] += protagonist_tokens.get('total_tokens', 0)
-            logger.info(f"Protagonist generation tokens: {protagonist_tokens}")
-
+        # Check if characters were generated in the plot response
+        characters_from_plot = plot_data.get('characters', [])
         protagonist_db = None
-        if protagonist_options:
-            protagonist_data = protagonist_options[0]
-            protagonist_db = Character.objects.create(
-                project=project,
-                name=protagonist_data.get('name', ''),
-                role='protagonist',
-                age=protagonist_data.get('age', ''),
-                background=protagonist_data.get('background', ''),
-                personality=protagonist_data.get('personality', ''),
-                motivation=protagonist_data.get('motivation') or protagonist_data.get('goals', ''),
-                flaw=protagonist_data.get('flaw', ''),
-                arc=protagonist_data.get('arc', ''),
-                appearance=protagonist_data.get('appearance') or protagonist_data.get('physical_description', ''),
-                relationships=protagonist_data.get('relationships', '')
-            )
-
-            # Store protagonist in ChromaDB memory for outline generation
-            try:
-                service = ProjectService(project)
-                service.memory.store_character({
-                    'name': protagonist_db.name,
-                    'age': protagonist_db.age,
-                    'role': protagonist_db.role,
-                    'personality': protagonist_db.personality,
-                    'background': protagonist_db.background,
-                    'appearance': protagonist_db.appearance,
-                    'motivations': protagonist_db.motivation,
-                    'flaw': protagonist_db.flaw,
-                    'arc': protagonist_db.arc,
-                    'relationships': protagonist_db.relationships
-                })
-                logger.info(f"Stored protagonist '{protagonist_db.name}' in ChromaDB memory for project {project.id}")
-            except Exception as e:
-                logger.warning(f"Failed to store protagonist in ChromaDB memory: {e}")
-
-        # Auto-generate antagonist character
         antagonist_db = None
-        if protagonist_db:
+
+        if characters_from_plot:
+            # Save characters from the plot response (single API call approach)
+            logger.info(f"Found {len(characters_from_plot)} characters in plot response")
+            for char_data in characters_from_plot:
+                role = char_data.get('role', '').lower()
+                if role == 'protagonist' and not protagonist_db:
+                    protagonist_db = Character.objects.create(
+                        project=project,
+                        name=char_data.get('name', ''),
+                        role='protagonist',
+                        age=char_data.get('age', ''),
+                        background=char_data.get('background', ''),
+                        personality=char_data.get('personality', ''),
+                        motivation=char_data.get('motivation', ''),
+                        flaw=char_data.get('flaw', ''),
+                        arc=char_data.get('arc', ''),
+                        appearance=char_data.get('appearance', ''),
+                        relationships=char_data.get('relationships', '')
+                    )
+                    logger.info(f"Created protagonist '{protagonist_db.name}' from plot response")
+                elif role == 'antagonist' and not antagonist_db:
+                    antagonist_db = Character.objects.create(
+                        project=project,
+                        name=char_data.get('name', ''),
+                        role='antagonist',
+                        age=char_data.get('age', ''),
+                        background=char_data.get('background', ''),
+                        personality=char_data.get('personality', ''),
+                        motivation=char_data.get('motivation', ''),
+                        flaw=char_data.get('flaw', ''),
+                        arc=char_data.get('arc', ''),
+                        appearance=char_data.get('appearance', ''),
+                        relationships=char_data.get('relationships', '')
+                    )
+                    logger.info(f"Created antagonist '{antagonist_db.name}' from plot response")
+
+        # If no characters in plot response, fall back to generating separately (backward compatibility)
+        if not protagonist_db:
+            logger.info("No characters in plot response, generating separately for backward compatibility")
+            character_plot_data = {
+                'title': project.title,  # Use project title instead of deprecated premise
+                # Removed 'premise' key - deprecated field
+                # Removed 'themes' key - themes no longer generated
+                'conflict': plot.conflict  # More specific than premise
+            }
+
+            # Generate and save protagonist
+            logger.info("-" * 80)
+            logger.info("Generating protagonist character...")
+            protagonist_options, protagonist_tokens = CharacterService.create_protagonists(
+                project, character_plot_data, num_options=1, user_language=user_language
+            )
+            logger.info(f"Protagonist generated: {protagonist_options}")
+            logger.info("-" * 80)
+            # Accumulate protagonist tokens
+            if protagonist_tokens:
+                total_tokens_used['prompt_tokens'] += protagonist_tokens.get('prompt_tokens', 0)
+                total_tokens_used['completion_tokens'] += protagonist_tokens.get('completion_tokens', 0)
+                total_tokens_used['total_tokens'] += protagonist_tokens.get('total_tokens', 0)
+                logger.info(f"Protagonist generation tokens: {protagonist_tokens}")
+
+            if protagonist_options:
+                protagonist_data = protagonist_options[0]
+                protagonist_db = Character.objects.create(
+                    project=project,
+                    name=protagonist_data.get('name', ''),
+                    role='protagonist',
+                    age=protagonist_data.get('age', ''),
+                    background=protagonist_data.get('background', ''),
+                    personality=protagonist_data.get('personality', ''),
+                    motivation=protagonist_data.get('motivation') or protagonist_data.get('goals', ''),
+                    flaw=protagonist_data.get('flaw', ''),
+                    arc=protagonist_data.get('arc', ''),
+                    appearance=protagonist_data.get('appearance') or protagonist_data.get('physical_description', ''),
+                    relationships=protagonist_data.get('relationships', '')
+                )
+
+                # Store protagonist in ChromaDB memory for outline generation
+                try:
+                    service = ProjectService(project)
+                    service.memory.store_character({
+                        'name': protagonist_db.name,
+                        'age': protagonist_db.age,
+                        'role': protagonist_db.role,
+                        'personality': protagonist_db.personality,
+                        'background': protagonist_db.background,
+                        'appearance': protagonist_db.appearance,
+                        'motivations': protagonist_db.motivation,
+                        'flaw': protagonist_db.flaw,
+                        'arc': protagonist_db.arc,
+                        'relationships': protagonist_db.relationships
+                    })
+                    logger.info(f"Stored protagonist '{protagonist_db.name}' in ChromaDB memory for project {project.id}")
+                except Exception as e:
+                    logger.warning(f"Failed to store protagonist in ChromaDB memory: {e}")
+
+        # Auto-generate antagonist character if protagonist exists but no antagonist yet
+        if protagonist_db and not antagonist_db:
             protagonist_data_for_antagonist = {
                 'name': protagonist_db.name,
                 'background': protagonist_db.background,
@@ -307,9 +351,13 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
                 'goals': protagonist_db.motivation
             }
 
+            logger.info("-" * 80)
+            logger.info("Generating antagonist character...")
             antagonist_data, antagonist_tokens = CharacterService.create_antagonist(
-                project, character_plot_data, protagonist_data_for_antagonist, user_language=user_language
+                project, plot_data, protagonist_data_for_antagonist, user_language=user_language
             )
+            logger.info(f"Antagonist generated: {antagonist_data}")
+            logger.info("-" * 80)
             # Accumulate antagonist tokens
             if antagonist_tokens:
                 total_tokens_used['prompt_tokens'] += antagonist_tokens.get('prompt_tokens', 0)
@@ -913,7 +961,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         character = get_object_or_404(Character, id=character_id, project=project)
 
         # Update allowed fields
-        allowed_fields = ['name', 'background', 'personality', 'motivations', 'relationships']
+        allowed_fields = ['name', 'background', 'personality', 'motivation', 'relationships']
         updated = False
 
         for field in allowed_fields:

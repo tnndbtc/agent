@@ -27,7 +27,7 @@ class ActSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Act
-        fields = ['id', 'act_number', 'subject', 'percentage', 'description', 'created_at', 'updated_at']
+        fields = ['id', 'act_number', 'subject', 'description', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 

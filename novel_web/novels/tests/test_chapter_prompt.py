@@ -32,7 +32,6 @@ class TestChapterPromptActEmphasis:
         # Setup: Create plot with acts
         plot = Plot.objects.create(
             project=test_project,
-            themes='Coming of age, discovery, heroism',
             conflict='Protagonist must overcome inner doubts to save their world'
         )
 
@@ -40,7 +39,6 @@ class TestChapterPromptActEmphasis:
             plot=plot,
             act_number=1,
             subject='SETUP',
-            percentage=25,
             description='Introduction to the protagonist and their ordinary world. Establish the status quo before the inciting incident disrupts everything.'
         )
 
@@ -107,8 +105,7 @@ class TestChapterPromptActEmphasis:
         assert "This chapter is part of Act 1: SETUP" in user_message, \
             "FAIL: Prompt must explicitly state 'This chapter is part of Act 1: SETUP'"
 
-        assert "25%" in user_message, \
-            "FAIL: Prompt must include act percentage (25%)"
+        # percentage field removed in migration 0023
 
         assert "Introduction to the protagonist and their ordinary world" in user_message, \
             "FAIL: Prompt must include full act description"
@@ -120,7 +117,7 @@ class TestChapterPromptActEmphasis:
         """
         Test that all required act details appear in the chapter generation prompt.
 
-        Verifies that act number, subject, percentage, and description are all
+        Verifies that act number, subject, and description are all
         included to provide complete context for the AI.
         """
         from langchain_core.messages import HumanMessage
@@ -128,7 +125,6 @@ class TestChapterPromptActEmphasis:
         # Setup: Create plot with Act 2
         plot = Plot.objects.create(
             project=test_project,
-            themes='Transformation, challenge, growth',
             conflict='Heroes face escalating obstacles'
         )
 
@@ -136,7 +132,6 @@ class TestChapterPromptActEmphasis:
             plot=plot,
             act_number=2,
             subject='CONFRONTATION',
-            percentage=50,
             description='Rising action and complications. The protagonist faces challenges that test their resolve and force growth.'
         )
 
@@ -189,8 +184,7 @@ class TestChapterPromptActEmphasis:
         assert "CONFRONTATION" in user_message, \
             "FAIL: Prompt must include 'CONFRONTATION' (act subject)"
 
-        assert "50%" in user_message, \
-            "FAIL: Prompt must include '50%' (act percentage)"
+        # percentage field removed in migration 0023
 
         assert "Rising action and complications" in user_message, \
             "FAIL: Prompt must include act description text"
@@ -210,7 +204,6 @@ class TestChapterPromptActEmphasis:
         # Setup: Create plot with all 3 acts
         plot = Plot.objects.create(
             project=test_project,
-            themes='Journey, growth, triumph',
             conflict='Hero must save the world'
         )
 
@@ -218,7 +211,6 @@ class TestChapterPromptActEmphasis:
             plot=plot,
             act_number=1,
             subject='SETUP',
-            percentage=25,
             description='Ordinary world and call to adventure'
         )
 
@@ -226,7 +218,6 @@ class TestChapterPromptActEmphasis:
             plot=plot,
             act_number=2,
             subject='CONFRONTATION',
-            percentage=50,
             description='Tests, allies, enemies, and approach'
         )
 
@@ -234,7 +225,6 @@ class TestChapterPromptActEmphasis:
             plot=plot,
             act_number=3,
             subject='RESOLUTION',
-            percentage=25,
             description='Climax and return home'
         )
 
@@ -317,7 +307,6 @@ class TestChapterPromptActEmphasis:
         # Setup: Create plot
         plot = Plot.objects.create(
             project=test_project,
-            themes='Mystery, intrigue',
             conflict='Uncover the truth'
         )
 

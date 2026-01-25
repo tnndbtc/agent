@@ -178,7 +178,7 @@ class TestPlotAndCharacterGeneration:
         # Verify plot was created
         assert 'plot' in response.data
         plot = Plot.objects.get(project=test_project)
-        assert plot.themes is not None  # Changed from premise - deprecated field
+        assert plot.conflict is not None  # Test conflict instead of removed themes field
 
         # Verify protagonist was auto-created
         assert 'protagonist' in response.data
@@ -232,7 +232,6 @@ class TestOutlineGeneration:
         Plot.objects.create(
             project=test_project,
             # Removed 'premise' - deprecated field
-            themes='Test themes',
             conflict='Test conflict'
         )
 
@@ -275,7 +274,6 @@ class TestOutlineGeneration:
         Plot.objects.create(
             project=test_project,
             # Removed 'premise' - deprecated field
-            themes='Test themes',
             conflict='Test conflict'
         )
 
@@ -323,7 +321,6 @@ class TestChapterGeneration:
         Plot.objects.create(
             project=test_project,
             # Removed 'premise' - deprecated field
-            themes='Test themes',
             conflict='Test conflict'
         )
 
@@ -382,7 +379,7 @@ class TestChapterGeneration:
     def test_write_chapter_updates_word_count(self, authenticated_client, test_project, mock_all_openai):
         """Test writing a chapter correctly calculates word count."""
         # Setup
-        Plot.objects.create(project=test_project, themes='Test themes', conflict='Test conflict')
+        Plot.objects.create(project=test_project, conflict='Test conflict')
         outline = ChapterOutline.objects.create(
             project=test_project,
             number=1,
@@ -415,7 +412,7 @@ class TestChapterGeneration:
     ):
         """Test writing chapter with example in iterative mode (quality targeting)."""
         # Setup: Create plot and outline
-        Plot.objects.create(project=test_project, themes='Test themes', conflict='Test conflict')
+        Plot.objects.create(project=test_project, conflict='Test conflict')
         outline = ChapterOutline.objects.create(
             project=test_project,
             number=1,
@@ -679,10 +676,7 @@ class TestActStructure:
         assert act2.subject == 'CONFRONTATION'
         assert act3.subject == 'RESOLUTION'
 
-        # Verify percentages
-        assert act1.percentage == 25
-        assert act2.percentage == 50
-        assert act3.percentage == 25
+        # percentage field removed in migration 0023
 
         # Verify descriptions are not empty
         assert len(act1.description) > 0
@@ -741,7 +735,7 @@ class TestActStructure:
         act1 = acts[0]
         assert act1['act_number'] == 1
         assert act1['subject'] == 'SETUP'
-        assert act1['percentage'] == 25
+        # percentage field removed in migration 0023
         assert 'description' in act1
         assert 'id' in act1
 

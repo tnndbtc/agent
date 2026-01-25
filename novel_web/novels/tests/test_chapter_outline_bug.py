@@ -35,7 +35,6 @@ class TestChapterOutlineBug:
         # Create plot and act (required for outlines)
         plot = Plot.objects.create(
             project=project,
-            themes='Test themes',
             conflict='Test conflict'
         )
 
@@ -44,7 +43,6 @@ class TestChapterOutlineBug:
             act_number=1,
             subject='Setup',
             description='First act',
-            percentage=33
         )
 
         # Create 3 chapter outlines
@@ -128,9 +126,9 @@ class TestChapterOutlineBug:
         """
         user = User.objects.create_user(username='testuser2', password='test123')
         project = NovelProject.objects.create(user=user, title='Test Novel 2')
-        plot = Plot.objects.create(project=project, themes='Test', conflict='Test conflict')
+        plot = Plot.objects.create(project=project, conflict='Test conflict')
         act = Act.objects.create(plot=plot, act_number=1, subject='Setup',
-                                description='Act 1', percentage=100)
+                                description='Act 1')
 
         # Create outlines
         outline1 = ChapterOutline.objects.create(
@@ -185,9 +183,9 @@ class TestChapterOutlineBug:
         """
         user = User.objects.create_user(username='testuser3', password='test123')
         project = NovelProject.objects.create(user=user, title='Test Novel 3')
-        plot = Plot.objects.create(project=project, themes='Test', conflict='Test conflict')
+        plot = Plot.objects.create(project=project, conflict='Test conflict')
         act = Act.objects.create(plot=plot, act_number=1, subject='Setup',
-                                description='Act 1', percentage=100)
+                                description='Act 1')
 
         outline1 = ChapterOutline.objects.create(
             project=project, act=act, number=1, title='Chapter 1', events='Events 1'
@@ -237,9 +235,9 @@ class TestChapterOutlineBug:
             user=user,
             title=f'Test Novel - Buggy Order {write_order}'
         )
-        plot = Plot.objects.create(project=project, themes='Test', conflict='Test conflict')
+        plot = Plot.objects.create(project=project, conflict='Test conflict')
         act = Act.objects.create(plot=plot, act_number=1, subject='Setup',
-                                description='Act 1', percentage=100)
+                                description='Act 1')
 
         # Create 3 outlines
         outlines = {}
@@ -314,9 +312,9 @@ class TestChapterOutlineBug:
             user=user,
             title=f'Test Novel - Fixed Order {write_order}'
         )
-        plot = Plot.objects.create(project=project, themes='Test', conflict='Test conflict')
+        plot = Plot.objects.create(project=project, conflict='Test conflict')
         act = Act.objects.create(plot=plot, act_number=1, subject='Setup',
-                                description='Act 1', percentage=100)
+                                description='Act 1')
 
         # Create 3 outlines
         outlines = {}
@@ -387,9 +385,9 @@ class TestChapterOutlineBug:
             user=user,
             title='Test Novel - 8 Chapters Buggy'
         )
-        plot = Plot.objects.create(project=project, themes='Test', conflict='Test conflict')
+        plot = Plot.objects.create(project=project, conflict='Test conflict')
         act = Act.objects.create(plot=plot, act_number=1, subject='Setup',
-                                description='Act 1', percentage=100)
+                                description='Act 1')
 
         # Create 8 outlines
         outlines = {}
@@ -453,9 +451,9 @@ class TestChapterOutlineBug:
             user=user,
             title='Test Novel - Rewrite Bug'
         )
-        plot = Plot.objects.create(project=project, themes='Test', conflict='Test conflict')
+        plot = Plot.objects.create(project=project, conflict='Test conflict')
         act = Act.objects.create(plot=plot, act_number=1, subject='Setup',
-                                description='Act 1', percentage=100)
+                                description='Act 1')
 
         # Create 3 outlines
         outlines = {}
@@ -540,9 +538,9 @@ class TestChapterOutlineBug:
             user=user,
             title='Test Novel - Rewrite Fixed'
         )
-        plot = Plot.objects.create(project=project, themes='Test', conflict='Test conflict')
+        plot = Plot.objects.create(project=project, conflict='Test conflict')
         act = Act.objects.create(plot=plot, act_number=1, subject='Setup',
-                                description='Act 1', percentage=100)
+                                description='Act 1')
 
         # Create 3 outlines
         outlines = {}
@@ -639,9 +637,9 @@ class TestChapterOutlineBug:
             user=user,
             title='Test Novel - 8 Chapters Fixed'
         )
-        plot = Plot.objects.create(project=project, themes='Test', conflict='Test conflict')
+        plot = Plot.objects.create(project=project, conflict='Test conflict')
         act = Act.objects.create(plot=plot, act_number=1, subject='Setup',
-                                description='Act 1', percentage=100)
+                                description='Act 1')
 
         # Create 8 outlines
         outlines = {}

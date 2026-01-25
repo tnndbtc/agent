@@ -16,7 +16,6 @@ class ActStructure(BaseModel):
     """Pydantic model for a single act in the three-act structure."""
     act_number: int = Field(description="Act number (1, 2, or 3)")
     subject: str = Field(description="Act type: SETUP, CONFRONTATION, or RESOLUTION")
-    percentage: int = Field(description="Percentage of story this act covers (typically 25, 50, 25)")
     description: str = Field(description="Detailed description of what happens in this act")
 
 

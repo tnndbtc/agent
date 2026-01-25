@@ -300,7 +300,7 @@ def test_plot_with_acts(db, test_project):
         project=test_project,
         # Removed 'premise' - deprecated field
         conflict="Battle between light and darkness",
-        themes="Coming of age, accepting responsibility, good vs evil",
+        # themes field removed in migration 0023
         structure="Classic three-act structure with clear turning points",
         tone="Epic fantasy",
         target_audience="Young Adult"
@@ -311,7 +311,6 @@ def test_plot_with_acts(db, test_project):
         plot=plot,
         act_number=1,
         subject='SETUP',
-        percentage=25,
         description='The protagonist is introduced in their ordinary world. They receive the call to adventure when they discover their magical powers and learn of an ancient prophecy.'
     )
 
@@ -320,7 +319,6 @@ def test_plot_with_acts(db, test_project):
         plot=plot,
         act_number=2,
         subject='CONFRONTATION',
-        percentage=50,
         description='The protagonist trains and faces increasingly difficult challenges. They confront the antagonist for the first time and suffer a major setback that tests their resolve.'
     )
 
@@ -329,7 +327,6 @@ def test_plot_with_acts(db, test_project):
         plot=plot,
         act_number=3,
         subject='RESOLUTION',
-        percentage=25,
         description='The protagonist overcomes their doubts and faces the final confrontation with the antagonist. The conflict is resolved and the new normal is established.'
     )
 

@@ -493,7 +493,7 @@ class Plot(models.Model):
     project = models.OneToOneField(NovelProject, on_delete=models.CASCADE, related_name='plot')
 
     # Basic plot elements
-    themes = models.TextField(blank=True, help_text="Main themes, comma-separated")
+    # themes field removed in migration 0023
     conflict = models.TextField(blank=True, help_text="Central conflict")
 
     # Story structure
@@ -546,9 +546,7 @@ class Act(models.Model):
         choices=SUBJECT_CHOICES,
         help_text="Act type (SETUP, CONFRONTATION, RESOLUTION)"
     )
-    percentage = models.IntegerField(
-        help_text="Percentage of story (typically 25%, 50%, 25%)"
-    )
+    # percentage field removed in migration 0023
     description = models.TextField(
         help_text="Detailed description of what happens in this act"
     )
@@ -564,7 +562,7 @@ class Act(models.Model):
         ]
 
     def __str__(self):
-        return f"Act {self.act_number}: {self.subject} ({self.percentage}%)"
+        return f"Act {self.act_number}: {self.subject}"
 
 
 class Character(models.Model):

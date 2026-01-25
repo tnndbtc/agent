@@ -47,57 +47,69 @@
         <div class="section brainstorm-section">
             <h3>{% trans "Ideas" %}</h3>
 
-            <!-- Previously Saved Ideas - Show when idea exists -->
-            {% if previous_ideas %}
-            <div class="saved-ideas-section" style="margin-top: 1rem;">
-                <div class="ideas-container">
-                    {% for idea in previous_ideas|slice:":1" %}
-                    <div class="idea-card current-idea">
-                        <div class="idea-premise" style="font-size: 1rem; margin-bottom: 1rem;">
-                            {% firstof idea.premise idea.description "No description" %}
-                        </div>
+            <!-- Idea Form Section -->
+            <div class="idea-form-section" style="margin-top: 1rem;">
+                {% if previous_ideas %}
+                <!-- Show current idea with Modify button -->
+                <div class="current-idea-display" id="currentIdeaDisplay" style="margin-bottom: 1rem; padding: 1rem; background-color: #f9f9f9; border-radius: 8px;">
+                    <strong>Current Idea:</strong>
+                    <div id="currentIdeaText" style="margin-top: 0.5rem;">
+                        {% firstof previous_ideas.0.premise previous_ideas.0.description "No description" %}
                     </div>
-                    {% endfor %}
-                </div>
-
-                <div id="createPlotProgressContainer" class="progress-container" style="display: none; margin-top: 1rem;">
-                    <div class="progress-bar">
-                        <div id="createPlotProgressBarFill" class="progress-bar-fill">0%</div>
-                    </div>
-                    <div id="createPlotProgressText" class="progress-text">Creating plot & characters...</div>
-                </div>
-
-                <div style="margin-top: 1rem; display: flex; gap: 1rem;">
-                    <button class="btn btn-primary" onclick="modifyIdea()">
-                        ✏️ Modify Idea
-                    </button>
-                    <button class="btn btn-primary" onclick="useCurrentIdea()" id="createPlotBtn">
-                        ✨ Create Plot & Characters
+                    <button type="button" class="btn btn-secondary btn-sm" style="margin-top: 0.5rem;" onclick="showModifyForm()">
+                        ✏️ Modify
                     </button>
                 </div>
-            </div>
 
-            <!-- Edit Form - Hidden by default -->
-            <div id="editSection" style="display: none; margin-top: 1.5rem;">
-                <form id="editForm" class="form-card">
+                <!-- Edit Form - Hidden by default when idea exists -->
+                <form id="manualForm" class="form-card" style="display: none;">
                     <div class="form-group">
-                        <label for="edit_premise">Idea</label>
-                        <textarea id="edit_premise" name="premise" class="form-control" rows="4" required
-                                  placeholder="Describe your plot idea...">{% firstof previous_ideas.0.premise previous_ideas.0.description "" %}</textarea>
+                        <label for="manual_premise">Modify Idea</label>
+                        <textarea id="manual_premise" name="premise" class="form-control" rows="4" required
+                                  placeholder="Describe your plot idea..."
+                                  data-original-value="{% firstof previous_ideas.0.premise previous_ideas.0.description "" %}">{% firstof previous_ideas.0.premise previous_ideas.0.description "" %}</textarea>
                     </div>
 
-                    <div style="display: flex; gap: 1rem;">
-                        <button type="submit" class="btn btn-primary" style="flex: 1;">
-                            💾 Save Changes
+                    <div id="progressContainer" class="progress-container" style="display: none;">
+                        <div class="progress-bar">
+                            <div id="progressBarFill" class="progress-bar-fill">0%</div>
+                        </div>
+                        <div id="progressText" class="progress-text">Saving idea and creating plot & characters...</div>
+                    </div>
+
+                    <div style="display: flex; gap: 10px;">
+                        <button type="submit" class="btn btn-primary" id="saveIdeaBtn" disabled style="opacity: 0.5; flex: 1;">
+                            💾 Save Idea and continue
                         </button>
-                        <button type="button" class="btn btn-secondary" onclick="cancelEdit()">
+                        <button type="button" class="btn btn-secondary" onclick="cancelModifyForm()" style="flex: 0.5;">
                             Cancel
                         </button>
                     </div>
                 </form>
+                {% else %}
+                <!-- Show form directly for new ideas -->
+                <form id="manualForm" class="form-card">
+                    <div class="form-group">
+                        <label for="manual_premise">Enter Your Idea</label>
+                        <textarea id="manual_premise" name="premise" class="form-control" rows="4" required
+                                  placeholder="Describe your plot idea..."></textarea>
+                    </div>
+
+                    <div id="progressContainer" class="progress-container" style="display: none;">
+                        <div class="progress-bar">
+                            <div id="progressBarFill" class="progress-bar-fill">0%</div>
+                        </div>
+                        <div id="progressText" class="progress-text">Saving idea and creating plot & characters...</div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-block" id="saveIdeaBtn">
+                        💾 Save Idea and continue
+                    </button>
+                </form>
+                {% endif %}
             </div>
 
-            {% else %}
+            {% if not previous_ideas %}
             <!-- Original Brainstorm Page - Only shown when no ideas exist -->
             <div class="info-message">
                 <p>{% trans "Generate creative plot ideas for your novel. You can customize the theme and number of ideas to generate." %}</p>
@@ -141,26 +153,6 @@
                 </button>
             </form>
 
-            <!-- Manual Input Form -->
-            <form id="manualForm" class="form-card" style="display: none;">
-                <div class="form-group">
-                    <label for="manual_premise">Idea</label>
-                    <textarea id="manual_premise" name="premise" class="form-control" rows="4" required
-                              placeholder="Describe your plot idea..."></textarea>
-                </div>
-
-                <div id="progressContainer" class="progress-container">
-                    <div class="progress-bar">
-                        <div id="progressBarFill" class="progress-bar-fill">0%</div>
-                    </div>
-                    <div id="progressText" class="progress-text">Saving idea and creating plot & characters...</div>
-                </div>
-
-                <button type="submit" class="btn btn-primary btn-block" id="saveIdeaBtn">
-                    💾 Save Idea and continue
-                </button>
-            </form>
-
             <div id="resultsSection" class="results-section" style="display: none;">
                 <h3>{% trans "Generated Ideas" %}</h3>
                 <div id="ideasContainer" class="ideas-container"></div>
@@ -174,32 +166,7 @@
             {% if has_plot %}
             <div class="plot-display">
                 <!-- Premise hidden as requested -->
-                <div class="plot-field">
-                    <div id="plotThemesDisplay" style="display: flex; justify-content: space-between; align-items: flex-start;">
-                        <div style="flex: 1;">
-                            <p><strong>{% trans "Themes" %}</strong>: <span id="plotThemesText">{{ project.plot.themes }}</span></p>
-                        </div>
-                        <button class="btn btn-sm btn-primary" onclick="modifyPlotField('themes')" style="margin-left: 1rem;">
-                            {% trans "Modify" %}
-                        </button>
-                    </div>
-                    <div id="editThemesSection" style="display: none; margin-top: 1rem;">
-                        <form class="form-card">
-                            <div class="form-group">
-                                <label for="editThemesInput">{% trans "Themes" %}</label>
-                                <textarea id="editThemesInput" name="themes" class="form-control" rows="4" placeholder="{% trans 'Enter the themes...' %}">{{ project.plot.themes }}</textarea>
-                            </div>
-                            <div style="display: flex; gap: 1rem;">
-                                <button type="button" class="btn btn-primary" style="flex: 1;" onclick="savePlotField('themes')">
-                                    💾 {% trans "Save Changes" %}
-                                </button>
-                                <button type="button" class="btn btn-secondary" onclick="cancelPlotEdit('themes')">
-                                    {% trans "Cancel" %}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
+                <!-- Themes section removed as requested -->
                 {# Display Acts in separate sections #}
                 {% if project.plot.acts.exists %}
                 <div class="plot-field">
@@ -209,7 +176,7 @@
                         <div id="actDisplay-{{ act.id }}" style="display: flex; justify-content: space-between; align-items: flex-start;">
                             <div style="flex: 1;">
                                 <h5 style="margin: 0 0 0.5rem 0; color: #667eea;">
-                                    {% trans "Act" %} {{ act.act_number }}: {{ act.subject }} ({{ act.percentage }}%)
+                                    {% trans "Act" %} {{ act.act_number }}: {{ act.subject }}
                                 </h5>
                                 <p id="actDescriptionText-{{ act.id }}" style="white-space: pre-wrap; line-height: 1.6; margin: 0;">{{ act.description }}</p>
                             </div>
@@ -225,10 +192,6 @@
                                     <option value="CONFRONTATION" {% if act.subject == 'CONFRONTATION' %}selected{% endif %}>{% trans "CONFRONTATION" %}</option>
                                     <option value="RESOLUTION" {% if act.subject == 'RESOLUTION' %}selected{% endif %}>{% trans "RESOLUTION" %}</option>
                                 </select>
-                            </div>
-                            <div class="form-group">
-                                <label>{% trans "Percentage" %}</label>
-                                <input type="number" id="editActPercentage-{{ act.id }}" class="form-control" value="{{ act.percentage }}" min="1" max="100">
                             </div>
                             <div class="form-group">
                                 <label>{% trans "Description" %}</label>
@@ -362,7 +325,7 @@
                         <div class="act-header" onclick="toggleActSection({{ act.id }})">
                             <h5>
                                 <span class="act-toggle">▼</span>
-                                Act {{ act.act_number }}: {{ act.subject }} ({{ act.percentage }}%)
+                                Act {{ act.act_number }}: {{ act.subject }}
                             </h5>
                             {% if act.description %}
                             <p class="act-description">{{ act.description|truncatewords:20 }}</p>
@@ -1695,9 +1658,7 @@ async function useCurrentIdea() {
         return;
     }
 
-    if (!confirm('Create plot and characters from this idea?')) {
-        return;
-    }
+    // No confirmation needed - proceed directly
 
     // Reset tokens at the start of new workflow
     resetTokens();
@@ -1797,14 +1758,89 @@ function resetProgressBar() {
     }
 }
 
-// Manual form submission - for new ideas
+// Functions for Modify button workflow
+function showModifyForm() {
+    const currentIdeaDisplay = document.getElementById('currentIdeaDisplay');
+    const manualForm = document.getElementById('manualForm');
+
+    if (currentIdeaDisplay) {
+        currentIdeaDisplay.style.display = 'none';
+    }
+    if (manualForm) {
+        manualForm.style.display = 'block';
+    }
+
+    // Focus on the textarea
+    const textarea = document.getElementById('manual_premise');
+    if (textarea) {
+        textarea.focus();
+    }
+}
+
+function cancelModifyForm() {
+    const currentIdeaDisplay = document.getElementById('currentIdeaDisplay');
+    const manualForm = document.getElementById('manualForm');
+    const textarea = document.getElementById('manual_premise');
+
+    if (currentIdeaDisplay) {
+        currentIdeaDisplay.style.display = 'block';
+    }
+    if (manualForm) {
+        manualForm.style.display = 'none';
+    }
+
+    // Reset textarea to original value
+    if (textarea) {
+        const originalValue = textarea.getAttribute('data-original-value') || '';
+        textarea.value = originalValue;
+    }
+
+    // Reset save button state
+    const saveIdeaBtn = document.getElementById('saveIdeaBtn');
+    if (saveIdeaBtn) {
+        saveIdeaBtn.disabled = true;
+        saveIdeaBtn.style.opacity = '0.5';
+    }
+}
+
+// Track changes to the idea textarea
+const manualPremiseTextarea = document.getElementById('manual_premise');
+const saveIdeaBtn = document.getElementById('saveIdeaBtn');
+
+if (manualPremiseTextarea && saveIdeaBtn) {
+    const originalValue = manualPremiseTextarea.getAttribute('data-original-value') || '';
+
+    // Function to check if idea has been modified
+    function checkIdeaModified() {
+        const currentValue = manualPremiseTextarea.value.trim();
+        const isModified = currentValue !== originalValue.trim() && currentValue !== '';
+
+        if (isModified) {
+            saveIdeaBtn.disabled = false;
+            saveIdeaBtn.style.opacity = '1';
+        } else {
+            saveIdeaBtn.disabled = true;
+            saveIdeaBtn.style.opacity = '0.5';
+        }
+    }
+
+    // Check on input
+    manualPremiseTextarea.addEventListener('input', checkIdeaModified);
+
+    // Initial check - only for edit mode (when there are previous ideas)
+    const hasPreviousIdeas = originalValue !== '';
+    if (hasPreviousIdeas) {
+        checkIdeaModified();
+    }
+}
+
+// Manual form submission - for both new and modified ideas
 const manualForm = document.getElementById('manualForm');
 if (manualForm) {
     manualForm.addEventListener('submit', async function(e) {
         e.preventDefault();
 
         const manualIdea = {
-            title: 'My Idea',
             premise: document.getElementById('manual_premise').value
         };
 
@@ -1814,24 +1850,73 @@ if (manualForm) {
             startProgressBar(estimatedDuration);
 
             // Save the idea to the database
-            await apiRequest(`/api/projects/${projectId}/save_manual_idea/`, {
+            const ideaResponse = await apiRequest(`/api/projects/${projectId}/save_manual_idea/`, {
                 method: 'POST',
                 body: JSON.stringify({ idea: manualIdea })
             });
 
+            // Check for token usage in idea response
+            if (ideaResponse && ideaResponse.token_usage) {
+                console.log('Idea save - calling showTokenUsage with:', ideaResponse.token_usage);
+                showTokenUsage(ideaResponse.token_usage);
+            }
+
             // Automatically create plot and characters
-            await apiRequest(`/api/projects/${projectId}/create_plot/`, {
+            const plotResponse = await apiRequest(`/api/projects/${projectId}/create_plot/`, {
                 method: 'POST',
                 body: JSON.stringify({ idea_data: manualIdea })
             });
 
+            // Check for token usage in plot response
+            if (plotResponse && plotResponse.token_usage) {
+                console.log('Create plot - calling showTokenUsage with:', plotResponse.token_usage);
+                showTokenUsage(plotResponse.token_usage);
+            }
+
             completeProgressBar();
             showToast('Idea saved and plot/characters created successfully!', 'success');
 
-            // Redirect to project detail page
-            setTimeout(() => {
-                window.location.href = '{% url 'novels:project_detail' project.id %}';
-            }, 1500);
+            // Update the current idea display
+            const currentIdeaText = document.getElementById('currentIdeaText');
+            const currentIdeaDisplay = document.getElementById('currentIdeaDisplay');
+
+            if (currentIdeaText) {
+                currentIdeaText.textContent = manualIdea.premise;
+            } else if (!currentIdeaDisplay) {
+                // Create the current idea display if it doesn't exist (first time save)
+                const ideaFormSection = document.querySelector('.idea-form-section');
+                const newDiv = document.createElement('div');
+                newDiv.className = 'current-idea-display';
+                newDiv.id = 'currentIdeaDisplay';
+                newDiv.style = 'margin-bottom: 1rem; padding: 1rem; background-color: #f9f9f9; border-radius: 8px;';
+                newDiv.innerHTML = `
+                    <strong>Current Idea:</strong>
+                    <div id="currentIdeaText" style="margin-top: 0.5rem;">${manualIdea.premise}</div>
+                    <button type="button" class="btn btn-secondary btn-sm" style="margin-top: 0.5rem;" onclick="showModifyForm()">
+                        ✏️ Modify
+                    </button>
+                `;
+                ideaFormSection.insertBefore(newDiv, manualForm);
+            }
+
+            // Hide the form and show the display
+            if (currentIdeaDisplay) {
+                currentIdeaDisplay.style.display = 'block';
+            }
+            manualForm.style.display = 'none';
+
+            // Reset progress bar
+            resetProgressBar();
+
+            // Update the original value to the new saved value
+            if (manualPremiseTextarea) {
+                manualPremiseTextarea.setAttribute('data-original-value', manualIdea.premise);
+                // Disable save button again since we just saved
+                if (saveIdeaBtn) {
+                    saveIdeaBtn.disabled = true;
+                    saveIdeaBtn.style.opacity = '0.5';
+                }
+            }
         } catch (error) {
             resetProgressBar();
             showToast('Error: ' + error.message, 'error');
@@ -1839,57 +1924,25 @@ if (manualForm) {
     });
 }
 
-// Edit form submission - for modifying existing ideas
-const editForm = document.getElementById('editForm');
-if (editForm) {
-    editForm.addEventListener('submit', async function(e) {
-        e.preventDefault();
-
-        const updatedIdea = {
-            title: 'My Idea',
-            premise: document.getElementById('edit_premise').value
-        };
-
-        try {
-            showLoading('Saving changes...');
-
-            // Save the updated idea
-            await apiRequest(`/api/projects/${projectId}/save_manual_idea/`, {
-                method: 'POST',
-                body: JSON.stringify({ idea: updatedIdea })
-            });
-
-            hideLoading();
-            showToast('Changes saved successfully! Reloading...', 'success');
-
-            // Reload to show updated idea
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
-        } catch (error) {
-            hideLoading();
-            showToast('Error saving changes: ' + error.message, 'error');
-        }
-    });
-}
+// Edit form code removed - now using unified manualForm
 
 // Mode switching for AI generation vs manual input
 function switchMode(mode) {
     const generateBtn = document.querySelector('[data-mode="generate"]');
     const manualBtn = document.querySelector('[data-mode="manual"]');
     const brainstormForm = document.getElementById('brainstormForm');
-    const manualForm = document.getElementById('manualForm');
+    const ideaFormSection = document.querySelector('.idea-form-section');
 
     if (mode === 'generate') {
         generateBtn.classList.add('active');
         manualBtn.classList.remove('active');
         brainstormForm.style.display = 'block';
-        manualForm.style.display = 'none';
+        if (ideaFormSection) ideaFormSection.style.display = 'none';
     } else {
         generateBtn.classList.remove('active');
         manualBtn.classList.add('active');
         brainstormForm.style.display = 'none';
-        manualForm.style.display = 'block';
+        if (ideaFormSection) ideaFormSection.style.display = 'block';
     }
 }
 
@@ -2091,9 +2144,7 @@ function useSelectedIdea() {
         return;
     }
 
-    if (!confirm('Use this idea to create the plot and characters for your novel?')) {
-        return;
-    }
+    // No confirmation needed - proceed directly
 
     // Reset tokens at the start of new workflow
     resetTokens();
@@ -2240,7 +2291,7 @@ async function loadActsForModal() {
             project.plot.acts.forEach(act => {
                 const option = document.createElement('option');
                 option.value = act.id;
-                option.textContent = `Act ${act.act_number}: ${act.subject} (${act.percentage}%)`;
+                option.textContent = `Act ${act.act_number}: ${act.subject}`;
                 option.dataset.description = act.description;
                 actSelect.appendChild(option);
             });
@@ -3149,20 +3200,13 @@ function cancelActEdit(actId) {
 
 async function saveAct(actId) {
     const subjectInput = document.getElementById(`editActSubject-${actId}`);
-    const percentageInput = document.getElementById(`editActPercentage-${actId}`);
     const descriptionInput = document.getElementById(`editActDescription-${actId}`);
 
     const newSubject = subjectInput.value.trim();
-    const newPercentage = parseInt(percentageInput.value);
     const newDescription = descriptionInput.value.trim();
 
     if (!newSubject || !newDescription) {
         showToast('Subject and description cannot be empty', 'error');
-        return;
-    }
-
-    if (newPercentage < 1 || newPercentage > 100) {
-        showToast('Percentage must be between 1 and 100', 'error');
         return;
     }
 
@@ -3171,7 +3215,6 @@ async function saveAct(actId) {
             method: 'PATCH',
             body: JSON.stringify({
                 subject: newSubject,
-                percentage: newPercentage,
                 description: newDescription
             })
         });
@@ -3183,7 +3226,7 @@ async function saveAct(actId) {
 
         if (titleElement) {
             const actNumber = titleElement.textContent.match(/Act (\d+)/)[1];
-            titleElement.innerHTML = `{% trans "Act" %} ${actNumber}: ${newSubject} (${newPercentage}%)`;
+            titleElement.innerHTML = `{% trans "Act" %} ${actNumber}: ${newSubject}`;
         }
         if (descriptionElement) descriptionElement.textContent = newDescription;
 

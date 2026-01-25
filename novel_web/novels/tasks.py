@@ -607,7 +607,7 @@ def create_outline_task(self, task_id, project_id, num_chapters=1, act_id=None, 
         plot_data = {
             'title': project.title,  # Use project title instead of deprecated premise
             # Removed 'premise' key - it was causing pollution in generated outlines
-            'themes': project.plot.themes,
+            # 'themes' removed - field removed in migration 0023
             'conflict': project.plot.conflict,
             'structure': project.plot.structure,
             'arc': project.plot.arc
@@ -625,10 +625,10 @@ def create_outline_task(self, task_id, project_id, num_chapters=1, act_id=None, 
                 plot_data['act_context'] = {
                     'act_number': act.act_number,
                     'subject': act.subject,
-                    'percentage': act.percentage,
+                    # percentage field removed in migration 0023
                     'description': act.description
                 }
-                logger.info(f"Including act context in outline generation: {act.subject} ({act.percentage}%)")
+                logger.info(f"Including act context in outline generation: {act.subject}")
             except Act.DoesNotExist:
                 logger.error(f"Act {act_id} not found for project {project_id}")
                 act = None
@@ -830,7 +830,7 @@ def regenerate_single_outline_task(self, task_id, project_id, chapter_number, us
         plot_data = {
             'title': project.title,  # Use project title instead of deprecated premise
             # Removed 'premise' key - it was causing pollution in generated outlines
-            'themes': project.plot.themes,
+            # 'themes' removed - field removed in migration 0023
             'conflict': project.plot.conflict,
             'structure': project.plot.structure,
             'arc': project.plot.arc
@@ -973,7 +973,7 @@ def score_novel_task(self, task_id, project_id):
         if hasattr(project, 'plot'):
             novel_data['plot'] = {
                 # Removed 'premise' - deprecated field
-                'themes': project.plot.themes,
+                # 'themes' removed - field removed in migration 0023
                 'conflict': project.plot.conflict  # More specific than premise
             }
 

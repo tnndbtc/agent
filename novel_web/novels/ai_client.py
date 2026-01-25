@@ -197,9 +197,10 @@ def patch_openai_for_logging():
 
             # Log the request
             logger.info("=" * 80)
-            logger.info("OpenAI API Call - Chat Completion (via novel_agent)")
+            logger.info("OPENAI API CALL - INPUT")
+            logger.info("=" * 80)
             logger.info(f"Model: {model}, Temperature: {temperature}, Max Tokens: {max_tokens}")
-            logger.info("Messages:")
+            logger.info("INPUT MESSAGES:")
             for idx, msg in enumerate(messages):
                 if isinstance(msg, dict):
                     role = msg.get('role', 'unknown')
@@ -215,10 +216,12 @@ def patch_openai_for_logging():
                 # Log the response
                 if hasattr(response, 'choices') and response.choices:
                     response_text = response.choices[0].message.content if response.choices else ""
-                    logger.info("OpenAI API Response:")
-                    logger.info(f"  Response: {response_text}")
+                    logger.info("-" * 80)
+                    logger.info("OPENAI API CALL - OUTPUT/RESPONSE")
+                    logger.info("-" * 80)
+                    logger.info(f"RESPONSE CONTENT: {response_text}")
                     if hasattr(response, 'usage') and response.usage:
-                        logger.info(f"  Usage: {response.usage.total_tokens} tokens")
+                        logger.info(f"TOKEN USAGE: {response.usage.total_tokens} tokens")
                 logger.info("=" * 80)
 
                 return response
