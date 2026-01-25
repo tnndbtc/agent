@@ -56,7 +56,7 @@
                     <div id="currentIdeaText" style="margin-top: 0.5rem;">
                         {% firstof previous_ideas.0.premise previous_ideas.0.description "No description" %}
                     </div>
-                    <button type="button" class="btn btn-secondary btn-sm" style="margin-top: 0.5rem;" onclick="showModifyForm()">
+                    <button type="button" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;" onclick="showModifyForm()">
                         ✏️ Modify
                     </button>
                 </div>
@@ -1892,7 +1892,7 @@ if (manualForm) {
                 newDiv.innerHTML = `
                     <strong>Current Idea:</strong>
                     <div id="currentIdeaText" style="margin-top: 0.5rem;">${manualIdea.premise}</div>
-                    <button type="button" class="btn btn-secondary btn-sm" style="margin-top: 0.5rem;" onclick="showModifyForm()">
+                    <button type="button" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;" onclick="showModifyForm()">
                         ✏️ Modify
                     </button>
                 `;
