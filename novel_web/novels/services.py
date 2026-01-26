@@ -1394,6 +1394,116 @@ class WritingService:
         return chapter_data, token_usage
 
     @staticmethod
+    def write_chapter_from_act(project, act, writing_style='literary', language='English', target_word_count=3000, example_metadata=None, iteration=1, previous_scores=None):
+        """
+        Write a complete chapter directly from an Act without outline.
+
+        Args:
+            project: NovelProject instance
+            act: Act model instance
+            writing_style: Writing style (literary, commercial, etc.)
+            language: Target language
+            target_word_count: Target word count
+            example_metadata: Optional dict with 'category', 'genre', 'total_score', 'scores'
+            iteration: Current iteration number (for iterative generation)
+            previous_scores: Previous iteration scores (for gap analysis)
+
+        Returns:
+            Tuple of (chapter_data, token_usage)
+        """
+        from langchain_openai import ChatOpenAI
+        from langchain_core.messages import SystemMessage, HumanMessage
+        from .prompt_assembly import PromptAssemblyService
+        from .models import Chapter
+
+        logger.info(f"WritingService.write_chapter_from_act - project: {project.id}, act: {act.id}, "
+                   f"iteration: {iteration}, target_words: {target_word_count}, has_example_metadata: {example_metadata is not None}")
+
+        # Find the next chapter number for this project
+        existing_chapters = Chapter.objects.filter(project=project).order_by('-chapter_number')
+        next_chapter_number = 1
+        if existing_chapters.exists():
+            next_chapter_number = existing_chapters.first().chapter_number + 1
+
+        # Build user prompt for act-based chapter
+        user_prompt = f"Write Chapter {next_chapter_number} based on the following Act information:\n\n"
+        user_prompt += f"**Act {act.act_number}: {act.subject}**\n"
+        user_prompt += f"{act.description}\n\n"
+        user_prompt += f"**Writing Requirements:**\n"
+        user_prompt += f"- Target word count: {target_word_count} words\n"
+        user_prompt += f"- Writing style: {writing_style}\n"
+        user_prompt += f"- Language: {language}\n\n"
+
+        # Add iteration-specific instructions if applicable
+        if example_metadata and iteration > 1 and previous_scores:
+            user_prompt += "**Quality Improvement Instructions:**\n"
+            user_prompt += "This is an iterative improvement. Focus on addressing the following gaps:\n"
+            for score in previous_scores:
+                if score['score'] < score['target_score']:
+                    gap = score['target_score'] - score['score']
+                    user_prompt += f"- {score['category_name']}: Current score {score['score']:.1f}, "
+                    user_prompt += f"target {score['target_score']:.1f} (gap: {gap:.1f})\n"
+            user_prompt += "\n"
+
+        user_prompt += "Please write a complete chapter that advances the story according to this act. "
+        user_prompt += "Include vivid descriptions, character development, and engaging dialogue where appropriate."
+
+        # Assemble full prompt using 5-layer architecture
+        # Pass act for context instead of chapter_outline
+        system_message, user_message = PromptAssemblyService.assemble_full_prompt(
+            agent_role_key='novelist',
+            user_prompt=user_prompt,
+            project=project,
+            language_code='en',  # UI language, actual output language is in user_prompt
+            context_type='chapter',
+            include_context=True,
+            act=act  # Pass act for context
+        )
+
+        logger.info(f"Built act-based chapter prompt: system={len(system_message)} chars, user={len(user_message)} chars")
+
+        # Call OpenAI
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+        response = llm.invoke([
+            SystemMessage(content=system_message),
+            HumanMessage(content=user_message)
+        ])
+
+        # Extract token usage
+        token_usage = {}
+        if hasattr(response, 'response_metadata') and 'token_usage' in response.response_metadata:
+            usage = response.response_metadata['token_usage']
+            token_usage = {
+                'prompt_tokens': usage.get('prompt_tokens', 0),
+                'completion_tokens': usage.get('completion_tokens', 0),
+                'total_tokens': usage.get('total_tokens', 0)
+            }
+        elif hasattr(response, 'usage_metadata'):
+            token_usage = {
+                'prompt_tokens': getattr(response.usage_metadata, 'input_tokens', 0),
+                'completion_tokens': getattr(response.usage_metadata, 'output_tokens', 0),
+                'total_tokens': getattr(response.usage_metadata, 'total_tokens', 0)
+            }
+
+        # Extract content
+        content = response.content if hasattr(response, 'content') else str(response)
+
+        # Count words
+        word_count = len(content.split())
+
+        chapter_data = {
+            'content': content,
+            'word_count': word_count,
+            'title': f"Chapter {next_chapter_number}",
+            'chapter_number': next_chapter_number
+        }
+
+        logger.info(f"WritingService generated chapter {chapter_data['chapter_number']} from Act {act.act_number}, "
+                   f"words: {word_count}, tokens: {token_usage}")
+
+        return chapter_data, token_usage
+
+    @staticmethod
     def write_dialogue(project, characters, context, purpose, language='English'):
         """Write a dialogue scene."""
         service = ProjectService(project)

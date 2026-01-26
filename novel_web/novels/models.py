@@ -716,6 +716,14 @@ class Chapter(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     project = models.ForeignKey(NovelProject, on_delete=models.CASCADE, related_name='chapters')
     outline = models.OneToOneField(ChapterOutline, on_delete=models.SET_NULL, null=True, blank=True, related_name='chapter')
+    act = models.ForeignKey(
+        'Act',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='direct_chapters',
+        help_text="Direct association with act (for chapters created without outline)"
+    )
 
     chapter_number = models.IntegerField()
     title = models.CharField(max_length=255)

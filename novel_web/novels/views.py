@@ -766,22 +766,41 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
 
         # Convert UUID to string for JSON serialization
         validated_data = serializer.validated_data.copy()
-        chapter_outline_id = validated_data['chapter_outline_id']
+        chapter_outline_id = validated_data.get('chapter_outline_id')
+        act_id = validated_data.get('act_id')
+        outline = None  # Initialize outline to None
 
-        # Validate that the ChapterOutline exists and belongs to this project
-        try:
-            outline = ChapterOutline.objects.get(
-                id=chapter_outline_id,
-                project=project
-            )
-            logger.info(f"Found ChapterOutline: {outline.id} - Title: {outline.title}")
-        except ChapterOutline.DoesNotExist:
-            logger.error(f"ChapterOutline {chapter_outline_id} not found for project {project.id}")
-            return Response({
-                'error': f'Chapter outline {chapter_outline_id} not found or does not belong to this project'
-            }, status=status.HTTP_404_NOT_FOUND)
+        # Handle chapter creation based on whether we have outline_id or act_id
+        if chapter_outline_id:
+            # Traditional flow with existing outline
+            try:
+                outline = ChapterOutline.objects.get(
+                    id=chapter_outline_id,
+                    project=project
+                )
+                logger.info(f"Found ChapterOutline: {outline.id} - Title: {outline.title}")
+                validated_data['chapter_outline_id'] = str(chapter_outline_id)
+            except ChapterOutline.DoesNotExist:
+                logger.error(f"ChapterOutline {chapter_outline_id} not found for project {project.id}")
+                return Response({
+                    'error': f'Chapter outline {chapter_outline_id} not found or does not belong to this project'
+                }, status=status.HTTP_404_NOT_FOUND)
 
-        validated_data['chapter_outline_id'] = str(chapter_outline_id)
+        elif act_id:
+            # Direct chapter creation from act WITHOUT outline
+            try:
+                act = Act.objects.get(
+                    id=act_id,
+                    plot__project=project
+                )
+                logger.info(f"Found Act: {act.id} - Subject: {act.subject} for direct chapter creation")
+                # Keep act_id in validated_data for the task
+                # No outline creation!
+            except Act.DoesNotExist:
+                logger.error(f"Act {act_id} not found for project {project.id}")
+                return Response({
+                    'error': f'Act {act_id} not found or does not belong to this project'
+                }, status=status.HTTP_404_NOT_FOUND)
 
         # Convert example_id UUID to string for JSON serialization (if present)
         if 'example_id' in validated_data and validated_data['example_id'] is not None:
@@ -792,8 +811,16 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             user_language_code = getattr(request, 'LANGUAGE_CODE', 'en')
             validated_data['language'] = get_language_name(user_language_code)
 
-        logger.info(f"Write Chapter API called - User: {request.user.username}, Project: {project.id}, "
-                   f"Outline: {outline.title}, Language: {validated_data.get('language')}, Input: {validated_data}")
+        # Log the API call with appropriate context
+        if outline:
+            logger.info(f"Write Chapter API called - User: {request.user.username}, Project: {project.id}, "
+                       f"Outline: {outline.title}, Language: {validated_data.get('language')}, Input: {validated_data}")
+        elif act_id:
+            logger.info(f"Write Chapter API called - User: {request.user.username}, Project: {project.id}, "
+                       f"Act ID: {act_id}, Language: {validated_data.get('language')}, Input: {validated_data}")
+        else:
+            logger.info(f"Write Chapter API called - User: {request.user.username}, Project: {project.id}, "
+                       f"Language: {validated_data.get('language')}, Input: {validated_data}")
 
         # Create generation task
         task = GenerationTask.objects.create(

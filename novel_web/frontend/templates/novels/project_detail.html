@@ -295,10 +295,11 @@
                 <h3>{% trans "Chapters" %}</h3>
                 <div class="button-group">
                     {% if outlines %}
-                    <button class="btn btn-primary" onclick="createOutline()">{% trans "Add Outline" %}</button>
+                    <button class="btn btn-primary" onclick="createOutline()" style="display: none;">{% trans "Add Outline" %}</button>
                     {% else %}
-                    <button class="btn btn-primary" onclick="createOutline()">{% trans "Create Outline" %}</button>
+                    <button class="btn btn-primary" onclick="createOutline()" style="display: none;">{% trans "Create Outline" %}</button>
                     {% endif %}
+                    <button class="btn btn-primary" onclick="createChapterDirectly()">{% trans "Create Chapter" %}</button>
                 </div>
             </div>
 
@@ -648,33 +649,154 @@
             </div>
             {% endif %}
 
-            {% if chapters and not outlines %}
-            <!-- Show standalone chapters only if there are no outlines -->
-            <div class="chapters-section">
+            {% if chapters %}
+            <!-- Show all chapters grouped by acts -->
+            <div class="chapters-section" style="margin-top: 2rem;">
                 <h4>{% trans "Written Chapters" %}</h4>
-                <div class="chapters-list">
-                    {% for chapter in chapters %}
-                    <div class="chapter-card">
-                        <div class="chapter-number">{{ chapter.chapter_number }}</div>
-                        <div class="chapter-info" onclick="window.location.href='{% url 'novels:chapter_detail' project.id chapter.id %}'" style="cursor: pointer; flex: 1;">
-                            <h4>{{ chapter.title }}</h4>
-                            <p>{{ chapter.word_count }} {% trans "words" %} • {{ chapter.updated_at|timesince }} {% trans "ago" %}</p>
-                        </div>
-                        <div class="chapter-status">
-                            {% if chapter.is_draft %}
-                            <span class="badge badge-warning">{% trans "Draft" %}</span>
-                            {% else %}
-                            <span class="badge badge-success">{% trans "Complete" %}</span>
+
+                {% if has_plot and project.plot.acts.exists %}
+                    {# Group chapters by act #}
+                    {% for act in project.plot.acts.all %}
+                        {% with act_chapters=chapters|dictsort:"chapter_number" %}
+                        {% with has_act_chapters=False %}
+                        {# Check if this act has any chapters #}
+                        {% for chapter in act_chapters %}
+                            {% if chapter.outline and chapter.outline.act_id == act.id or chapter.act_id == act.id %}
+                                {% with has_act_chapters=True %}{% endwith %}
                             {% endif %}
-                        </div>
-                        <div class="chapter-actions">
-                            <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteChapter('{{ chapter.id }}')">
-                                {% trans "Delete" %}
-                            </button>
-                        </div>
-                    </div>
+                        {% endfor %}
+
+                        {# Only show act section if it has chapters #}
+                        {% for chapter in act_chapters %}
+                            {% if chapter.outline and chapter.outline.act_id == act.id or chapter.act_id == act.id %}
+                                {% if forloop.first %}
+                                <div class="act-section" data-act-id="{{ act.id }}" style="margin-bottom: 1.5rem;">
+                                    <div class="act-header" style="background: #f3f4f6; padding: 0.75rem; border-radius: 4px; margin-bottom: 1rem; cursor: pointer;" onclick="toggleActChapters({{ act.id }})">
+                                        <h5 style="margin: 0; color: #111827;">
+                                            <span class="act-toggle" id="act-chapters-toggle-{{ act.id }}">▼</span>
+                                            Act {{ act.act_number }}: {{ act.subject }}
+                                        </h5>
+                                        {% if act.description %}
+                                        <p style="margin: 0.25rem 0 0 1.5rem; color: #6b7280; font-size: 0.875rem;">{{ act.description|truncatewords:20 }}</p>
+                                        {% endif %}
+                                    </div>
+                                    <div class="act-chapters" id="act-chapters-{{ act.id }}">
+                                {% endif %}
+
+                                <div class="chapter-card" style="margin-left: 1.5rem;">
+                                    <div class="chapter-number">{{ chapter.chapter_number }}</div>
+                                    <div class="chapter-info" style="flex: 1;">
+                                        <h4>{{ chapter.title }}</h4>
+                                        <p>{{ chapter.word_count }} {% trans "words" %} • {% trans "Updated" %} {{ chapter.updated_at|timesince }} {% trans "ago" %}</p>
+                                    </div>
+                                    <div class="chapter-status">
+                                        {% if chapter.is_draft %}
+                                        <span class="badge badge-warning">{% trans "Draft" %}</span>
+                                        {% else %}
+                                        <span class="badge badge-success">{% trans "Complete" %}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="chapter-actions">
+                                        <button class="btn btn-sm btn-primary" onclick="window.location.href='{% url 'novels:chapter_detail' project.id chapter.id %}'">
+                                            {% trans "View/Modify Chapter" %}
+                                        </button>
+                                        <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteChapter('{{ chapter.id }}')">
+                                            {% trans "Delete" %}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {% if forloop.last %}
+                                    </div>
+                                </div>
+                                {% endif %}
+                            {% endif %}
+                        {% endfor %}
+                        {% endwith %}
+                        {% endwith %}
                     {% endfor %}
-                </div>
+
+                    {# Show chapters without acts (created directly) #}
+                    {% with orphan_chapters=chapters|dictsort:"chapter_number" %}
+                    {% with has_orphans=False %}
+                    {% for chapter in orphan_chapters %}
+                        {% if not chapter.act_id and not chapter.outline or chapter.outline and not chapter.outline.act_id %}
+                            {% with has_orphans=True %}{% endwith %}
+                        {% endif %}
+                    {% endfor %}
+
+                    {% for chapter in orphan_chapters %}
+                        {% if not chapter.act_id and not chapter.outline or chapter.outline and not chapter.outline.act_id %}
+                            {% if forloop.first %}
+                            <div class="act-section" style="margin-bottom: 1.5rem;">
+                                <div class="act-header" style="background: #f3f4f6; padding: 0.75rem; border-radius: 4px; margin-bottom: 1rem;">
+                                    <h5 style="margin: 0; color: #111827;">{% trans "Other Chapters" %}</h5>
+                                    <p style="margin: 0.25rem 0 0 0; color: #6b7280; font-size: 0.875rem;">{% trans "Chapters not assigned to an act" %}</p>
+                                </div>
+                                <div class="act-chapters">
+                            {% endif %}
+
+                            <div class="chapter-card" style="margin-left: 1.5rem;">
+                                <div class="chapter-number">{{ chapter.chapter_number }}</div>
+                                <div class="chapter-info" style="flex: 1;">
+                                    <h4>{{ chapter.title }}</h4>
+                                    <p>{{ chapter.word_count }} {% trans "words" %} • {% trans "Updated" %} {{ chapter.updated_at|timesince }} {% trans "ago" %}</p>
+                                </div>
+                                <div class="chapter-status">
+                                    {% if chapter.is_draft %}
+                                    <span class="badge badge-warning">{% trans "Draft" %}</span>
+                                    {% else %}
+                                    <span class="badge badge-success">{% trans "Complete" %}</span>
+                                    {% endif %}
+                                </div>
+                                <div class="chapter-actions">
+                                    <button class="btn btn-sm btn-primary" onclick="window.location.href='{% url 'novels:chapter_detail' project.id chapter.id %}'">
+                                        {% trans "View/Modify Chapter" %}
+                                    </button>
+                                    <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteChapter('{{ chapter.id }}')">
+                                        {% trans "Delete" %}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {% if forloop.last %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        {% endif %}
+                    {% endfor %}
+                    {% endwith %}
+                    {% endwith %}
+
+                {% else %}
+                    {# No acts - show all chapters flat #}
+                    <div class="chapters-list">
+                        {% for chapter in chapters|dictsort:"chapter_number" %}
+                        <div class="chapter-card">
+                            <div class="chapter-number">{{ chapter.chapter_number }}</div>
+                            <div class="chapter-info" style="flex: 1;">
+                                <h4>{{ chapter.title }}</h4>
+                                <p>{{ chapter.word_count }} {% trans "words" %} • {% trans "Updated" %} {{ chapter.updated_at|timesince }} {% trans "ago" %}</p>
+                            </div>
+                            <div class="chapter-status">
+                                {% if chapter.is_draft %}
+                                <span class="badge badge-warning">{% trans "Draft" %}</span>
+                                {% else %}
+                                <span class="badge badge-success">{% trans "Complete" %}</span>
+                                {% endif %}
+                            </div>
+                            <div class="chapter-actions">
+                                <button class="btn btn-sm btn-primary" onclick="window.location.href='{% url 'novels:chapter_detail' project.id chapter.id %}'">
+                                    {% trans "View/Modify Chapter" %}
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteChapter('{{ chapter.id }}')">
+                                    {% trans "Delete" %}
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
             </div>
             {% endif %}
 
@@ -739,6 +861,17 @@
             <button class="modal-close" onclick="closeChapterConfigModal()">&times;</button>
         </div>
         <div class="modal-body">
+            <!-- Act selection for direct chapter creation -->
+            <div class="config-section" id="chapterActSection" style="display: none;">
+                <label for="chapterActSelect" class="config-label">{% trans "Which Act should this chapter belong to?" %}</label>
+                <select id="chapterActSelect" class="form-control" onchange="showChapterActDescription()">
+                    <option value="">{% trans "Select an Act" %}</option>
+                </select>
+                <div id="chapterActDescription" style="margin-top: 0.5rem; padding: 0.5rem; background-color: #f3f4f6; border-radius: 4px; display: none;">
+                    <small id="chapterActDescriptionText"></small>
+                </div>
+            </div>
+
             <div class="config-section">
                 <label for="chapterWordCount" class="config-label">{% trans "How many words should this chapter be?" %}</label>
                 <input type="number" id="chapterWordCount" class="form-control" min="10" max="10000" value="10" placeholder="Enter word count (10-10000)">
@@ -2277,6 +2410,77 @@ async function createOutline() {
     modal.style.display = 'flex';
 }
 
+// New function for direct chapter creation from acts
+async function createChapterDirectly() {
+    // Reset modal state
+    window.currentOutlineId = null;
+    window.isDirectChapterCreation = true;
+
+    // Show the act section for direct chapter creation
+    const actSection = document.getElementById('chapterActSection');
+    if (actSection) {
+        actSection.style.display = 'block';
+    }
+
+    // Load acts into the chapter modal
+    await loadActsForChapterModal();
+
+    // Open the chapter configuration modal
+    const modal = document.getElementById('chapterConfigModal');
+    modal.style.display = 'flex';
+
+    // Reset selection
+    selectedExampleId = null;
+
+    // Set default word count
+    document.getElementById('chapterWordCount').value = '10';
+
+    // Populate style override dropdown
+    populateStyleSelect('chapterStyleOverride', true, '{% trans "Use project default" %}');
+
+    // Load examples
+    await loadExamples();
+}
+
+async function loadActsForChapterModal() {
+    try {
+        // Fetch the project with acts
+        const project = await apiRequest(`/api/projects/${projectId}/`);
+        const actSelect = document.getElementById('chapterActSelect');
+
+        // Clear existing options except the default
+        actSelect.innerHTML = '<option value="">{% trans "Select an Act" %}</option>';
+
+        // Populate acts if they exist
+        if (project.plot && project.plot.acts && project.plot.acts.length > 0) {
+            project.plot.acts.forEach(act => {
+                const option = document.createElement('option');
+                option.value = act.id;
+                option.textContent = `Act ${act.act_number}: ${act.subject}`;
+                option.dataset.description = act.description;
+                actSelect.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading acts:', error);
+        showToast('Failed to load acts', 'error');
+    }
+}
+
+function showChapterActDescription() {
+    const actSelect = document.getElementById('chapterActSelect');
+    const actDescription = document.getElementById('chapterActDescription');
+    const actDescriptionText = document.getElementById('chapterActDescriptionText');
+
+    const selectedOption = actSelect.options[actSelect.selectedIndex];
+    if (selectedOption.value && selectedOption.dataset.description) {
+        actDescriptionText.textContent = selectedOption.dataset.description;
+        actDescription.style.display = 'block';
+    } else {
+        actDescription.style.display = 'none';
+    }
+}
+
 async function loadActsForModal() {
     try {
         // Fetch the project with acts
@@ -2433,7 +2637,31 @@ function toggleActSection(actId) {
     }
 }
 
+function toggleActChapters(actId) {
+    const actChapters = document.getElementById(`act-chapters-${actId}`);
+    const toggle = document.getElementById(`act-chapters-toggle-${actId}`);
+
+    if (actChapters) {
+        if (actChapters.style.display === 'none') {
+            actChapters.style.display = 'block';
+            if (toggle) toggle.textContent = '▼';
+        } else {
+            actChapters.style.display = 'none';
+            if (toggle) toggle.textContent = '▶';
+        }
+    }
+}
+
 async function writeChapterFromOutline(outlineId) {
+    // Reset direct chapter creation flag (this is traditional outline-based flow)
+    window.isDirectChapterCreation = false;
+
+    // Hide the act section since we're using an outline
+    const actSection = document.getElementById('chapterActSection');
+    if (actSection) {
+        actSection.style.display = 'none';
+    }
+
     // Store outline ID for later
     currentOutlineId = outlineId;
 
@@ -2462,15 +2690,31 @@ async function executeChapterWrite(exampleId = null) {
     resetTokens();
 
     try {
-        // Get estimated duration for chapter API
-        const estimatedDuration = await getEstimatedDuration('chapter');
-        startWriteChapterProgressBar(outlineId, estimatedDuration);
-
+        // Build request body based on whether we're in direct chapter creation mode
         const requestBody = {
-            chapter_outline_id: outlineId,
             writing_style: 'literary',
             target_word_count: words
         };
+
+        // Check if we're creating chapter directly from act (no outline)
+        if (window.isDirectChapterCreation) {
+            const actSelect = document.getElementById('chapterActSelect');
+            const selectedActId = actSelect?.value;
+
+            if (!selectedActId) {
+                showToast('Please select an Act for the chapter', 'error');
+                return;
+            }
+
+            requestBody.act_id = parseInt(selectedActId);
+        } else {
+            // Traditional flow with outline
+            requestBody.chapter_outline_id = outlineId;
+        }
+
+        // Get estimated duration for chapter API
+        const estimatedDuration = await getEstimatedDuration('chapter');
+        startWriteChapterProgressBar(outlineId, estimatedDuration);
 
         // Phase 5: Add style override if selected
         const selectedStyleId = document.getElementById('chapterStyleOverride')?.value;

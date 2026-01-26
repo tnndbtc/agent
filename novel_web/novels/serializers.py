@@ -267,7 +267,12 @@ class CreateCharacterRequestSerializer(serializers.Serializer):
 
 class WriteChapterRequestSerializer(serializers.Serializer):
     """Request serializer for chapter writing with optional iterative quality improvement."""
-    chapter_outline_id = serializers.UUIDField()
+    chapter_outline_id = serializers.UUIDField(required=False, allow_null=True)
+    act_id = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        help_text="Act ID for direct chapter creation without outline"
+    )
     writing_style = serializers.CharField(default='literary')
     language = serializers.CharField(required=False, allow_blank=True)
     target_word_count = serializers.IntegerField(
@@ -292,8 +297,28 @@ class WriteChapterRequestSerializer(serializers.Serializer):
         help_text="Maximum tokens as multiple of first iteration (default: 3)"
     )
 
+    def validate(self, data):
+        """Validate that either chapter_outline_id or act_id is provided."""
+        chapter_outline_id = data.get('chapter_outline_id')
+        act_id = data.get('act_id')
+
+        if not chapter_outline_id and not act_id:
+            raise serializers.ValidationError(
+                "Either chapter_outline_id or act_id must be provided."
+            )
+
+        if chapter_outline_id and act_id:
+            raise serializers.ValidationError(
+                "Cannot provide both chapter_outline_id and act_id. Choose one."
+            )
+
+        return data
+
     def validate_chapter_outline_id(self, value):
         """Validate that the chapter outline exists."""
+        if not value:
+            return value
+
         # Import here to avoid circular imports
         from novels.models import ChapterOutline
 
@@ -308,6 +333,28 @@ class WriteChapterRequestSerializer(serializers.Serializer):
             # Basic validation - just check if the outline exists
             if not ChapterOutline.objects.filter(id=value).exists():
                 raise serializers.ValidationError(f"Chapter outline {value} not found.")
+
+        return value
+
+    def validate_act_id(self, value):
+        """Validate that the act exists."""
+        if not value:
+            return value
+
+        # Import here to avoid circular imports
+        from novels.models import Act
+
+        # If we have project context from the view, validate against it
+        if hasattr(self, 'context') and 'project' in self.context:
+            project = self.context['project']
+            if not Act.objects.filter(id=value, plot__project=project).exists():
+                raise serializers.ValidationError(
+                    f"Act {value} not found or does not belong to this project."
+                )
+        else:
+            # Basic validation - just check if the act exists
+            if not Act.objects.filter(id=value).exists():
+                raise serializers.ValidationError(f"Act {value} not found.")
 
         return value
 

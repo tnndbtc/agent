@@ -181,14 +181,15 @@ def brainstorm_ideas_task(self, task_id, project_id, genre=None, theme=None, num
 
 
 @shared_task(bind=True, max_retries=3)
-def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_style='literary', language='English', target_word_count=3000, example_id=None, iterative_mode=True, max_iterations_multiplier=3):
+def write_chapter_task(self, task_id, project_id, chapter_outline_id=None, act_id=None, writing_style='literary', language='English', target_word_count=3000, example_id=None, iterative_mode=True, max_iterations_multiplier=3):
     """
     Write a chapter asynchronously with optional iterative quality improvement.
 
     Args:
         task_id: Generation task ID
         project_id: Novel project ID
-        chapter_outline_id: Chapter outline ID
+        chapter_outline_id: Chapter outline ID (optional if act_id provided)
+        act_id: Act ID for direct chapter creation without outline
         writing_style: Writing style (literary, commercial, etc.)
         language: Target language
         target_word_count: Target word count for the chapter
@@ -197,7 +198,7 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
         max_iterations_multiplier: Maximum tokens as multiple of first iteration (default: 3)
     """
     logger.info(f"Write chapter task started - task_id: {task_id}, project_id: {project_id}, "
-                f"outline_id: {chapter_outline_id}, language: {language}, writing_style: {writing_style}, "
+                f"outline_id: {chapter_outline_id}, act_id: {act_id}, language: {language}, writing_style: {writing_style}, "
                 f"example_id: {example_id}, iterative_mode: {iterative_mode}")
     try:
         task = GenerationTask.objects.get(id=task_id)
@@ -218,33 +219,66 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
             update_task_progress(task_id, 0, f"Error: {error_msg}")
             return
 
-        # Get outline with specific error handling
-        try:
-            outline = ChapterOutline.objects.get(id=chapter_outline_id, project=project)
-            logger.info(f"Found ChapterOutline: {outline.id} - Title: {outline.title}")
-        except ChapterOutline.DoesNotExist:
-            error_msg = f"Chapter outline {chapter_outline_id} not found for project {project_id}"
+        # Handle outline-based or act-based chapter creation
+        outline = None
+        act = None
+        outline_data = None
+
+        if chapter_outline_id:
+            # Traditional flow with outline
+            try:
+                outline = ChapterOutline.objects.get(id=chapter_outline_id, project=project)
+                logger.info(f"Found ChapterOutline: {outline.id} - Title: {outline.title}")
+            except ChapterOutline.DoesNotExist:
+                error_msg = f"Chapter outline {chapter_outline_id} not found for project {project_id}"
+                logger.error(error_msg)
+                task.status = 'failed'
+                task.error_message = error_msg
+                task.save()
+                update_task_progress(task_id, 0, f"Error: {error_msg}")
+                return
+
+            outline_data = {
+                'number': outline.number,
+                'title': outline.title,
+                'pov': outline.pov,
+                'setting': outline.setting,
+                'events': outline.events,
+                'character_development': outline.character_development,
+                'pacing': outline.pacing,
+                'story_beats': outline.story_beats
+            }
+
+            # Validate that we're using the correct outline for this chapter number
+            # This prevents the bug where wrong outline associations cause chapter data loss
+            logger.debug(f"Validating outline.number={outline.number} for chapter generation")
+
+        elif act_id:
+            # Direct creation from act WITHOUT outline
+            try:
+                from .models import Act
+                act = Act.objects.get(id=act_id, plot__project=project)
+                logger.info(f"Found Act: {act.id} - Subject: {act.subject} for direct chapter creation")
+            except Act.DoesNotExist:
+                error_msg = f"Act {act_id} not found for project {project_id}"
+                logger.error(error_msg)
+                task.status = 'failed'
+                task.error_message = error_msg
+                task.save()
+                update_task_progress(task_id, 0, f"Error: {error_msg}")
+                return
+
+            # No outline_data when using act directly
+            logger.info(f"Creating chapter directly from Act {act.act_number}: {act.subject}")
+
+        else:
+            error_msg = "Neither chapter_outline_id nor act_id provided"
             logger.error(error_msg)
             task.status = 'failed'
             task.error_message = error_msg
             task.save()
             update_task_progress(task_id, 0, f"Error: {error_msg}")
             return
-
-        outline_data = {
-            'number': outline.number,
-            'title': outline.title,
-            'pov': outline.pov,
-            'setting': outline.setting,
-            'events': outline.events,
-            'character_development': outline.character_development,
-            'pacing': outline.pacing,
-            'story_beats': outline.story_beats
-        }
-
-        # Validate that we're using the correct outline for this chapter number
-        # This prevents the bug where wrong outline associations cause chapter data loss
-        logger.debug(f"Validating outline.number={outline.number} for chapter generation")
 
         # Load example metadata if example_id provided (metadata only, NO content!)
         example_metadata = None
@@ -298,17 +332,30 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
                 logger.info(f"{iteration_msg} - Calling WritingService.write_chapter with language='{language}'")
 
                 # Pass example_metadata (NO content!), iteration, and previous_scores
-                # Pass full outline model (not dict) to preserve act relationship
-                chapter_data, token_usage = WritingService.write_chapter(
-                    project,
-                    outline,
-                    writing_style=writing_style,
-                    language=language,
-                    target_word_count=target_word_count,
-                    example_metadata=example_metadata,
-                    iteration=iteration,
-                    previous_scores=previous_scores
-                )
+                # Pass either outline (traditional) or act (direct creation)
+                if outline:
+                    chapter_data, token_usage = WritingService.write_chapter(
+                        project,
+                        outline,
+                        writing_style=writing_style,
+                        language=language,
+                        target_word_count=target_word_count,
+                        example_metadata=example_metadata,
+                        iteration=iteration,
+                        previous_scores=previous_scores
+                    )
+                else:
+                    # Direct creation from act
+                    chapter_data, token_usage = WritingService.write_chapter_from_act(
+                        project,
+                        act,
+                        writing_style=writing_style,
+                        language=language,
+                        target_word_count=target_word_count,
+                        example_metadata=example_metadata,
+                        iteration=iteration,
+                        previous_scores=previous_scores
+                    )
 
                 # Accumulate tokens
                 if token_usage:
@@ -434,7 +481,13 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
             logger.info(f"Token usage: {token_usage}")
 
             # Validate response structure
+            if not chapter_data:
+                raise ValueError("WritingService returned None or empty chapter data")
+
             required_keys = ['chapter_number', 'title', 'content', 'word_count']
+            if not isinstance(chapter_data, dict):
+                raise ValueError(f"Invalid chapter data type: expected dict, got {type(chapter_data)}")
+
             missing_keys = [k for k in required_keys if k not in chapter_data]
             if missing_keys:
                 raise ValueError(f"Invalid chapter data returned, missing keys: {missing_keys}")
@@ -459,16 +512,9 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
 
         update_task_progress(task_id, 80, "Saving chapter...")
 
-        # DEBUG: Log all existing chapters BEFORE any changes
-        existing_chapters = Chapter.objects.filter(project=project).order_by('chapter_number')
-        logger.warning(f"[BUG DEBUG] BEFORE creating chapter {chapter_data['chapter_number']}:")
-        for ch in existing_chapters:
-            logger.warning(f"  - Chapter {ch.chapter_number}: outline={ch.outline.number if ch.outline else 'None'}, "
-                          f"id={ch.id}, content_preview={ch.content[:50] if ch.content else 'None'}...")
-        logger.warning(f"[BUG DEBUG] Total existing chapters: {existing_chapters.count()}")
 
-        # Validate chapter_number matches outline.number to prevent data loss bug
-        if outline.number != chapter_data['chapter_number']:
+        # Validate chapter_number matches outline.number to prevent data loss bug (only for outline-based)
+        if outline and outline.number != chapter_data['chapter_number']:
             error_msg = (f"Chapter number mismatch: outline.number={outline.number} but "
                         f"chapter_data['chapter_number']={chapter_data['chapter_number']}. "
                         f"This would cause wrong outline associations and data loss.")
@@ -479,8 +525,6 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
             update_task_progress(task_id, 0, f"Error: {error_msg}")
             return
 
-        logger.warning(f"[BUG DEBUG] About to call update_or_create for chapter {chapter_data['chapter_number']}")
-        logger.warning(f"[BUG DEBUG] Outline to be linked: {outline.number} (id={outline.id})")
 
         # Create or update chapter
         # IMPORTANT: Do NOT include 'outline' in defaults - it causes a bug where
@@ -501,27 +545,19 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id, writing_st
             }
         )
 
-        logger.warning(f"[BUG DEBUG] update_or_create result: created={created}, chapter_id={chapter.id}, "
-                      f"chapter_number={chapter.chapter_number}, current_outline={chapter.outline.number if chapter.outline else 'None'}")
 
-        # Set outline separately to avoid OneToOneField conflicts
+        # Set outline separately to avoid OneToOneField conflicts (only if we have an outline)
         # Only update if it's a new chapter or the outline has changed
-        if created or chapter.outline != outline:
-            logger.warning(f"[BUG DEBUG] Setting outline separately: chapter {chapter.chapter_number} outline {outline.number}")
+        if outline and (created or chapter.outline != outline):
             logger.info(f"{'Setting' if created else 'Updating'} outline for chapter {chapter.chapter_number}: {outline.number}")
             chapter.outline = outline
             chapter.save(update_fields=['outline'])
-            logger.warning(f"[BUG DEBUG] Outline set successfully. Chapter {chapter.chapter_number} now has outline {chapter.outline.number}")
-        else:
-            logger.warning(f"[BUG DEBUG] Outline unchanged for chapter {chapter.chapter_number} (already {chapter.outline.number})")
 
-        # DEBUG: Log all chapters AFTER changes
-        all_chapters_after = Chapter.objects.filter(project=project).order_by('chapter_number')
-        logger.warning(f"[BUG DEBUG] AFTER creating chapter {chapter_data['chapter_number']}:")
-        for ch in all_chapters_after:
-            logger.warning(f"  - Chapter {ch.chapter_number}: outline={ch.outline.number if ch.outline else 'None'}, "
-                          f"id={ch.id}, content_preview={ch.content[:50] if ch.content else 'None'}...")
-        logger.warning(f"[BUG DEBUG] Total chapters now: {all_chapters_after.count()}")
+        # Set act directly if creating from act without outline
+        if act_id and not outline:
+            logger.info(f"Setting direct act association for chapter {chapter.chapter_number} to act {act_id}")
+            chapter.act_id = act_id
+            chapter.save(update_fields=['act_id'])
 
         update_task_progress(task_id, 95, "Finalizing...")
 

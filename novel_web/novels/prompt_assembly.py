@@ -170,9 +170,10 @@ class PromptAssemblyService:
                 # Acts provide better structured context
 
                 if project.plot.acts.exists():
-                    # Check if we have a specific chapter_outline to determine relevant act
+                    # Check if we have a specific chapter_outline or act to determine relevant act
                     chapter_outline = kwargs.get('chapter_outline')
-                    relevant_act = chapter_outline.act if chapter_outline and hasattr(chapter_outline, 'act') else None
+                    direct_act = kwargs.get('act')  # Direct act for chapter creation without outline
+                    relevant_act = direct_act or (chapter_outline.act if chapter_outline and hasattr(chapter_outline, 'act') else None)
 
                     if relevant_act and context_type == 'chapter':
                         # Include ONLY the relevant act in full detail
@@ -226,7 +227,7 @@ class PromptAssemblyService:
     @staticmethod
     def assemble_full_prompt(agent_role_key, user_prompt, project=None,
                             language_code='en', context_type='text',
-                            chapter_outline=None, include_context=True):
+                            chapter_outline=None, act=None, include_context=True):
         """
         Assemble all 5 layers into final (system_message, user_message).
 
@@ -237,6 +238,7 @@ class PromptAssemblyService:
             language_code: Language code (e.g., 'en', 'zh-hans')
             context_type: Type of context for Layer 4
             chapter_outline: Optional ChapterOutline for style override
+            act: Optional Act for direct chapter creation
             include_context: Whether to include Layer 4 context
 
         Returns:
@@ -253,7 +255,9 @@ class PromptAssemblyService:
 
         # Layer 4: Context (if enabled and project provided)
         if include_context and project:
-            context = PromptAssemblyService.build_context_prompt(project, context_type)
+            context = PromptAssemblyService.build_context_prompt(
+                project, context_type, chapter_outline=chapter_outline, act=act
+            )
             if context:
                 user_parts.append(f"## Project Context\n{context}")
 
