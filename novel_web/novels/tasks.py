@@ -541,7 +541,8 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id=None, act_i
                 'word_count': chapter_data['word_count'],
                 'language': language,
                 'writing_style': writing_style,
-                'is_draft': True
+                'is_draft': True,
+                'order_key': chapter_data.get('order_key')  # Add order_key for flexible ordering
             }
         )
 
@@ -558,6 +559,9 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id=None, act_i
             logger.info(f"Setting direct act association for chapter {chapter.chapter_number} to act {act_id}")
             chapter.act_id = act_id
             chapter.save(update_fields=['act_id'])
+
+        # Reorder all chapters by act to ensure proper sequencing
+        WritingService.reorder_chapters_by_act(project)
 
         update_task_progress(task_id, 95, "Finalizing...")
 

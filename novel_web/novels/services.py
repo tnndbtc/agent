@@ -1218,6 +1218,90 @@ class WritingService:
     """Service for writing operations using 5-layer prompt architecture."""
 
     @staticmethod
+    def calculate_order_key_for_chapter(project, act=None):
+        """
+        Calculate appropriate order_key for a new chapter based on its act.
+
+        Args:
+            project: NovelProject instance
+            act: Act instance (optional)
+
+        Returns:
+            Decimal order_key value
+        """
+        from decimal import Decimal
+        from django.db.models import Max, Min, Q
+        from .models import Chapter
+
+        chapters = Chapter.objects.filter(project=project).order_by('order_key')
+
+        if not act:
+            # No act - append at end
+            if chapters.exists():
+                max_key = chapters.aggregate(Max('order_key'))['order_key__max']
+                return (max_key or Decimal('0')) + Decimal('1')
+            return Decimal('1')
+
+        # Find chapters for this act and surrounding acts
+        current_act_chapters = chapters.filter(Q(act=act) | Q(outline__act=act))
+        next_act_chapters = chapters.filter(
+            Q(act__act_number__gt=act.act_number) |
+            Q(outline__act__act_number__gt=act.act_number)
+        ).order_by('order_key')
+
+        if current_act_chapters.exists():
+            # Add after existing chapters in this act
+            max_current = current_act_chapters.aggregate(Max('order_key'))['order_key__max']
+        else:
+            # No chapters for this act yet - find max from previous acts
+            prev_act_chapters = chapters.filter(
+                Q(act__act_number__lt=act.act_number) |
+                Q(outline__act__act_number__lt=act.act_number)
+            )
+            if prev_act_chapters.exists():
+                max_current = prev_act_chapters.aggregate(Max('order_key'))['order_key__max']
+            else:
+                max_current = Decimal('0')
+
+        if next_act_chapters.exists():
+            # Insert between current and next act
+            min_next = next_act_chapters.first().order_key
+            return (max_current + min_next) / Decimal('2')
+        else:
+            # Append after current act
+            return max_current + Decimal('1')
+
+    @staticmethod
+    def reorder_chapters_by_act(project):
+        """
+        Reorder all chapters in a project, renumbering chapter_number based on order_key.
+
+        This ensures chapter numbers reflect the actual display order (by act, then order_key).
+        Uses two-pass renumbering to avoid unique constraint violations.
+
+        Args:
+            project: NovelProject instance
+        """
+        from .models import Chapter
+
+        # Get all chapters ordered by order_key (which respects act ordering)
+        chapters = Chapter.objects.filter(project=project).order_by('order_key')
+
+        # Pass 1: Set all chapter_numbers to negative temporary values to avoid conflicts
+        # This prevents unique constraint violations during renumbering
+        for chapter in chapters:
+            if chapter.chapter_number > 0:
+                chapter.chapter_number = -chapter.chapter_number
+                chapter.save(update_fields=['chapter_number'])
+
+        # Pass 2: Set final sequential chapter numbers
+        for index, chapter in enumerate(chapters, start=1):
+            chapter.chapter_number = index
+            chapter.save(update_fields=['chapter_number'])
+
+        logger.info(f"Reordered {chapters.count()} chapters for project {project.id}")
+
+    @staticmethod
     def write_chapter(project, chapter_outline, writing_style='literary', language='English', target_word_count=3000, example_metadata=None, iteration=1, previous_scores=None):
         """
         Write a complete chapter using 5-layer prompt architecture.
@@ -1560,11 +1644,15 @@ class WritingService:
         # Use AI-generated title if available, otherwise use default
         title = ai_title if ai_title else f"Chapter {next_chapter_number}"
 
+        # Calculate order_key based on act position
+        order_key = WritingService.calculate_order_key_for_chapter(project, act)
+
         chapter_data = {
             'content': content,
             'word_count': word_count,
             'title': title,
-            'chapter_number': next_chapter_number
+            'chapter_number': next_chapter_number,
+            'order_key': order_key
         }
 
         logger.info(f"WritingService generated chapter {chapter_data['chapter_number']} from Act {act.act_number}, "

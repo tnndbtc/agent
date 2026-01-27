@@ -726,6 +726,7 @@ class Chapter(models.Model):
     )
 
     chapter_number = models.IntegerField()
+    order_key = models.DecimalField(max_digits=10, decimal_places=6, default=1, help_text="Ordering key for flexible chapter reordering")
     title = models.CharField(max_length=255)
     content = models.TextField(help_text="Full chapter content")
     summary = models.TextField(blank=True)
@@ -752,16 +753,26 @@ class Chapter(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['chapter_number']
+        ordering = ['order_key']
         unique_together = ['project', 'chapter_number', 'version']
         indexes = [
             models.Index(fields=['project', 'chapter_number']),
+            models.Index(fields=['project', 'order_key']),
         ]
 
     def __str__(self):
         return f"Chapter {self.chapter_number}: {self.title} - {self.project.title}"
 
     def save(self, *args, **kwargs):
+        # Auto-assign order_key if not provided
+        if self.order_key is None:
+            from decimal import Decimal
+            from django.db.models import Max
+            max_order_key = Chapter.objects.filter(
+                project=self.project
+            ).aggregate(max_key=Max('order_key'))['max_key']
+            self.order_key = (max_order_key or Decimal('0')) + Decimal('1')
+
         # Update word count
         if self.content:
             self.word_count = len(self.content.split())

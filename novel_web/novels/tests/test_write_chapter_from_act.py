@@ -157,6 +157,197 @@ class TestWriteChapterTaskActual(TransactionTestCase):
 
         print(f"✓ Chapter created with direct act association: act_id={chapter.act_id}")
 
+    @patch('langchain_openai.ChatOpenAI')
+    @patch('novels.tasks.update_task_progress')
+    def test_chapter_renumbering_with_existing_chapters(self, mock_update_progress, mock_chat_openai):
+        """
+        Test that creating a chapter for Act 1 after chapters for Acts 2 and 3 exist
+        properly renumbers all chapters without unique constraint violations.
+
+        This test reproduces the bug where:
+        1. Chapter 1 exists for Act 1
+        2. Chapter 2 exists for Act 2
+        3. Chapter 3 exists for Act 3
+        4. Create new chapter for Act 1 → should become Chapter 2
+        5. Renumbering should work without constraint violations
+        """
+        print("\n=== Testing Chapter Renumbering with Existing Chapters ===")
+
+        # Create Act 2 and Act 3
+        act2 = Act.objects.create(
+            plot=self.plot,
+            act_number=2,
+            subject="CONFLICT",
+            description="Rising action"
+        )
+        act3 = Act.objects.create(
+            plot=self.plot,
+            act_number=3,
+            subject="RESOLUTION",
+            description="Climax and ending"
+        )
+
+        # Mock the LangChain ChatOpenAI
+        mock_llm = MagicMock()
+        mock_chat_openai.return_value = mock_llm
+
+        # Mock response for chapter generation
+        def create_mock_response(title):
+            mock_response = MagicMock()
+            mock_response.content = f'{{"title": "{title}", "content": "Chapter content for {title}"}}'
+            mock_response.response_metadata = {'token_usage': {'prompt_tokens': 100, 'completion_tokens': 50, 'total_tokens': 150}}
+            return mock_response
+
+        mock_llm.invoke.return_value = create_mock_response("First Chapter")
+
+        # Step 1: Create Chapter 1 for Act 1
+        print("\nStep 1: Creating Chapter 1 for Act 1")
+        task1 = GenerationTask.objects.create(
+            project=self.project,
+            user=self.user,
+            task_type='chapter',
+            celery_task_id='test-task-1',
+            input_data={'act_id': str(self.act.id)}
+        )
+
+        result1 = write_chapter_task.apply(
+            kwargs={
+                'task_id': str(task1.id),
+                'project_id': str(self.project.id),
+                'act_id': str(self.act.id),
+                'target_word_count': 100,
+                'writing_style': 'literary',
+                'example_id': str(self.example.id),
+                'language': 'English',
+                'iterative_mode': False
+            },
+            throw=False
+        )
+
+        self.assertFalse(result1.failed(), f"Chapter 1 creation failed: {result1.info if result1.failed() else ''}")
+
+        # Step 2: Create Chapter 2 for Act 2
+        print("Step 2: Creating Chapter 2 for Act 2")
+        mock_llm.invoke.return_value = create_mock_response("Second Chapter")
+
+        task2 = GenerationTask.objects.create(
+            project=self.project,
+            user=self.user,
+            task_type='chapter',
+            celery_task_id='test-task-2',
+            input_data={'act_id': str(act2.id)}
+        )
+
+        result2 = write_chapter_task.apply(
+            kwargs={
+                'task_id': str(task2.id),
+                'project_id': str(self.project.id),
+                'act_id': str(act2.id),
+                'target_word_count': 100,
+                'writing_style': 'literary',
+                'example_id': str(self.example.id),
+                'language': 'English',
+                'iterative_mode': False
+            },
+            throw=False
+        )
+
+        self.assertFalse(result2.failed(), f"Chapter 2 creation failed: {result2.info if result2.failed() else ''}")
+
+        # Step 3: Create Chapter 3 for Act 3
+        print("Step 3: Creating Chapter 3 for Act 3")
+        mock_llm.invoke.return_value = create_mock_response("Third Chapter")
+
+        task3 = GenerationTask.objects.create(
+            project=self.project,
+            user=self.user,
+            task_type='chapter',
+            celery_task_id='test-task-3',
+            input_data={'act_id': str(act3.id)}
+        )
+
+        result3 = write_chapter_task.apply(
+            kwargs={
+                'task_id': str(task3.id),
+                'project_id': str(self.project.id),
+                'act_id': str(act3.id),
+                'target_word_count': 100,
+                'writing_style': 'literary',
+                'example_id': str(self.example.id),
+                'language': 'English',
+                'iterative_mode': False
+            },
+            throw=False
+        )
+
+        self.assertFalse(result3.failed(), f"Chapter 3 creation failed: {result3.info if result3.failed() else ''}")
+
+        # Verify we have 3 chapters
+        chapters_before = Chapter.objects.filter(project=self.project).order_by('chapter_number')
+        print(f"\nChapters before creating 4th chapter:")
+        for ch in chapters_before:
+            print(f"  Chapter {ch.chapter_number} (order_key={ch.order_key}): {ch.title} - Act {ch.act.act_number if ch.act else 'None'}")
+
+        self.assertEqual(chapters_before.count(), 3, "Should have 3 chapters before creating 4th")
+
+        # Step 4: Create another chapter for Act 1 - THIS SHOULD TRIGGER THE BUG
+        print("\nStep 4: Creating another chapter for Act 1 (should be inserted as Chapter 2)")
+        mock_llm.invoke.return_value = create_mock_response("Fourth Chapter for Act 1")
+
+        task4 = GenerationTask.objects.create(
+            project=self.project,
+            user=self.user,
+            task_type='chapter',
+            celery_task_id='test-task-4',
+            input_data={'act_id': str(self.act.id)}
+        )
+
+        result4 = write_chapter_task.apply(
+            kwargs={
+                'task_id': str(task4.id),
+                'project_id': str(self.project.id),
+                'act_id': str(self.act.id),
+                'target_word_count': 100,
+                'writing_style': 'literary',
+                'example_id': str(self.example.id),
+                'language': 'English',
+                'iterative_mode': False
+            },
+            throw=False
+        )
+
+        # Check if it failed
+        if result4.failed():
+            print(f"✗ Chapter 4 creation failed (THIS IS THE BUG): {result4.info}")
+            # Check if it's the constraint violation we expect
+            error_msg = str(result4.info)
+            if "duplicate key value violates unique constraint" in error_msg:
+                print("✓ Successfully reproduced the unique constraint violation bug!")
+                self.fail(f"BUG REPRODUCED: {error_msg}")
+            else:
+                self.fail(f"Chapter 4 creation failed with unexpected error: {result4.info}")
+        else:
+            print("✓ Chapter 4 created successfully - bug is fixed!")
+
+        # Verify final state
+        chapters_after = Chapter.objects.filter(project=self.project).order_by('order_key')
+        print(f"\nFinal chapters (ordered by order_key):")
+        for ch in chapters_after:
+            print(f"  Chapter {ch.chapter_number} (order_key={ch.order_key}): {ch.title} - Act {ch.act.act_number if ch.act else 'None'}")
+
+        # Verify we have 4 chapters
+        self.assertEqual(chapters_after.count(), 4, "Should have 4 chapters after creating all")
+
+        # Verify chapter numbers are sequential
+        chapter_numbers = [ch.chapter_number for ch in chapters_after]
+        self.assertEqual(chapter_numbers, [1, 2, 3, 4], "Chapter numbers should be sequential 1-4")
+
+        # Verify chapters are in correct act order
+        act_numbers = [ch.act.act_number if ch.act else 0 for ch in chapters_after]
+        self.assertEqual(act_numbers, [1, 1, 2, 3], "Chapters should be ordered by act: 1, 1, 2, 3")
+
+        print("✓ All assertions passed - chapters properly renumbered!")
+
 
 class TestActChapterGroupingBug(TestCase):
     """Test that reproduces the Act 2 chapter grouping bug in template rendering."""
