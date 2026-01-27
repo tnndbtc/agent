@@ -1330,6 +1330,13 @@ class WritingService:
         if iteration > 1:
             user_prompt += "- This is a revision - focus on addressing the quality gaps noted above\n"
 
+        # Request JSON format with title and content
+        user_prompt += "\n**IMPORTANT: Format your response as JSON:**\n"
+        user_prompt += "{\n"
+        user_prompt += '  "title": "Your creative chapter title here",\n'
+        user_prompt += '  "content": "The complete chapter text here..."\n'
+        user_prompt += "}\n"
+
         # Convert language name to code
         language_code = 'zh-hans' if 'Chinese' in language else 'en'
 
@@ -1375,16 +1382,45 @@ class WritingService:
                 'total_tokens': getattr(response.usage_metadata, 'total_tokens', 0)
             }
 
-        # Extract content
-        content = response.content if hasattr(response, 'content') else str(response)
+        # Extract content and title from JSON response
+        raw_response = response.content if hasattr(response, 'content') else str(response)
+
+        # Log the raw response for debugging
+        logger.info(f"OpenAI raw response (first 500 chars): {raw_response[:500]}")
+
+        # Try to parse as JSON
+        try:
+            import json
+            response_data = json.loads(raw_response)
+            # Check if the parsed data is a dictionary (expected format)
+            if isinstance(response_data, dict):
+                content = response_data.get('content', raw_response)
+                ai_title = response_data.get('title', None)
+                logger.info(f"Successfully parsed JSON response - Title: '{ai_title}', Content length: {len(content)} chars")
+            else:
+                # Parsed JSON but not a dict (could be a list from outline generation)
+                logger.warning(f"JSON response is not a dictionary (got {type(response_data).__name__}), using raw content")
+                content = raw_response
+                ai_title = None
+        except (json.JSONDecodeError, ValueError) as e:
+            # Fallback to treating entire response as content
+            logger.warning(f"Failed to parse JSON response, using raw content: {str(e)}")
+            content = raw_response
+            ai_title = None
 
         # Count words
         word_count = len(content.split())
 
+        # Use AI-generated title if available, otherwise fall back to outline title
+        if ai_title:
+            title = ai_title
+        else:
+            title = outline_data.get('title', f"Chapter {outline_data.get('number', 1)}")
+
         chapter_data = {
             'content': content,
             'word_count': word_count,
-            'title': outline_data.get('title', f"Chapter {outline_data.get('number', 1)}"),
+            'title': title,
             'chapter_number': outline_data.get('number', 1)
         }
 
@@ -1446,7 +1482,14 @@ class WritingService:
             user_prompt += "\n"
 
         user_prompt += "Please write a complete chapter that advances the story according to this act. "
-        user_prompt += "Include vivid descriptions, character development, and engaging dialogue where appropriate."
+        user_prompt += "Include vivid descriptions, character development, and engaging dialogue where appropriate.\n\n"
+
+        # Request JSON format with title and content
+        user_prompt += "**IMPORTANT: Format your response as JSON:**\n"
+        user_prompt += "{\n"
+        user_prompt += '  "title": "Your creative chapter title here",\n'
+        user_prompt += '  "content": "The complete chapter text here..."\n'
+        user_prompt += "}"
 
         # Assemble full prompt using 5-layer architecture
         # Pass act for context instead of chapter_outline
@@ -1485,16 +1528,42 @@ class WritingService:
                 'total_tokens': getattr(response.usage_metadata, 'total_tokens', 0)
             }
 
-        # Extract content
-        content = response.content if hasattr(response, 'content') else str(response)
+        # Extract content and title from JSON response
+        raw_response = response.content if hasattr(response, 'content') else str(response)
+
+        # Log the raw response for debugging
+        logger.info(f"=======OpenAI raw RESPONSE (first 500 chars)=======: {raw_response[:500]}\n================================================================================")
+
+        # Try to parse as JSON
+        try:
+            import json
+            response_data = json.loads(raw_response)
+            # Check if the parsed data is a dictionary (expected format)
+            if isinstance(response_data, dict):
+                content = response_data.get('content', raw_response)
+                ai_title = response_data.get('title', None)
+                logger.info(f"Successfully parsed JSON response - Title: '{ai_title}', Content length: {len(content)} chars")
+            else:
+                # Parsed JSON but not a dict (could be a list from outline generation)
+                logger.warning(f"JSON response is not a dictionary (got {type(response_data).__name__}), using raw content")
+                content = raw_response
+                ai_title = None
+        except (json.JSONDecodeError, ValueError) as e:
+            # Fallback to treating entire response as content
+            logger.warning(f"Failed to parse JSON response, using raw content: {str(e)}")
+            content = raw_response
+            ai_title = None
 
         # Count words
         word_count = len(content.split())
 
+        # Use AI-generated title if available, otherwise use default
+        title = ai_title if ai_title else f"Chapter {next_chapter_number}"
+
         chapter_data = {
             'content': content,
             'word_count': word_count,
-            'title': f"Chapter {next_chapter_number}",
+            'title': title,
             'chapter_number': next_chapter_number
         }
 

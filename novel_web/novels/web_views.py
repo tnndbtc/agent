@@ -59,7 +59,7 @@ def project_detail(request, pk):
         'characters': project.characters.all(),
         'settings': project.settings.all(),
         'outlines': project.chapter_outlines.all(),
-        'chapters': project.chapters.all(),
+        'chapters': project.chapters.select_related('act', 'outline__act').all(),
         'previous_ideas': previous_ideas
     }
 

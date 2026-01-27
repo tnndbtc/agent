@@ -1,11 +1,14 @@
 """
 Test that actually runs write_chapter_task and reproduces the production error.
+Also tests the template rendering for chapter grouping by acts.
 """
 import uuid
 import logging
+import re
 from unittest.mock import patch, Mock, MagicMock
-from django.test import TransactionTestCase
+from django.test import TransactionTestCase, TestCase, Client
 from django.contrib.auth.models import User
+from django.urls import reverse
 from novels.models import NovelProject, Plot, Act, Example, GenerationTask, Chapter
 from novels.tasks import write_chapter_task
 from io import StringIO
@@ -63,9 +66,9 @@ class TestWriteChapterTaskActual(TransactionTestCase):
         mock_llm = MagicMock()
         mock_chat_openai.return_value = mock_llm
 
-        # Mock the invoke method to return chapter content
+        # Mock the invoke method to return JSON formatted chapter content
         mock_response = MagicMock()
-        mock_response.content = "Chapter 1: The Beginning\n\nThe story begins here with vivid descriptions and engaging dialogue."
+        mock_response.content = '{"title": "The Beginning", "content": "The story begins here with vivid descriptions and engaging dialogue."}'
         mock_response.response_metadata = {'token_usage': {'prompt_tokens': 100, 'completion_tokens': 50, 'total_tokens': 150}}
         mock_llm.invoke.return_value = mock_response
 
@@ -153,3 +156,203 @@ class TestWriteChapterTaskActual(TransactionTestCase):
         self.assertIsNone(chapter.outline, "Chapter should not have an outline when created from act")
 
         print(f"✓ Chapter created with direct act association: act_id={chapter.act_id}")
+
+
+class TestActChapterGroupingBug(TestCase):
+    """Test that reproduces the Act 2 chapter grouping bug in template rendering."""
+
+    def setUp(self):
+        """Set up test data with two acts."""
+        self.client = Client()
+        self.user = User.objects.create_user(username='testuser', password='testpass')
+        self.client.login(username='testuser', password='testpass')  # Use login instead of force_login
+
+        self.project = NovelProject.objects.create(
+            user=self.user,
+            title="Test Novel for Grouping",
+            target_language='en',
+            chroma_collection_name=f"test_{uuid.uuid4().hex[:8]}"
+        )
+
+        self.plot = Plot.objects.create(project=self.project)
+
+        # Create Act 1
+        self.act1 = Act.objects.create(
+            plot=self.plot,
+            act_number=1,
+            subject="Introduction",
+            description="Setting the scene"
+        )
+
+        # Create Act 2
+        self.act2 = Act.objects.create(
+            plot=self.plot,
+            act_number=2,
+            subject="Rising Action",
+            description="Building tension"
+        )
+
+        # Create example for chapter generation
+        self.example = Example.objects.create(
+            category='opening',
+            locale='English',
+            title='Test Example',
+            description='Test description',
+            content='Example content for testing',
+            is_good=True
+        )
+
+    def test_chapter_grouping_by_acts(self):
+        """Test that chapters are correctly grouped under their assigned acts in the template."""
+
+        # Create multiple chapters assigned to different acts
+        chapter1_act1 = Chapter.objects.create(
+            project=self.project,
+            act=self.act1,  # Assigned to Act 1
+            chapter_number=1,
+            title="First Chapter for Act 1",
+            content="This chapter belongs to Act 1",
+            word_count=100,
+            language='English',
+            writing_style='literary'
+        )
+
+        chapter2_act2 = Chapter.objects.create(
+            project=self.project,
+            act=self.act2,  # Assigned to Act 2
+            chapter_number=2,
+            title="Chapter for Act 2",
+            content="This chapter belongs to Act 2",
+            word_count=100,
+            language='English',
+            writing_style='literary'
+        )
+
+        chapter3_act1 = Chapter.objects.create(
+            project=self.project,
+            act=self.act1,  # Another chapter for Act 1
+            chapter_number=3,
+            title="Second Chapter for Act 1",
+            content="This also belongs to Act 1",
+            word_count=100,
+            language='English',
+            writing_style='literary'
+        )
+
+        # Debug: Verify database state
+        print("\n=== DATABASE STATE ===")
+        print(f"Act 1 ID: {self.act1.id} (type: {type(self.act1.id).__name__})")
+        print(f"Act 2 ID: {self.act2.id} (type: {type(self.act2.id).__name__})")
+        print(f"Chapter 1: act_id={chapter1_act1.act_id} -> Act {chapter1_act1.act.act_number if chapter1_act1.act else 'None'}")
+        print(f"Chapter 2: act_id={chapter2_act2.act_id} -> Act {chapter2_act2.act.act_number if chapter2_act2.act else 'None'}")
+        print(f"Chapter 3: act_id={chapter3_act1.act_id} -> Act {chapter3_act1.act.act_number if chapter3_act1.act else 'None'}")
+
+        # Test the database relationships are correct
+        self.assertEqual(chapter1_act1.act_id, self.act1.id,
+                        f"Chapter 1 should have act_id={self.act1.id}, but has {chapter1_act1.act_id}")
+        self.assertEqual(chapter2_act2.act_id, self.act2.id,
+                        f"Chapter 2 should have act_id={self.act2.id}, but has {chapter2_act2.act_id}")
+        self.assertEqual(chapter3_act1.act_id, self.act1.id,
+                        f"Chapter 3 should have act_id={self.act1.id}, but has {chapter3_act1.act_id}")
+
+        # Fetch the project detail page (handle i18n URL patterns)
+        from django.utils import translation
+        translation.activate('en')
+        url = reverse('novels:project_detail', kwargs={'pk': self.project.id})
+        response = self.client.get(url, follow=True)  # Follow redirects if any
+
+        # Check response status
+        self.assertEqual(response.status_code, 200,
+                        f"Expected status 200, got {response.status_code}. Content: {response.content[:500]}")
+
+        # Extract the HTML content
+        html_content = response.content.decode('utf-8')
+
+        # Save HTML for debugging
+        with open('/tmp/test_chapter_grouping.html', 'w') as f:
+            f.write(html_content)
+        print("\nHTML saved to /tmp/test_chapter_grouping.html for debugging")
+
+        # Helper function to find chapters in a specific act section
+        def find_chapters_in_act_section(html, act_number):
+            """Find all chapter titles that appear in a specific act's section."""
+            # Look for the act section with data-act-id
+            pattern = rf'data-act-id="{act_number}".*?(?=data-act-id="|Other Chapters|$)'
+            match = re.search(pattern, html, re.DOTALL)
+
+            if match:
+                section_html = match.group(0)
+                # Extract chapter titles from this section
+                chapter_pattern = r'<h4>(.*?)</h4>'
+                chapters = re.findall(chapter_pattern, section_html)
+                return chapters
+            return []
+
+        # Find chapters grouped under each act
+        chapters_under_act1 = find_chapters_in_act_section(html_content, 1)
+        chapters_under_act2 = find_chapters_in_act_section(html_content, 2)
+
+        print("\n=== TEMPLATE RENDERING RESULT ===")
+        print(f"Chapters found under Act 1: {chapters_under_act1}")
+        print(f"Chapters found under Act 2: {chapters_under_act2}")
+
+        # Check if act sections exist in the HTML at all
+        has_act1_section = f'data-act-id="1"' in html_content or 'Act 1:' in html_content
+        has_act2_section = f'data-act-id="2"' in html_content or 'Act 2:' in html_content
+
+        print(f"\nAct 1 section exists in HTML: {has_act1_section}")
+        print(f"Act 2 section exists in HTML: {has_act2_section}")
+
+        # Alternative: Look for chapters by searching for their proximity to act headers
+        def find_chapter_after_act_header(html, chapter_title):
+            """Find which act header appears before a chapter."""
+            chapter_pos = html.find(chapter_title)
+            if chapter_pos == -1:
+                return None
+
+            # Look backwards for the nearest Act header
+            before_chapter = html[:chapter_pos]
+            act_matches = list(re.finditer(r'Act (\d+):', before_chapter))
+            if act_matches:
+                last_match = act_matches[-1]
+                return int(last_match.group(1))
+            return None
+
+        # Check where each chapter appears
+        chapter1_appears_after_act = find_chapter_after_act_header(html_content, "First Chapter for Act 1")
+        chapter2_appears_after_act = find_chapter_after_act_header(html_content, "Chapter for Act 2")
+        chapter3_appears_after_act = find_chapter_after_act_header(html_content, "Second Chapter for Act 1")
+
+        print(f"\n=== CHAPTER POSITIONS RELATIVE TO ACT HEADERS ===")
+        print(f"'First Chapter for Act 1' appears after Act {chapter1_appears_after_act}")
+        print(f"'Chapter for Act 2' appears after Act {chapter2_appears_after_act}")
+        print(f"'Second Chapter for Act 1' appears after Act {chapter3_appears_after_act}")
+
+        # MAIN ASSERTIONS - This is what we're actually testing
+        # Chapters 1 and 3 should appear under Act 1
+        # Chapter 2 should appear under Act 2
+
+        error_msg = f"""
+        Chapter grouping is incorrect!
+        Expected:
+          - Act 1 should contain: 'First Chapter for Act 1', 'Second Chapter for Act 1'
+          - Act 2 should contain: 'Chapter for Act 2'
+
+        Actual:
+          - Chapters under Act 1: {chapters_under_act1}
+          - Chapters under Act 2: {chapters_under_act2}
+
+        Chapter positions relative to act headers:
+          - 'First Chapter for Act 1' appears after Act {chapter1_appears_after_act}
+          - 'Chapter for Act 2' appears after Act {chapter2_appears_after_act}
+          - 'Second Chapter for Act 1' appears after Act {chapter3_appears_after_act}
+        """
+
+        # Test using proximity to act headers (more reliable than section parsing)
+        self.assertEqual(chapter1_appears_after_act, 1,
+                        f"Chapter 1 (for Act 1) appears after Act {chapter1_appears_after_act}, expected Act 1")
+        self.assertEqual(chapter2_appears_after_act, 2,
+                        f"Chapter 2 (for Act 2) appears after Act {chapter2_appears_after_act}, expected Act 2")
+        self.assertEqual(chapter3_appears_after_act, 1,
+                        f"Chapter 3 (for Act 1) appears after Act {chapter3_appears_after_act}, expected Act 1")
+

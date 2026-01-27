@@ -151,7 +151,7 @@ class TestChapterPromptActEmphasis:
         def mock_invoke(messages):
             captured_messages.extend(messages)
             mock_response = Mock()
-            mock_response.content = 'Chapter content...'
+            mock_response.content = '{"title": "Test Chapter", "content": "Chapter content..."}'
             mock_response.response_metadata = {
                 'token_usage': {'prompt_tokens': 400, 'completion_tokens': 300, 'total_tokens': 700}
             }
@@ -327,7 +327,7 @@ class TestChapterPromptActEmphasis:
         def mock_invoke(messages):
             captured_messages.extend(messages)
             mock_response = Mock()
-            mock_response.content = 'Chapter content for unassigned act...'
+            mock_response.content = '{"title": "Unassigned Chapter", "content": "Chapter content for unassigned act..."}'
             mock_response.response_metadata = {
                 'token_usage': {'prompt_tokens': 300, 'completion_tokens': 150, 'total_tokens': 450}
             }

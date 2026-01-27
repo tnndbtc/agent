@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load i18n %}
+{% load novel_filters %}
 
 {% block title %}{{ project.title }} - {% trans "Novel Writing Agent" %}{% endblock %}
 {% block nav_title %}{{ project.title }}{% endblock %}
@@ -308,6 +309,14 @@
                     <div id="createOutlineProgressBarFill" class="progress-bar-fill">0%</div>
                 </div>
                 <div id="createOutlineProgressText" class="progress-text">Saving idea and creating plot & characters...</div>
+            </div>
+
+            <!-- Progress container for direct chapter creation from Acts -->
+            <div id="directChapterProgressContainer" class="progress-container" style="display: none; margin-top: 1rem;">
+                <div class="progress-bar">
+                    <div id="directChapterProgressBarFill" class="progress-bar-fill">0%</div>
+                </div>
+                <div id="directChapterProgressText" class="progress-text">{% trans "Creating chapter from act..." %}</div>
             </div>
 
             {% if outlines %}
@@ -658,35 +667,101 @@
                     {# Group chapters by act #}
                     {% for act in project.plot.acts.all %}
                         {% with act_chapters=chapters|dictsort:"chapter_number" %}
-                        {% with has_act_chapters=False %}
-                        {# Check if this act has any chapters #}
-                        {% for chapter in act_chapters %}
-                            {% if chapter.outline and chapter.outline.act_id == act.id or chapter.act_id == act.id %}
-                                {% with has_act_chapters=True %}{% endwith %}
-                            {% endif %}
-                        {% endfor %}
 
-                        {# Only show act section if it has chapters #}
-                        {% for chapter in act_chapters %}
-                            {% if chapter.outline and chapter.outline.act_id == act.id or chapter.act_id == act.id %}
-                                {% if forloop.first %}
-                                <div class="act-section" data-act-id="{{ act.id }}" style="margin-bottom: 1.5rem;">
-                                    <div class="act-header" style="background: #f3f4f6; padding: 0.75rem; border-radius: 4px; margin-bottom: 1rem; cursor: pointer;" onclick="toggleActChapters({{ act.id }})">
-                                        <h5 style="margin: 0; color: #111827;">
-                                            <span class="act-toggle" id="act-chapters-toggle-{{ act.id }}">▼</span>
-                                            Act {{ act.act_number }}: {{ act.subject }}
-                                        </h5>
-                                        {% if act.description %}
-                                        <p style="margin: 0.25rem 0 0 1.5rem; color: #6b7280; font-size: 0.875rem;">{{ act.description|truncatewords:20 }}</p>
-                                        {% endif %}
+                        {# First, check if this act has any chapters #}
+                        {% with has_chapters=False %}
+                            {% for chapter in act_chapters %}
+                                {% if chapter.act_id == act.id or chapter.outline and chapter.outline.act_id == act.id %}
+                                    {% with has_chapters=True %}
+                                    {% endwith %}
+                                {% endif %}
+                            {% endfor %}
+                        {% endwith %}
+
+                        {# Build list of chapters for this act first #}
+                        <div class="act-section" data-act-id="{{ act.id }}" style="margin-bottom: 1.5rem; display: none;" id="act-section-wrapper-{{ act.id }}">
+                            <div class="act-header" style="background: #f3f4f6; padding: 0.75rem; border-radius: 4px; margin-bottom: 1rem; cursor: pointer;" onclick="toggleActChapters({{ act.id }})">
+                                <h5 style="margin: 0; color: #111827;">
+                                    <span class="act-toggle" id="act-chapters-toggle-{{ act.id }}">▼</span>
+                                    Act {{ act.act_number }}: {{ act.subject }}
+                                </h5>
+                                {% if act.description %}
+                                <p style="margin: 0.25rem 0 0 1.5rem; color: #6b7280; font-size: 0.875rem;">{{ act.description|truncatewords:20 }}</p>
+                                {% endif %}
+                            </div>
+                            <div class="act-chapters" id="act-chapters-{{ act.id }}">
+                                {% for chapter in act_chapters %}
+                                    {% if chapter.act_id == act.id or chapter.outline and chapter.outline.act_id == act.id %}
+                                    <script>document.getElementById('act-section-wrapper-{{ act.id }}').style.display = 'block';</script>
+                                    <div class="chapter-card" style="margin-left: 1.5rem;">
+                                        <div class="chapter-number">{{ chapter.chapter_number }}</div>
+                                        <div class="chapter-info" style="flex: 1;">
+                                            <h4>{{ chapter.title }}</h4>
+                                            {% if chapter.content %}
+                                            <p style="margin: 0.5rem 0; color: #6b7280; font-size: 0.875rem; line-height: 1.5;">
+                                                {{ chapter.content|first_sentences:2 }}
+                                            </p>
+                                            {% endif %}
+                                            <p>{{ chapter.word_count }} {% trans "words" %} • {% trans "Updated" %} {{ chapter.updated_at|timesince }} {% trans "ago" %}</p>
+                                        </div>
+                                        <div class="chapter-status">
+                                            {% if chapter.is_draft %}
+                                            <span class="badge badge-warning">{% trans "Draft" %}</span>
+                                            {% else %}
+                                            <span class="badge badge-success">{% trans "Complete" %}</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="chapter-actions">
+                                            <button class="btn btn-sm btn-primary" onclick="window.location.href='{% url 'novels:chapter_detail' project.id chapter.id %}'">
+                                                {% trans "View/Modify Chapter" %}
+                                            </button>
+                                            <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteChapter('{{ chapter.id }}')">
+                                                {% trans "Delete" %}
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div class="act-chapters" id="act-chapters-{{ act.id }}">
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        {% endwith %}
+                    {% endfor %}
+
+                    {# Show chapters without acts (created directly) #}
+                    {% with orphan_chapters=chapters|dictsort:"chapter_number" %}
+                    {% with has_orphans=False %}
+                    {% for chapter in orphan_chapters %}
+                        {% if not chapter.act_id %}
+                            {% if not chapter.outline %}
+                                {% with has_orphans=True %}{% endwith %}
+                            {% elif not chapter.outline.act_id %}
+                                {% with has_orphans=True %}{% endwith %}
+                            {% endif %}
+                        {% endif %}
+                    {% endfor %}
+
+                    {% for chapter in orphan_chapters %}
+                        {% if not chapter.act_id %}
+                            {% if not chapter.outline or not chapter.outline.act_id %}
+                                {% if forloop.first %}
+                                <div class="act-section" style="margin-bottom: 1.5rem;">
+                                    <div class="act-header" style="background: #f3f4f6; padding: 0.75rem; border-radius: 4px; margin-bottom: 1rem;">
+                                        <h5 style="margin: 0; color: #111827;">{% trans "Other Chapters" %}</h5>
+                                        <p style="margin: 0.25rem 0 0 0; color: #6b7280; font-size: 0.875rem;">{% trans "Chapters not assigned to an act" %}</p>
+                                    </div>
+                                    <div class="act-chapters">
                                 {% endif %}
 
                                 <div class="chapter-card" style="margin-left: 1.5rem;">
                                     <div class="chapter-number">{{ chapter.chapter_number }}</div>
                                     <div class="chapter-info" style="flex: 1;">
                                         <h4>{{ chapter.title }}</h4>
+                                        {% if chapter.content %}
+                                        <p style="margin: 0.5rem 0; color: #6b7280; font-size: 0.875rem; line-height: 1.5;">
+                                            {{ chapter.content|first_sentences:2 }}
+                                        </p>
+                                        {% endif %}
                                         <p>{{ chapter.word_count }} {% trans "words" %} • {% trans "Updated" %} {{ chapter.updated_at|timesince }} {% trans "ago" %}</p>
                                     </div>
                                     <div class="chapter-status">
@@ -711,58 +786,6 @@
                                 </div>
                                 {% endif %}
                             {% endif %}
-                        {% endfor %}
-                        {% endwith %}
-                        {% endwith %}
-                    {% endfor %}
-
-                    {# Show chapters without acts (created directly) #}
-                    {% with orphan_chapters=chapters|dictsort:"chapter_number" %}
-                    {% with has_orphans=False %}
-                    {% for chapter in orphan_chapters %}
-                        {% if not chapter.act_id and not chapter.outline or chapter.outline and not chapter.outline.act_id %}
-                            {% with has_orphans=True %}{% endwith %}
-                        {% endif %}
-                    {% endfor %}
-
-                    {% for chapter in orphan_chapters %}
-                        {% if not chapter.act_id and not chapter.outline or chapter.outline and not chapter.outline.act_id %}
-                            {% if forloop.first %}
-                            <div class="act-section" style="margin-bottom: 1.5rem;">
-                                <div class="act-header" style="background: #f3f4f6; padding: 0.75rem; border-radius: 4px; margin-bottom: 1rem;">
-                                    <h5 style="margin: 0; color: #111827;">{% trans "Other Chapters" %}</h5>
-                                    <p style="margin: 0.25rem 0 0 0; color: #6b7280; font-size: 0.875rem;">{% trans "Chapters not assigned to an act" %}</p>
-                                </div>
-                                <div class="act-chapters">
-                            {% endif %}
-
-                            <div class="chapter-card" style="margin-left: 1.5rem;">
-                                <div class="chapter-number">{{ chapter.chapter_number }}</div>
-                                <div class="chapter-info" style="flex: 1;">
-                                    <h4>{{ chapter.title }}</h4>
-                                    <p>{{ chapter.word_count }} {% trans "words" %} • {% trans "Updated" %} {{ chapter.updated_at|timesince }} {% trans "ago" %}</p>
-                                </div>
-                                <div class="chapter-status">
-                                    {% if chapter.is_draft %}
-                                    <span class="badge badge-warning">{% trans "Draft" %}</span>
-                                    {% else %}
-                                    <span class="badge badge-success">{% trans "Complete" %}</span>
-                                    {% endif %}
-                                </div>
-                                <div class="chapter-actions">
-                                    <button class="btn btn-sm btn-primary" onclick="window.location.href='{% url 'novels:chapter_detail' project.id chapter.id %}'">
-                                        {% trans "View/Modify Chapter" %}
-                                    </button>
-                                    <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteChapter('{{ chapter.id }}')">
-                                        {% trans "Delete" %}
-                                    </button>
-                                </div>
-                            </div>
-
-                            {% if forloop.last %}
-                                </div>
-                            </div>
-                            {% endif %}
                         {% endif %}
                     {% endfor %}
                     {% endwith %}
@@ -776,6 +799,11 @@
                             <div class="chapter-number">{{ chapter.chapter_number }}</div>
                             <div class="chapter-info" style="flex: 1;">
                                 <h4>{{ chapter.title }}</h4>
+                                {% if chapter.content %}
+                                <p style="margin: 0.5rem 0; color: #6b7280; font-size: 0.875rem; line-height: 1.5;">
+                                    {{ chapter.content|first_sentences:2 }}
+                                </p>
+                                {% endif %}
                                 <p>{{ chapter.word_count }} {% trans "words" %} • {% trans "Updated" %} {{ chapter.updated_at|timesince }} {% trans "ago" %}</p>
                             </div>
                             <div class="chapter-status">
@@ -2714,7 +2742,13 @@ async function executeChapterWrite(exampleId = null) {
 
         // Get estimated duration for chapter API
         const estimatedDuration = await getEstimatedDuration('chapter');
-        startWriteChapterProgressBar(outlineId, estimatedDuration);
+
+        // Start appropriate progress bar based on creation mode
+        if (window.isDirectChapterCreation) {
+            startDirectChapterProgressBar(estimatedDuration);
+        } else {
+            startWriteChapterProgressBar(outlineId, estimatedDuration);
+        }
 
         // Phase 5: Add style override if selected
         const selectedStyleId = document.getElementById('chapterStyleOverride')?.value;
@@ -2736,14 +2770,21 @@ async function executeChapterWrite(exampleId = null) {
 
         showToast(exampleId ? 'Chapter writing with quality targeting started!' : 'Chapter writing started!', 'success');
 
-        // Poll task status
-        writeChapterPollingIntervals[outlineId] = setInterval(async () => {
+        // Poll task status - handle both direct creation and outline-based creation
+        const pollingKey = window.isDirectChapterCreation ? 'direct' : outlineId;
+        const pollingInterval = setInterval(async () => {
             try {
                 const task = await apiRequest(`/api/tasks/${response.task_id}/`);
 
                 if (task.status === 'completed') {
-                    clearInterval(writeChapterPollingIntervals[outlineId]);
-                    completeWriteChapterProgressBar(outlineId);
+                    clearInterval(pollingInterval);
+
+                    // Complete appropriate progress bar
+                    if (window.isDirectChapterCreation) {
+                        completeDirectChapterProgressBar();
+                    } else {
+                        completeWriteChapterProgressBar(outlineId);
+                    }
 
                     // Extract and display token usage
                     if (task.result_data && task.result_data.token_usage) {
@@ -2762,19 +2803,45 @@ async function executeChapterWrite(exampleId = null) {
                         window.location.reload();
                     }, 1500);
                 } else if (task.status === 'failed') {
-                    clearInterval(writeChapterPollingIntervals[outlineId]);
-                    resetWriteChapterProgressBar(outlineId);
+                    clearInterval(pollingInterval);
+
+                    // Reset appropriate progress bar
+                    if (window.isDirectChapterCreation) {
+                        resetDirectChapterProgressBar();
+                    } else {
+                        resetWriteChapterProgressBar(outlineId);
+                    }
+
                     showToast('Failed to write chapter: ' + (task.error_message || 'Unknown error'), 'error');
                 }
             } catch (error) {
-                clearInterval(writeChapterPollingIntervals[outlineId]);
-                resetWriteChapterProgressBar(outlineId);
+                clearInterval(pollingInterval);
+
+                // Reset appropriate progress bar
+                if (window.isDirectChapterCreation) {
+                    resetDirectChapterProgressBar();
+                } else {
+                    resetWriteChapterProgressBar(outlineId);
+                }
+
                 showToast('Error checking task status', 'error');
             }
         }, 2000);
 
+        // Store polling interval appropriately
+        if (window.isDirectChapterCreation) {
+            directChapterPollingInterval = pollingInterval;
+        } else {
+            writeChapterPollingIntervals[outlineId] = pollingInterval;
+        }
+
     } catch (err) {
-        resetWriteChapterProgressBar(outlineId);
+        // Reset appropriate progress bar on error
+        if (window.isDirectChapterCreation) {
+            resetDirectChapterProgressBar();
+        } else {
+            resetWriteChapterProgressBar(outlineId);
+        }
         showToast('Error writing chapter', 'error');
     }
 }
@@ -2969,6 +3036,94 @@ function resetWriteChapterProgressBar(outlineId) {
         if (writeChapterBtn) {
             writeChapterBtn.disabled = false;
             writeChapterBtn.style.opacity = '1';
+        }
+    }
+}
+
+// Direct Chapter Creation progress bar management (from Acts)
+let directChapterProgressInterval = null;
+let directChapterCurrentProgress = 0;
+let directChapterPollingInterval = null;
+
+function startDirectChapterProgressBar(estimatedDuration = null) {
+    const progressContainer = document.getElementById('directChapterProgressContainer');
+    const progressBarFill = document.getElementById('directChapterProgressBarFill');
+    const progressText = document.getElementById('directChapterProgressText');
+    const createChapterBtn = document.querySelector('button[onclick="createChapterDirectly()"]');
+
+    if (progressContainer) {
+        progressContainer.style.display = 'block';
+        if (createChapterBtn) {
+            createChapterBtn.disabled = true;
+            createChapterBtn.style.opacity = '0.6';
+        }
+        directChapterCurrentProgress = 0;
+
+        // Update progress text
+        if (progressText) {
+            progressText.textContent = '{% trans "Creating chapter from act..." %}';
+        }
+
+        // Calculate increment based on estimated duration or use default
+        let increment = 5; // Default: 5% every 2 seconds
+        if (estimatedDuration) {
+            increment = Math.max(1, Math.min(95 / (estimatedDuration / 2), 10));
+        }
+
+        directChapterProgressInterval = setInterval(() => {
+            if (directChapterCurrentProgress < 95) {
+                directChapterCurrentProgress += increment;
+                if (directChapterCurrentProgress > 95) directChapterCurrentProgress = 95;
+                progressBarFill.style.width = directChapterCurrentProgress + '%';
+                progressBarFill.textContent = Math.round(directChapterCurrentProgress) + '%';
+            }
+        }, 2000); // Update every 2 seconds
+    }
+}
+
+function completeDirectChapterProgressBar() {
+    const progressBarFill = document.getElementById('directChapterProgressBarFill');
+    const progressText = document.getElementById('directChapterProgressText');
+
+    if (directChapterProgressInterval) {
+        clearInterval(directChapterProgressInterval);
+    }
+
+    directChapterCurrentProgress = 100;
+    if (progressBarFill) {
+        progressBarFill.style.width = '100%';
+        progressBarFill.textContent = '100%';
+    }
+    if (progressText) {
+        progressText.textContent = '{% trans "Chapter created successfully!" %}';
+    }
+}
+
+function resetDirectChapterProgressBar() {
+    const progressContainer = document.getElementById('directChapterProgressContainer');
+    const progressBarFill = document.getElementById('directChapterProgressBarFill');
+    const createChapterBtn = document.querySelector('button[onclick="createChapterDirectly()"]');
+
+    if (directChapterProgressInterval) {
+        clearInterval(directChapterProgressInterval);
+        directChapterProgressInterval = null;
+    }
+
+    if (directChapterPollingInterval) {
+        clearInterval(directChapterPollingInterval);
+        directChapterPollingInterval = null;
+    }
+
+    if (progressContainer) {
+        progressContainer.style.display = 'none';
+        directChapterCurrentProgress = 0;
+        if (progressBarFill) {
+            progressBarFill.style.width = '0%';
+            progressBarFill.textContent = '0%';
+        }
+        if (createChapterBtn) {
+            createChapterBtn.disabled = false;
+            createChapterBtn.style.opacity = '1';
         }
     }
 }
