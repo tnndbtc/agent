@@ -1083,15 +1083,6 @@
     opacity: 0.95;
     font-weight: normal;
 }
-
-.act-outlines {
-    padding: 0;
-    background-color: white;
-}
-
-.act-outlines .outline-card {
-    margin: 1rem;
-}
 </style>
 
 <!-- Phase 5: Style Browser Modal -->
@@ -1985,7 +1976,6 @@ function showTab(tabName) {
 // New function for direct chapter creation from acts
 async function createChapterDirectly() {
     // Reset modal state
-    window.currentOutlineId = null;
     window.isDirectChapterCreation = true;
 
     // Show the act section for direct chapter creation
@@ -2069,7 +2059,6 @@ function scoreNovel() {
 }
 
 // Example Selection Modal Functions
-let currentOutlineId = null;
 let currentWordCount = null;
 let allExamples = [];
 let selectedExampleId = null;
