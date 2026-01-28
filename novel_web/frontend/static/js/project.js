@@ -4,9 +4,8 @@
 window.startBrainstorm = startBrainstorm;
 window.generatePlot = generatePlot;
 window.createCharacter = createCharacter;
-window.writeNextChapter = writeNextChapter;
 window.checkConsistency = checkConsistency;
-// Note: createOutline, scoreNovel, and exportNovel are defined in project_detail.html
+// Note: scoreNovel and exportNovel are defined in project_detail.html
 
 function startBrainstorm() {
     const genre = prompt('Genre (optional):');
@@ -190,21 +189,6 @@ function selectCharacter(index) {
         hideLoading();
         showToast('Error saving character: ' + error.message, 'error');
     });
-}
-
-function writeNextChapter() {
-    // Find next chapter to write
-    const outlines = document.querySelectorAll('.chapter-outline');
-    if (outlines.length === 0) {
-        showToast('Create an outline first', 'warning');
-        return;
-    }
-
-    const numChapters = prompt('Chapter number to write:');
-    if (!numChapters) return;
-
-    // Would need outline ID - this is simplified
-    showToast('Please select a chapter from the outline', 'info');
 }
 
 function checkConsistency() {

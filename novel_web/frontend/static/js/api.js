@@ -201,7 +201,6 @@ async function getPerformanceStats(forceRefresh = false) {
         return {
             'brainstorm': { average_duration_seconds: 30, display_name: 'Idea Generation' },
             'plot': { average_duration_seconds: 20, display_name: 'Plot and Characters' },
-            'outline': { average_duration_seconds: 60, display_name: 'Outlines' },
             'chapter': { average_duration_seconds: 45, display_name: 'Chapter' }
         };
     }

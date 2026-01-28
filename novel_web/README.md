@@ -9,7 +9,6 @@ A mobile-responsive web application for AI-powered novel writing, built with Dja
 - **AI-Powered Writing**:
   - Brainstorm plot ideas
   - Generate characters, settings, and plot structures
-  - Create chapter outlines
   - Write and edit chapters with AI assistance
   - Consistency checking across your novel
   - Novel scoring system
@@ -296,7 +295,7 @@ On your phone/tablet (connected to the same WiFi):
    - Target Word Count: 50000
 3. **Brainstorm**: Click "Brainstorm Ideas" to generate plot ideas
 4. **Watch Progress**: Progress bar shows AI generation in real-time
-5. **Continue Writing**: Follow the workflow through plot, characters, outline, and chapters
+5. **Continue Writing**: Follow the workflow through plot, characters, and chapters
 
 ### 🛑 Stopping the Application
 
@@ -433,7 +432,6 @@ novel_web/
 - `POST /api/projects/{id}/create_plot/` - Create plot structure
 - `POST /api/projects/{id}/create_characters/` - Generate characters
 - `POST /api/projects/{id}/create_setting/` - Create world setting
-- `POST /api/projects/{id}/create_outline/` - Generate chapter outline
 - `POST /api/projects/{id}/score/` - Score complete novel
 
 ### Chapters

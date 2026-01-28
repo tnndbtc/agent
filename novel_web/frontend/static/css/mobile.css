@@ -695,88 +695,15 @@ body {
     outline: none;
 }
 
-/* Outline Cards */
-.outlines-section,
+/* Chapter Cards */
 .chapters-section {
     margin-top: 20px;
 }
 
-.outlines-section h4,
 .chapters-section h4 {
     font-size: 18px;
     margin-bottom: 16px;
     color: var(--text-secondary);
-}
-
-.outlines-list {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    margin-bottom: 24px;
-}
-
-.outline-card {
-    background: white;
-    border: 2px solid var(--border-color);
-    border-radius: 12px;
-    padding: 16px;
-    transition: all 0.2s;
-}
-
-.outline-card:hover {
-    border-color: var(--primary-color);
-    box-shadow: var(--shadow);
-}
-
-.outline-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 12px;
-}
-
-.outline-number {
-    background: var(--primary-color);
-    color: white;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    font-size: 14px;
-    flex-shrink: 0;
-}
-
-.outline-header h5 {
-    font-size: 16px;
-    font-weight: 600;
-    margin: 0;
-    flex: 1;
-}
-
-.outline-details {
-    padding-left: 44px;
-    margin-bottom: 12px;
-}
-
-.outline-details p {
-    font-size: 14px;
-    color: var(--text-secondary);
-    margin-bottom: 8px;
-    line-height: 1.5;
-}
-
-.outline-details strong {
-    color: var(--text-primary);
-    font-weight: 500;
-}
-
-.outline-actions {
-    padding-left: 44px;
-    display: flex;
-    gap: 8px;
 }
 
 .written-chapter-preview {

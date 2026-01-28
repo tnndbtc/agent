@@ -295,20 +295,8 @@
             <div class="section-header">
                 <h3>{% trans "Chapters" %}</h3>
                 <div class="button-group">
-                    {% if outlines %}
-                    <button class="btn btn-primary" onclick="createOutline()" style="display: none;">{% trans "Add Outline" %}</button>
-                    {% else %}
-                    <button class="btn btn-primary" onclick="createOutline()" style="display: none;">{% trans "Create Outline" %}</button>
-                    {% endif %}
                     <button class="btn btn-primary" onclick="createChapterDirectly()">{% trans "Create Chapter" %}</button>
                 </div>
-            </div>
-
-            <div id="createOutlineProgressContainer" class="progress-container" style="display: none; margin-top: 1rem;">
-                <div class="progress-bar">
-                    <div id="createOutlineProgressBarFill" class="progress-bar-fill">0%</div>
-                </div>
-                <div id="createOutlineProgressText" class="progress-text">Saving idea and creating plot & characters...</div>
             </div>
 
             <!-- Progress container for direct chapter creation from Acts -->
@@ -318,345 +306,6 @@
                 </div>
                 <div id="directChapterProgressText" class="progress-text">{% trans "Creating chapter from act..." %}</div>
             </div>
-
-            {% if outlines %}
-            <div class="outlines-section">
-                <h4>{% trans "Chapter Outlines" %}</h4>
-
-                {# Display Acts if they exist #}
-                {% if has_plot and project.plot.acts.exists %}
-                    {# Create ID to display number mapping #}
-                    {% regroup outlines by act_id as outlines_by_act %}
-                    {% for act in project.plot.acts.all %}
-                    {# Check if this act has any outlines #}
-                    {% for act_group in outlines_by_act %}
-                        {% if act_group.grouper == act.id and act_group.list|length > 0 %}
-                    <div class="act-section" data-act-id="{{ act.id }}">
-                        <div class="act-header" onclick="toggleActSection({{ act.id }})">
-                            <h5>
-                                <span class="act-toggle">▼</span>
-                                Act {{ act.act_number }}: {{ act.subject }}
-                            </h5>
-                            {% if act.description %}
-                            <p class="act-description">{{ act.description|truncatewords:20 }}</p>
-                            {% endif %}
-                        </div>
-                        <div class="act-outlines" id="act-outlines-{{ act.id }}">
-                            {% for outline in act_group.list %}
-                    <div class="outline-card" id="outline-card-{{ outline.id }}">
-                        <div class="outline-header">
-                            <span class="outline-number" data-outline-id="{{ outline.id }}">{{ outline.number }}</span>
-                            <h5>{{ outline.title }}</h5>
-                        </div>
-                        <div class="outline-details" id="outline-details-{{ outline.id }}">
-                            {% if outline.pov %}
-                            <p><strong>{% trans "POV:" %}</strong> {{ outline.pov }}</p>
-                            {% endif %}
-                            {% if outline.setting %}
-                            <p><strong>{% trans "Setting:" %}</strong> <span id="outline-setting-text-{{ outline.id }}">{{ outline.setting }}</span></p>
-                            {% endif %}
-                            {% if outline.events %}
-                            <p><strong>{% trans "Events:" %}</strong> <span id="outline-events-text-{{ outline.id }}">{{ outline.events|truncatewords:30 }}</span></p>
-                            {% endif %}
-                            {% if outline.pacing %}
-                            <p><strong>{% trans "Pacing:" %}</strong> <span id="outline-pacing-text-{{ outline.id }}">{{ outline.pacing }}</span></p>
-                            {% endif %}
-                        </div>
-
-                        <!-- Edit Form - Hidden by default -->
-                        <div id="edit-outline-{{ outline.id }}" style="display: none; margin-top: 1rem;">
-                            <div class="form-group">
-                                <label for="edit-outline-setting-{{ outline.id }}">{% trans "Setting" %}</label>
-                                <textarea id="edit-outline-setting-{{ outline.id }}" class="form-control" rows="2">{{ outline.setting }}</textarea>
-                            </div>
-                            <div class="form-group">
-                                <label for="edit-outline-events-{{ outline.id }}">{% trans "Events" %}</label>
-                                <textarea id="edit-outline-events-{{ outline.id }}" class="form-control" rows="4">{{ outline.events }}</textarea>
-                            </div>
-                            <div class="form-group">
-                                <label for="edit-outline-pacing-{{ outline.id }}">{% trans "Pacing" %}</label>
-                                <input type="text" id="edit-outline-pacing-{{ outline.id }}" class="form-control" value="{{ outline.pacing }}">
-                            </div>
-                            <div style="margin-top: 0.5rem;">
-                                <button class="btn btn-sm btn-primary" onclick="saveOutline('{{ outline.id }}')">{% trans "Save" %}</button>
-                                <button class="btn btn-sm btn-secondary" onclick="cancelOutlineEdit('{{ outline.id }}')">{% trans "Cancel" %}</button>
-                            </div>
-                        </div>
-
-                        {% if outline.chapter %}
-                        <!-- Written Chapter -->
-                        <div class="written-chapter-preview">
-                            <div class="chapter-header">
-                                <h5>{% trans "Written Chapter" %}</h5>
-                                {% if outline.chapter.is_draft %}
-                                <span class="badge badge-warning">{% trans "Draft" %}</span>
-                                {% else %}
-                                <span class="badge badge-success">{% trans "Complete" %}</span>
-                                {% endif %}
-                            </div>
-                            <p class="chapter-stats">
-                                {{ outline.chapter.word_count }} {% trans "words" %} •
-                                {% trans "Updated" %} {{ outline.chapter.updated_at|timesince }} {% trans "ago" %}
-                            </p>
-                            <div class="chapter-preview-actions">
-                                <button class="btn btn-sm btn-primary" onclick="window.location.href='{% url 'novels:chapter_detail' project.id outline.chapter.id %}'">
-                                    {% trans "View/Edit Chapter" %}
-                                </button>
-                                <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteChapter('{{ outline.chapter.id }}')">
-                                    {% trans "Delete Chapter" %}
-                                </button>
-                            </div>
-                        </div>
-                        {% else %}
-                        <!-- Outline Actions (only show if no chapter written) -->
-                        <div id="writeChapterProgressContainer-{{ outline.id }}" class="progress-container" style="display: none; margin-bottom: 1rem;">
-                            <div class="progress-bar">
-                                <div id="writeChapterProgressBarFill-{{ outline.id }}" class="progress-bar-fill">0%</div>
-                            </div>
-                            <div id="writeChapterProgressText-{{ outline.id }}" class="progress-text">Saving idea and creating plot & characters...</div>
-                        </div>
-                        <div id="regenerateProgressContainer-{{ outline.number }}" class="progress-container" style="display: none; margin-bottom: 1rem;">
-                            <div class="progress-bar">
-                                <div id="regenerateProgressBarFill-{{ outline.number }}" class="progress-bar-fill">0%</div>
-                            </div>
-                            <div id="regenerateProgressText-{{ outline.number }}" class="progress-text">Saving idea and creating plot & characters...</div>
-                        </div>
-                        <div class="outline-actions">
-                            <button class="btn btn-sm btn-primary" onclick="modifyOutline('{{ outline.id }}')">
-                                {% trans "Modify" %}
-                            </button>
-                            <button class="btn btn-sm btn-primary" onclick="writeChapterFromOutline('{{ outline.id }}')" id="writeChapterBtn-{{ outline.id }}">
-                                {% trans "Write This Chapter" %}
-                            </button>
-                            <button class="btn btn-sm btn-secondary" onclick="regenerateOutline({{ outline.number }})" id="regenerateBtn-{{ outline.number }}">
-                                {% trans "Regenerate" %}
-                            </button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteOutline('{{ outline.id }}')">
-                                {% trans "Delete" %}
-                            </button>
-                        </div>
-                        {% endif %}
-                    </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                        {% endif %}
-                    {% endfor %}
-                    {% endfor %}
-
-                    {# Display outlines without an act #}
-                    <div class="act-section">
-                        <div class="act-header" onclick="toggleActSection(0)">
-                            <h5>
-                                <span class="act-toggle">▼</span>
-                                {% trans "Unassigned Outlines" %}
-                            </h5>
-                        </div>
-                        <div class="act-outlines" id="act-outlines-0">
-                            {% for outline in outlines %}
-                            {% if not outline.act_id %}
-                    <div class="outline-card" id="outline-card-{{ outline.id }}">
-                        <div class="outline-header">
-                            <span class="outline-number">{{ outline.number }}</span>
-                            <h5>{{ outline.title }}</h5>
-                        </div>
-                        <div class="outline-details" id="outline-details-{{ outline.id }}">
-                            {% if outline.pov %}
-                            <p><strong>{% trans "POV:" %}</strong> {{ outline.pov }}</p>
-                            {% endif %}
-                            {% if outline.setting %}
-                            <p><strong>{% trans "Setting:" %}</strong> <span id="outline-setting-text-{{ outline.id }}">{{ outline.setting }}</span></p>
-                            {% endif %}
-                            {% if outline.events %}
-                            <p><strong>{% trans "Events:" %}</strong> <span id="outline-events-text-{{ outline.id }}">{{ outline.events|truncatewords:30 }}</span></p>
-                            {% endif %}
-                            {% if outline.pacing %}
-                            <p><strong>{% trans "Pacing:" %}</strong> <span id="outline-pacing-text-{{ outline.id }}">{{ outline.pacing }}</span></p>
-                            {% endif %}
-                        </div>
-
-                        <!-- Edit Form - Hidden by default -->
-                        <div id="edit-outline-{{ outline.id }}" style="display: none; margin-top: 1rem;">
-                            <div class="form-group">
-                                <label for="edit-outline-setting-{{ outline.id }}">{% trans "Setting" %}</label>
-                                <textarea id="edit-outline-setting-{{ outline.id }}" class="form-control" rows="2">{{ outline.setting }}</textarea>
-                            </div>
-                            <div class="form-group">
-                                <label for="edit-outline-events-{{ outline.id }}">{% trans "Events" %}</label>
-                                <textarea id="edit-outline-events-{{ outline.id }}" class="form-control" rows="4">{{ outline.events }}</textarea>
-                            </div>
-                            <div class="form-group">
-                                <label for="edit-outline-pacing-{{ outline.id }}">{% trans "Pacing" %}</label>
-                                <input type="text" id="edit-outline-pacing-{{ outline.id }}" class="form-control" value="{{ outline.pacing }}">
-                            </div>
-                            <div style="margin-top: 0.5rem;">
-                                <button class="btn btn-sm btn-primary" onclick="saveOutline('{{ outline.id }}')">{% trans "Save" %}</button>
-                                <button class="btn btn-sm btn-secondary" onclick="cancelOutlineEdit('{{ outline.id }}')">{% trans "Cancel" %}</button>
-                            </div>
-                        </div>
-
-                        {% if outline.chapter %}
-                        <!-- Written Chapter -->
-                        <div class="written-chapter-preview">
-                            <div class="chapter-header">
-                                <h5>{% trans "Written Chapter" %}</h5>
-                                {% if outline.chapter.is_draft %}
-                                <span class="badge badge-warning">{% trans "Draft" %}</span>
-                                {% else %}
-                                <span class="badge badge-success">{% trans "Complete" %}</span>
-                                {% endif %}
-                            </div>
-                            <p class="chapter-stats">
-                                {{ outline.chapter.word_count }} {% trans "words" %} •
-                                {% trans "Updated" %} {{ outline.chapter.updated_at|timesince }} {% trans "ago" %}
-                            </p>
-                            <div class="chapter-preview-actions">
-                                <button class="btn btn-sm btn-primary" onclick="window.location.href='{% url 'novels:chapter_detail' project.id outline.chapter.id %}'">
-                                    {% trans "View/Edit Chapter" %}
-                                </button>
-                                <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteChapter('{{ outline.chapter.id }}')">
-                                    {% trans "Delete Chapter" %}
-                                </button>
-                            </div>
-                        </div>
-                        {% else %}
-                        <!-- Outline Actions (only show if no chapter written) -->
-                        <div id="writeChapterProgressContainer-{{ outline.id }}" class="progress-container" style="display: none; margin-bottom: 1rem;">
-                            <div class="progress-bar">
-                                <div id="writeChapterProgressBarFill-{{ outline.id }}" class="progress-bar-fill">0%</div>
-                            </div>
-                            <div id="writeChapterProgressText-{{ outline.id }}" class="progress-text">Saving idea and creating plot & characters...</div>
-                        </div>
-                        <div id="regenerateProgressContainer-{{ outline.number }}" class="progress-container" style="display: none; margin-bottom: 1rem;">
-                            <div class="progress-bar">
-                                <div id="regenerateProgressBarFill-{{ outline.number }}" class="progress-bar-fill">0%</div>
-                            </div>
-                            <div id="regenerateProgressText-{{ outline.number }}" class="progress-text">Saving idea and creating plot & characters...</div>
-                        </div>
-                        <div class="outline-actions">
-                            <button class="btn btn-sm btn-primary" onclick="modifyOutline('{{ outline.id }}')">
-                                {% trans "Modify" %}
-                            </button>
-                            <button class="btn btn-sm btn-primary" onclick="writeChapterFromOutline('{{ outline.id }}')" id="writeChapterBtn-{{ outline.id }}">
-                                {% trans "Write This Chapter" %}
-                            </button>
-                            <button class="btn btn-sm btn-secondary" onclick="regenerateOutline({{ outline.number }})" id="regenerateBtn-{{ outline.number }}">
-                                {% trans "Regenerate" %}
-                            </button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteOutline('{{ outline.id }}')">
-                                {% trans "Delete" %}
-                            </button>
-                        </div>
-                        {% endif %}
-                    </div>
-                            {% endif %}
-                            {% endfor %}
-                        </div>
-                    </div>
-
-                {% else %}
-                    {# No acts - display all outlines without grouping #}
-                    <div class="outlines-list">
-                    {% for outline in outlines %}
-                    <div class="outline-card" id="outline-card-{{ outline.id }}">
-                        <div class="outline-header">
-                            <span class="outline-number">{{ outline.number }}</span>
-                            <h5>{{ outline.title }}</h5>
-                        </div>
-                        <div class="outline-details" id="outline-details-{{ outline.id }}">
-                            {% if outline.pov %}
-                            <p><strong>{% trans "POV:" %}</strong> {{ outline.pov }}</p>
-                            {% endif %}
-                            {% if outline.setting %}
-                            <p><strong>{% trans "Setting:" %}</strong> <span id="outline-setting-text-{{ outline.id }}">{{ outline.setting }}</span></p>
-                            {% endif %}
-                            {% if outline.events %}
-                            <p><strong>{% trans "Events:" %}</strong> <span id="outline-events-text-{{ outline.id }}">{{ outline.events|truncatewords:30 }}</span></p>
-                            {% endif %}
-                            {% if outline.pacing %}
-                            <p><strong>{% trans "Pacing:" %}</strong> <span id="outline-pacing-text-{{ outline.id }}">{{ outline.pacing }}</span></p>
-                            {% endif %}
-                        </div>
-
-                        <!-- Edit Form - Hidden by default -->
-                        <div id="edit-outline-{{ outline.id }}" style="display: none; margin-top: 1rem;">
-                            <div class="form-group">
-                                <label for="edit-outline-setting-{{ outline.id }}">{% trans "Setting" %}</label>
-                                <textarea id="edit-outline-setting-{{ outline.id }}" class="form-control" rows="2">{{ outline.setting }}</textarea>
-                            </div>
-                            <div class="form-group">
-                                <label for="edit-outline-events-{{ outline.id }}">{% trans "Events" %}</label>
-                                <textarea id="edit-outline-events-{{ outline.id }}" class="form-control" rows="4">{{ outline.events }}</textarea>
-                            </div>
-                            <div class="form-group">
-                                <label for="edit-outline-pacing-{{ outline.id }}">{% trans "Pacing" %}</label>
-                                <input type="text" id="edit-outline-pacing-{{ outline.id }}" class="form-control" value="{{ outline.pacing }}">
-                            </div>
-                            <div style="margin-top: 0.5rem;">
-                                <button class="btn btn-sm btn-primary" onclick="saveOutline('{{ outline.id }}')">{% trans "Save" %}</button>
-                                <button class="btn btn-sm btn-secondary" onclick="cancelOutlineEdit('{{ outline.id }}')">{% trans "Cancel" %}</button>
-                            </div>
-                        </div>
-
-                        {% if outline.chapter %}
-                        <!-- Written Chapter -->
-                        <div class="written-chapter-preview">
-                            <div class="chapter-header">
-                                <h5>{% trans "Written Chapter" %}</h5>
-                                {% if outline.chapter.is_draft %}
-                                <span class="badge badge-warning">{% trans "Draft" %}</span>
-                                {% else %}
-                                <span class="badge badge-success">{% trans "Complete" %}</span>
-                                {% endif %}
-                            </div>
-                            <p class="chapter-stats">
-                                {{ outline.chapter.word_count }} {% trans "words" %} •
-                                {% trans "Updated" %} {{ outline.chapter.updated_at|timesince }} {% trans "ago" %}
-                            </p>
-                            <div class="chapter-preview-actions">
-                                <button class="btn btn-sm btn-primary" onclick="window.location.href='{% url 'novels:chapter_detail' project.id outline.chapter.id %}'">
-                                    {% trans "View/Edit Chapter" %}
-                                </button>
-                                <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteChapter('{{ outline.chapter.id }}')">
-                                    {% trans "Delete Chapter" %}
-                                </button>
-                            </div>
-                        </div>
-                        {% else %}
-                        <!-- Outline Actions (only show if no chapter written) -->
-                        <div id="writeChapterProgressContainer-{{ outline.id }}" class="progress-container" style="display: none; margin-bottom: 1rem;">
-                            <div class="progress-bar">
-                                <div id="writeChapterProgressBarFill-{{ outline.id }}" class="progress-bar-fill">0%</div>
-                            </div>
-                            <div id="writeChapterProgressText-{{ outline.id }}" class="progress-text">Saving idea and creating plot & characters...</div>
-                        </div>
-                        <div id="regenerateProgressContainer-{{ outline.number }}" class="progress-container" style="display: none; margin-bottom: 1rem;">
-                            <div class="progress-bar">
-                                <div id="regenerateProgressBarFill-{{ outline.number }}" class="progress-bar-fill">0%</div>
-                            </div>
-                            <div id="regenerateProgressText-{{ outline.number }}" class="progress-text">Saving idea and creating plot & characters...</div>
-                        </div>
-                        <div class="outline-actions">
-                            <button class="btn btn-sm btn-primary" onclick="modifyOutline('{{ outline.id }}')">
-                                {% trans "Modify" %}
-                            </button>
-                            <button class="btn btn-sm btn-primary" onclick="writeChapterFromOutline('{{ outline.id }}')" id="writeChapterBtn-{{ outline.id }}">
-                                {% trans "Write This Chapter" %}
-                            </button>
-                            <button class="btn btn-sm btn-secondary" onclick="regenerateOutline({{ outline.number }})" id="regenerateBtn-{{ outline.number }}">
-                                {% trans "Regenerate" %}
-                            </button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteOutline('{{ outline.id }}')">
-                                {% trans "Delete" %}
-                            </button>
-                        </div>
-                        {% endif %}
-                    </div>
-                    {% endfor %}
-                    </div>
-                {% endif %}
-            </div>
-            {% endif %}
 
             {% if chapters %}
             <!-- Show all chapters grouped by acts -->
@@ -671,7 +320,7 @@
                         {# First, check if this act has any chapters #}
                         {% with has_chapters=False %}
                             {% for chapter in act_chapters %}
-                                {% if chapter.act_id == act.id or chapter.outline and chapter.outline.act_id == act.id %}
+                                {% if chapter.act_id == act.id %}
                                     {% with has_chapters=True %}
                                     {% endwith %}
                                 {% endif %}
@@ -691,7 +340,7 @@
                             </div>
                             <div class="act-chapters" id="act-chapters-{{ act.id }}">
                                 {% for chapter in act_chapters %}
-                                    {% if chapter.act_id == act.id or chapter.outline and chapter.outline.act_id == act.id %}
+                                    {% if chapter.act_id == act.id %}
                                     <script>document.getElementById('act-section-wrapper-{{ act.id }}').style.display = 'block';</script>
                                     <div class="chapter-card" style="margin-left: 1.5rem;">
                                         <div class="chapter-number">{{ chapter.chapter_number }}</div>
@@ -733,17 +382,12 @@
                     {% with has_orphans=False %}
                     {% for chapter in orphan_chapters %}
                         {% if not chapter.act_id %}
-                            {% if not chapter.outline %}
-                                {% with has_orphans=True %}{% endwith %}
-                            {% elif not chapter.outline.act_id %}
-                                {% with has_orphans=True %}{% endwith %}
-                            {% endif %}
+                            {% with has_orphans=True %}{% endwith %}
                         {% endif %}
                     {% endfor %}
 
                     {% for chapter in orphan_chapters %}
                         {% if not chapter.act_id %}
-                            {% if not chapter.outline or not chapter.outline.act_id %}
                                 {% if forloop.first %}
                                 <div class="act-section" style="margin-bottom: 1.5rem;">
                                     <div class="act-header" style="background: #f3f4f6; padding: 0.75rem; border-radius: 4px; margin-bottom: 1rem;">
@@ -786,7 +430,6 @@
                                 </div>
                                 {% endif %}
                             {% endif %}
-                        {% endif %}
                     {% endfor %}
                     {% endwith %}
                     {% endwith %}
@@ -828,9 +471,9 @@
             </div>
             {% endif %}
 
-            {% if not outlines and not chapters %}
+            {% if not chapters %}
             <div class="empty-state">
-                <p>{% trans "No chapters written yet. Create an outline to start writing!" %}</p>
+                <p>{% trans "No chapters written yet. Click 'Create Chapter' to start writing!" %}</p>
             </div>
             {% endif %}
         </div>
@@ -955,41 +598,6 @@
                 </button>
                 <button class="btn btn-primary" onclick="startChapterWriteWithConfig()">
                     {% trans "Write Chapter" %}
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Outline Creation Configuration Modal -->
-<div id="outlineConfigModal" class="modal-overlay" style="display: none;">
-    <div class="modal-dialog">
-        <div class="modal-header">
-            <h3>{% trans "Create Chapter Outlines" %}</h3>
-            <button class="modal-close" onclick="closeOutlineConfigModal()">&times;</button>
-        </div>
-        <div class="modal-body">
-            <div class="config-section">
-                <label for="numChapters" class="config-label">{% trans "How many outlines do you want to create?" %}</label>
-                <input type="number" id="numChapters" class="form-control" min="1" max="100" value="1" placeholder="Enter number of outlines (1-100)">
-            </div>
-
-            <div class="config-section">
-                <label for="actSelect" class="config-label">{% trans "Which Act should these outlines belong to?" %}</label>
-                <select id="actSelect" class="form-control" onchange="showActDescription()">
-                    <option value="">{% trans "No Act (Optional)" %}</option>
-                </select>
-                <div id="actDescription" style="margin-top: 0.5rem; padding: 0.5rem; background-color: #f3f4f6; border-radius: 4px; display: none;">
-                    <small id="actDescriptionText"></small>
-                </div>
-            </div>
-
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeOutlineConfigModal()">
-                    {% trans "Cancel" %}
-                </button>
-                <button class="btn btn-primary" onclick="submitOutlineCreation()">
-                    {% trans "Create Outlines" %}
                 </button>
             </div>
         </div>
@@ -2374,75 +1982,6 @@ function showTab(tabName) {
     window.location.hash = tabName;
 }
 
-// Create Outline progress bar management
-let createOutlineProgressInterval = null;
-let createOutlineCurrentProgress = 0;
-let createOutlinePollingInterval = null;
-
-function startCreateOutlineProgressBar(estimatedDuration = null) {
-    const progressContainer = document.getElementById('createOutlineProgressContainer');
-    const progressBarFill = document.getElementById('createOutlineProgressBarFill');
-
-    if (progressContainer) {
-        progressContainer.style.display = 'block';
-        createOutlineCurrentProgress = 0;
-
-        // Calculate increment based on estimated duration or use default
-        let increment = 5; // Default: 5% every 2 seconds
-        if (estimatedDuration) {
-            increment = Math.max(1, Math.min(95 / (estimatedDuration / 2), 10));
-        }
-
-        createOutlineProgressInterval = setInterval(() => {
-            if (createOutlineCurrentProgress < 95) {
-                createOutlineCurrentProgress += increment;
-                if (createOutlineCurrentProgress > 95) createOutlineCurrentProgress = 95;
-                progressBarFill.style.width = createOutlineCurrentProgress + '%';
-                progressBarFill.textContent = Math.round(createOutlineCurrentProgress) + '%';
-            }
-        }, 2000); // Update every 2 seconds
-    }
-}
-
-function completeCreateOutlineProgressBar() {
-    const progressBarFill = document.getElementById('createOutlineProgressBarFill');
-
-    if (createOutlineProgressInterval) {
-        clearInterval(createOutlineProgressInterval);
-    }
-
-    createOutlineCurrentProgress = 100;
-    progressBarFill.style.width = '100%';
-    progressBarFill.textContent = '100%';
-}
-
-function resetCreateOutlineProgressBar() {
-    const progressContainer = document.getElementById('createOutlineProgressContainer');
-    const progressBarFill = document.getElementById('createOutlineProgressBarFill');
-
-    if (createOutlineProgressInterval) {
-        clearInterval(createOutlineProgressInterval);
-    }
-
-    if (createOutlinePollingInterval) {
-        clearInterval(createOutlinePollingInterval);
-    }
-
-    if (progressContainer) {
-        progressContainer.style.display = 'none';
-        createOutlineCurrentProgress = 0;
-        progressBarFill.style.width = '0%';
-        progressBarFill.textContent = '0%';
-    }
-}
-
-async function createOutline() {
-    // Open the outline configuration modal
-    await loadActsForModal();
-    const modal = document.getElementById('outlineConfigModal');
-    modal.style.display = 'flex';
-}
-
 // New function for direct chapter creation from acts
 async function createChapterDirectly() {
     // Reset modal state
@@ -2514,124 +2053,6 @@ function showChapterActDescription() {
     }
 }
 
-async function loadActsForModal() {
-    try {
-        // Fetch the project with acts
-        const project = await apiRequest(`/api/projects/${projectId}/`);
-        const actSelect = document.getElementById('actSelect');
-
-        // Clear existing options except the default
-        actSelect.innerHTML = '<option value="">{% trans "No Act (Optional)" %}</option>';
-
-        // Populate acts if they exist
-        if (project.plot && project.plot.acts && project.plot.acts.length > 0) {
-            project.plot.acts.forEach(act => {
-                const option = document.createElement('option');
-                option.value = act.id;
-                option.textContent = `Act ${act.act_number}: ${act.subject}`;
-                option.dataset.description = act.description;
-                actSelect.appendChild(option);
-            });
-        }
-    } catch (error) {
-        console.error('Error loading acts:', error);
-        showToast('Failed to load acts', 'error');
-    }
-}
-
-function showActDescription() {
-    const actSelect = document.getElementById('actSelect');
-    const actDescription = document.getElementById('actDescription');
-    const actDescriptionText = document.getElementById('actDescriptionText');
-
-    const selectedOption = actSelect.options[actSelect.selectedIndex];
-    if (selectedOption.value && selectedOption.dataset.description) {
-        actDescriptionText.textContent = selectedOption.dataset.description;
-        actDescription.style.display = 'block';
-    } else {
-        actDescription.style.display = 'none';
-    }
-}
-
-function closeOutlineConfigModal() {
-    const modal = document.getElementById('outlineConfigModal');
-    modal.style.display = 'none';
-}
-
-async function submitOutlineCreation() {
-    const numChaptersInput = document.getElementById('numChapters');
-    const actSelect = document.getElementById('actSelect');
-
-    const chapters = parseInt(numChaptersInput.value);
-    if (isNaN(chapters) || chapters < 1 || chapters > 100) {
-        showToast('Please enter a valid number between 1 and 100', 'error');
-        return;
-    }
-
-    const actId = actSelect.value || null;
-
-    console.log('Creating outline with num_chapters:', chapters, 'act_id:', actId);
-
-    // Close modal
-    closeOutlineConfigModal();
-
-    // Reset tokens at the start of new workflow
-    resetTokens();
-
-    try {
-        // Get estimated duration for outline API
-        const estimatedDuration = await getEstimatedDuration('outline');
-        startCreateOutlineProgressBar(estimatedDuration);
-
-        const requestBody = { num_chapters: chapters };
-        if (actId) {
-            requestBody.act_id = parseInt(actId);
-        }
-
-        const response = await apiRequest(`/api/projects/${projectId}/create_outline/`, {
-            method: 'POST',
-            body: JSON.stringify(requestBody)
-        });
-
-        showToast('Outline generation started!', 'success');
-
-        // Poll task status
-        createOutlinePollingInterval = setInterval(async () => {
-            try {
-                const task = await apiRequest(`/api/tasks/${response.task_id}/`);
-
-                if (task.status === 'completed') {
-                    clearInterval(createOutlinePollingInterval);
-                    completeCreateOutlineProgressBar();
-
-                    // Extract and display token usage BEFORE reload
-                    if (task.result_data && task.result_data.token_usage) {
-                        console.log('Calling showTokenUsage with:', task.result_data.token_usage);
-                        showTokenUsage(task.result_data.token_usage);
-                    }
-
-                    showToast('Outline created successfully!', 'success');
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1500);
-                } else if (task.status === 'failed') {
-                    clearInterval(createOutlinePollingInterval);
-                    resetCreateOutlineProgressBar();
-                    showToast('Failed to create outline: ' + (task.error_message || 'Unknown error'), 'error');
-                }
-            } catch (error) {
-                clearInterval(createOutlinePollingInterval);
-                resetCreateOutlineProgressBar();
-                showToast('Error checking task status', 'error');
-            }
-        }, 2000);
-
-    } catch (err) {
-        resetCreateOutlineProgressBar();
-        showToast('Error creating outline', 'error');
-    }
-}
-
 function scoreNovel() {
     if (!confirm('Score your novel? This will analyze all chapters.')) return;
 
@@ -2653,23 +2074,6 @@ let currentWordCount = null;
 let allExamples = [];
 let selectedExampleId = null;
 
-function toggleActSection(actId) {
-    const actOutlines = document.getElementById(`act-outlines-${actId}`);
-    const actSection = document.querySelector(`[data-act-id="${actId}"]`) ||
-                       document.querySelector(`.act-section:has(#act-outlines-${actId})`);
-    const toggle = actSection ? actSection.querySelector('.act-toggle') : null;
-
-    if (actOutlines) {
-        if (actOutlines.style.display === 'none') {
-            actOutlines.style.display = 'block';
-            if (toggle) toggle.textContent = '▼';
-        } else {
-            actOutlines.style.display = 'none';
-            if (toggle) toggle.textContent = '▶';
-        }
-    }
-}
-
 function toggleActChapters(actId) {
     const actChapters = document.getElementById(`act-chapters-${actId}`);
     const toggle = document.getElementById(`act-chapters-toggle-${actId}`);
@@ -2685,77 +2089,35 @@ function toggleActChapters(actId) {
     }
 }
 
-async function writeChapterFromOutline(outlineId) {
-    // Reset direct chapter creation flag (this is traditional outline-based flow)
-    window.isDirectChapterCreation = false;
-
-    // Hide the act section since we're using an outline
-    const actSection = document.getElementById('chapterActSection');
-    if (actSection) {
-        actSection.style.display = 'none';
-    }
-
-    // Store outline ID for later
-    currentOutlineId = outlineId;
-
-    // Open combined configuration modal
-    const modal = document.getElementById('chapterConfigModal');
-    modal.style.display = 'flex';
-
-    // Reset selection
-    selectedExampleId = null;
-
-    // Set default word count
-    document.getElementById('chapterWordCount').value = '10';
-
-    // Phase 5: Populate style override dropdown
-    populateStyleSelect('chapterStyleOverride', true, '{% trans "Use project default" %}');
-
-    // Load examples
-    await loadExamples();
-}
-
 async function executeChapterWrite(exampleId = null) {
-    const outlineId = currentOutlineId;
     const words = currentWordCount;
 
     // Reset tokens at the start of new workflow
     resetTokens();
 
     try {
-        // Build request body based on whether we're in direct chapter creation mode
+        // Build request body for direct chapter creation
         const requestBody = {
             writing_style: 'literary',
             target_word_count: words
         };
 
-        // Check if we're creating chapter directly from act (no outline)
-        if (window.isDirectChapterCreation) {
-            const actSelect = document.getElementById('chapterActSelect');
-            const selectedActId = actSelect?.value;
+        // Get selected act
+        const actSelect = document.getElementById('chapterActSelect');
+        const selectedActId = actSelect?.value;
 
-            if (!selectedActId) {
-                showToast('Please select an Act for the chapter', 'error');
-                return;
-            }
-
-            requestBody.act_id = parseInt(selectedActId);
-        } else {
-            // Traditional flow with outline
-            requestBody.chapter_outline_id = outlineId;
+        if (!selectedActId) {
+            showToast('Please select an Act for the chapter', 'error');
+            return;
         }
+
+        requestBody.act_id = parseInt(selectedActId);
 
         // Get estimated duration for chapter API
         const estimatedDuration = await getEstimatedDuration('chapter');
+        startDirectChapterProgressBar(estimatedDuration);
 
-        // Start appropriate progress bar based on creation mode
-        if (window.isDirectChapterCreation) {
-            startDirectChapterProgressBar(estimatedDuration);
-        } else {
-            startWriteChapterProgressBar(outlineId, estimatedDuration);
-        }
-
-        // Phase 5: Add style override if selected
+        // Add style override if selected
         const selectedStyleId = document.getElementById('chapterStyleOverride')?.value;
         if (selectedStyleId) {
             requestBody.style_override = parseInt(selectedStyleId);
@@ -2775,21 +2137,14 @@ async function executeChapterWrite(exampleId = null) {
 
         showToast(exampleId ? 'Chapter writing with quality targeting started!' : 'Chapter writing started!', 'success');
 
-        // Poll task status - handle both direct creation and outline-based creation
-        const pollingKey = window.isDirectChapterCreation ? 'direct' : outlineId;
+        // Poll task status
         const pollingInterval = setInterval(async () => {
             try {
                 const task = await apiRequest(`/api/tasks/${response.task_id}/`);
 
                 if (task.status === 'completed') {
                     clearInterval(pollingInterval);
-
-                    // Complete appropriate progress bar
-                    if (window.isDirectChapterCreation) {
-                        completeDirectChapterProgressBar();
-                    } else {
-                        completeWriteChapterProgressBar(outlineId);
-                    }
+                    completeDirectChapterProgressBar();
 
                     // Extract and display token usage
                     if (task.result_data && task.result_data.token_usage) {
@@ -2809,44 +2164,20 @@ async function executeChapterWrite(exampleId = null) {
                     }, 1500);
                 } else if (task.status === 'failed') {
                     clearInterval(pollingInterval);
-
-                    // Reset appropriate progress bar
-                    if (window.isDirectChapterCreation) {
-                        resetDirectChapterProgressBar();
-                    } else {
-                        resetWriteChapterProgressBar(outlineId);
-                    }
-
+                    resetDirectChapterProgressBar();
                     showToast('Failed to write chapter: ' + (task.error_message || 'Unknown error'), 'error');
                 }
             } catch (error) {
                 clearInterval(pollingInterval);
-
-                // Reset appropriate progress bar
-                if (window.isDirectChapterCreation) {
-                    resetDirectChapterProgressBar();
-                } else {
-                    resetWriteChapterProgressBar(outlineId);
-                }
-
+                resetDirectChapterProgressBar();
                 showToast('Error checking task status', 'error');
             }
         }, 2000);
 
-        // Store polling interval appropriately
-        if (window.isDirectChapterCreation) {
-            directChapterPollingInterval = pollingInterval;
-        } else {
-            writeChapterPollingIntervals[outlineId] = pollingInterval;
-        }
+        directChapterPollingInterval = pollingInterval;
 
     } catch (err) {
-        // Reset appropriate progress bar on error
-        if (window.isDirectChapterCreation) {
-            resetDirectChapterProgressBar();
-        } else {
-            resetWriteChapterProgressBar(outlineId);
-        }
+        resetDirectChapterProgressBar();
         showToast('Error writing chapter', 'error');
     }
 }
@@ -2967,84 +2298,6 @@ function filterExamples() {
     }).join('');
 }
 
-// Write Chapter progress bar management
-let writeChapterProgressIntervals = {};
-let writeChapterCurrentProgress = {};
-let writeChapterPollingIntervals = {};
-
-function startWriteChapterProgressBar(outlineId, estimatedDuration = null) {
-    const progressContainer = document.getElementById(`writeChapterProgressContainer-${outlineId}`);
-    const progressBarFill = document.getElementById(`writeChapterProgressBarFill-${outlineId}`);
-    const writeChapterBtn = document.getElementById(`writeChapterBtn-${outlineId}`);
-
-    if (progressContainer) {
-        progressContainer.style.display = 'block';
-        if (writeChapterBtn) {
-            writeChapterBtn.disabled = true;
-            writeChapterBtn.style.opacity = '0.6';
-        }
-        writeChapterCurrentProgress[outlineId] = 0;
-
-        // Calculate increment based on estimated duration or use default
-        let increment = 5; // Default: 5% every 2 seconds
-        if (estimatedDuration) {
-            increment = Math.max(1, Math.min(95 / (estimatedDuration / 2), 10));
-        }
-
-        writeChapterProgressIntervals[outlineId] = setInterval(() => {
-            if (writeChapterCurrentProgress[outlineId] < 95) {
-                writeChapterCurrentProgress[outlineId] += increment;
-                if (writeChapterCurrentProgress[outlineId] > 95) writeChapterCurrentProgress[outlineId] = 95;
-                progressBarFill.style.width = writeChapterCurrentProgress[outlineId] + '%';
-                progressBarFill.textContent = Math.round(writeChapterCurrentProgress[outlineId]) + '%';
-            }
-        }, 2000); // Update every 2 seconds
-    }
-}
-
-function completeWriteChapterProgressBar(outlineId) {
-    const progressBarFill = document.getElementById(`writeChapterProgressBarFill-${outlineId}`);
-
-    if (writeChapterProgressIntervals[outlineId]) {
-        clearInterval(writeChapterProgressIntervals[outlineId]);
-    }
-
-    writeChapterCurrentProgress[outlineId] = 100;
-    if (progressBarFill) {
-        progressBarFill.style.width = '100%';
-        progressBarFill.textContent = '100%';
-    }
-}
-
-function resetWriteChapterProgressBar(outlineId) {
-    const progressContainer = document.getElementById(`writeChapterProgressContainer-${outlineId}`);
-    const progressBarFill = document.getElementById(`writeChapterProgressBarFill-${outlineId}`);
-    const writeChapterBtn = document.getElementById(`writeChapterBtn-${outlineId}`);
-
-    if (writeChapterProgressIntervals[outlineId]) {
-        clearInterval(writeChapterProgressIntervals[outlineId]);
-        delete writeChapterProgressIntervals[outlineId];
-    }
-
-    if (writeChapterPollingIntervals[outlineId]) {
-        clearInterval(writeChapterPollingIntervals[outlineId]);
-        delete writeChapterPollingIntervals[outlineId];
-    }
-
-    if (progressContainer) {
-        progressContainer.style.display = 'none';
-        writeChapterCurrentProgress[outlineId] = 0;
-        if (progressBarFill) {
-            progressBarFill.style.width = '0%';
-            progressBarFill.textContent = '0%';
-        }
-        if (writeChapterBtn) {
-            writeChapterBtn.disabled = false;
-            writeChapterBtn.style.opacity = '1';
-        }
-    }
-}
-
 // Direct Chapter Creation progress bar management (from Acts)
 let directChapterProgressInterval = null;
 let directChapterCurrentProgress = 0;
@@ -3131,155 +2384,6 @@ function resetDirectChapterProgressBar() {
             createChapterBtn.style.opacity = '1';
         }
     }
-}
-
-// Regenerate Outline progress bar management
-let regenerateProgressIntervals = {};
-let regenerateCurrentProgress = {};
-let regeneratePollingIntervals = {};
-
-function startRegenerateProgressBar(chapterNumber, estimatedDuration = null) {
-    const progressContainer = document.getElementById(`regenerateProgressContainer-${chapterNumber}`);
-    const progressBarFill = document.getElementById(`regenerateProgressBarFill-${chapterNumber}`);
-    const regenerateBtn = document.getElementById(`regenerateBtn-${chapterNumber}`);
-
-    if (progressContainer) {
-        progressContainer.style.display = 'block';
-        if (regenerateBtn) {
-            regenerateBtn.disabled = true;
-            regenerateBtn.style.opacity = '0.6';
-        }
-        regenerateCurrentProgress[chapterNumber] = 0;
-
-        // Calculate increment based on estimated duration or use default
-        let increment = 5; // Default: 5% every 2 seconds
-        if (estimatedDuration) {
-            increment = Math.max(1, Math.min(95 / (estimatedDuration / 2), 10));
-        }
-
-        regenerateProgressIntervals[chapterNumber] = setInterval(() => {
-            if (regenerateCurrentProgress[chapterNumber] < 95) {
-                regenerateCurrentProgress[chapterNumber] += increment;
-                if (regenerateCurrentProgress[chapterNumber] > 95) regenerateCurrentProgress[chapterNumber] = 95;
-                progressBarFill.style.width = regenerateCurrentProgress[chapterNumber] + '%';
-                progressBarFill.textContent = Math.round(regenerateCurrentProgress[chapterNumber]) + '%';
-            }
-        }, 2000); // Update every 2 seconds
-    }
-}
-
-function completeRegenerateProgressBar(chapterNumber) {
-    const progressBarFill = document.getElementById(`regenerateProgressBarFill-${chapterNumber}`);
-
-    if (regenerateProgressIntervals[chapterNumber]) {
-        clearInterval(regenerateProgressIntervals[chapterNumber]);
-    }
-
-    regenerateCurrentProgress[chapterNumber] = 100;
-    if (progressBarFill) {
-        progressBarFill.style.width = '100%';
-        progressBarFill.textContent = '100%';
-    }
-}
-
-function resetRegenerateProgressBar(chapterNumber) {
-    const progressContainer = document.getElementById(`regenerateProgressContainer-${chapterNumber}`);
-    const progressBarFill = document.getElementById(`regenerateProgressBarFill-${chapterNumber}`);
-    const regenerateBtn = document.getElementById(`regenerateBtn-${chapterNumber}`);
-
-    if (regenerateProgressIntervals[chapterNumber]) {
-        clearInterval(regenerateProgressIntervals[chapterNumber]);
-        delete regenerateProgressIntervals[chapterNumber];
-    }
-
-    if (regeneratePollingIntervals[chapterNumber]) {
-        clearInterval(regeneratePollingIntervals[chapterNumber]);
-        delete regeneratePollingIntervals[chapterNumber];
-    }
-
-    if (progressContainer) {
-        progressContainer.style.display = 'none';
-        regenerateCurrentProgress[chapterNumber] = 0;
-        if (progressBarFill) {
-            progressBarFill.style.width = '0%';
-            progressBarFill.textContent = '0%';
-        }
-        if (regenerateBtn) {
-            regenerateBtn.disabled = false;
-            regenerateBtn.style.opacity = '1';
-        }
-    }
-}
-
-async function regenerateOutline(chapterNumber) {
-    if (!confirm(`Regenerate outline for chapter ${chapterNumber}? This will replace the current outline with a new version.`)) return;
-
-    // Reset tokens at the start of new workflow
-    resetTokens();
-
-    try {
-        // Get estimated duration for outline API
-        const estimatedDuration = await getEstimatedDuration('outline');
-        startRegenerateProgressBar(chapterNumber, estimatedDuration);
-
-        const response = await apiRequest(`/api/projects/${projectId}/regenerate_chapter_outline/`, {
-            method: 'POST',
-            body: JSON.stringify({ chapter_number: chapterNumber })
-        });
-
-        showToast('Outline regeneration started!', 'success');
-
-        // Poll task status
-        regeneratePollingIntervals[chapterNumber] = setInterval(async () => {
-            try {
-                const task = await apiRequest(`/api/tasks/${response.task_id}/`);
-
-                if (task.status === 'completed') {
-                    clearInterval(regeneratePollingIntervals[chapterNumber]);
-                    completeRegenerateProgressBar(chapterNumber);
-
-                    // Extract and display token usage
-                    if (task.result_data && task.result_data.token_usage) {
-                        console.log('Calling showTokenUsage with:', task.result_data.token_usage);
-                        showTokenUsage(task.result_data.token_usage);
-                    }
-
-                    showToast('Outline regenerated successfully!', 'success');
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1500);
-                } else if (task.status === 'failed') {
-                    clearInterval(regeneratePollingIntervals[chapterNumber]);
-                    resetRegenerateProgressBar(chapterNumber);
-                    showToast('Failed to regenerate outline: ' + (task.error_message || 'Unknown error'), 'error');
-                }
-            } catch (error) {
-                clearInterval(regeneratePollingIntervals[chapterNumber]);
-                resetRegenerateProgressBar(chapterNumber);
-                showToast('Error checking task status', 'error');
-            }
-        }, 2000);
-
-    } catch (err) {
-        resetRegenerateProgressBar(chapterNumber);
-        showToast('Error regenerating outline: ' + err.message, 'error');
-    }
-}
-
-function deleteOutline(outlineId) {
-    if (!confirm('Delete this chapter outline? This cannot be undone.')) return;
-
-    showLoading('Deleting outline...');
-    apiRequest(`/api/projects/${projectId}/delete_outline/${outlineId}/`, {
-        method: 'DELETE'
-    }).then(() => {
-        hideLoading();
-        showToast('Outline deleted successfully!', 'success');
-        setTimeout(() => window.location.reload(), 1000);
-    }).catch(err => {
-        hideLoading();
-        showToast('Error deleting outline: ' + err.message, 'error');
-    });
 }
 
 function deleteChapter(chapterId) {
@@ -3641,89 +2745,8 @@ async function saveAct(actId) {
     }
 }
 
-// Outline editing functions
-function modifyOutline(outlineId) {
-    const detailsDiv = document.getElementById(`outline-details-${outlineId}`);
-    const editDiv = document.getElementById(`edit-outline-${outlineId}`);
-
-    if (detailsDiv && editDiv) {
-        detailsDiv.style.display = 'none';
-        editDiv.style.display = 'block';
-    }
-}
-
-function cancelOutlineEdit(outlineId) {
-    const detailsDiv = document.getElementById(`outline-details-${outlineId}`);
-    const editDiv = document.getElementById(`edit-outline-${outlineId}`);
-
-    if (detailsDiv && editDiv) {
-        detailsDiv.style.display = 'block';
-        editDiv.style.display = 'none';
-    }
-}
-
-async function saveOutline(outlineId) {
-    const settingInput = document.getElementById(`edit-outline-setting-${outlineId}`);
-    const eventsInput = document.getElementById(`edit-outline-events-${outlineId}`);
-    const pacingInput = document.getElementById(`edit-outline-pacing-${outlineId}`);
-
-    const newSetting = settingInput.value.trim();
-    const newEvents = eventsInput.value.trim();
-    const newPacing = pacingInput.value.trim();
-
-    try {
-        showLoading('Saving outline...');
-        const response = await apiRequest(`/api/projects/${projectId}/update_outline/${outlineId}/`, {
-            method: 'PATCH',
-            body: JSON.stringify({
-                setting: newSetting,
-                events: newEvents,
-                pacing: newPacing
-            })
-        });
-
-        // Update the display
-        const settingText = document.getElementById(`outline-setting-text-${outlineId}`);
-        const eventsText = document.getElementById(`outline-events-text-${outlineId}`);
-        const pacingText = document.getElementById(`outline-pacing-text-${outlineId}`);
-
-        if (settingText) settingText.textContent = newSetting;
-        if (eventsText) eventsText.textContent = newEvents;
-        if (pacingText) pacingText.textContent = newPacing;
-
-        hideLoading();
-        cancelOutlineEdit(outlineId);
-        showToast('Outline updated successfully', 'success');
-    } catch (err) {
-        hideLoading();
-        showToast('Error updating outline: ' + err.message, 'error');
-    }
-}
-
-// Renumber chapter outlines per-act (each act starts from 1)
-function renumberChapterOutlines() {
-    // Renumber outlines within each act section
-    const actOutlineSections = document.querySelectorAll('.act-outlines');
-    actOutlineSections.forEach(actSection => {
-        const outlineNumbers = actSection.querySelectorAll('.outline-number');
-        outlineNumbers.forEach((element, index) => {
-            element.textContent = index + 1;
-        });
-    });
-
-    // Also handle case when no acts exist (all outlines in .outlines-list)
-    const outlinesListSection = document.querySelector('.outlines-list');
-    if (outlinesListSection) {
-        const outlineNumbers = outlinesListSection.querySelectorAll('.outline-number');
-        outlineNumbers.forEach((element, index) => {
-            element.textContent = index + 1;
-        });
-    }
-}
-
 // Call renumbering on page load
 document.addEventListener('DOMContentLoaded', () => {
-    renumberChapterOutlines();
 
     // Phase 5: Initialize writing styles and techniques
     initWritingStylesAndTechniques(projectId);
@@ -3745,13 +2768,6 @@ document.addEventListener('DOMContentLoaded', () => {
     {% for character in characters %}
     if (document.getElementById('characterBio-{{ character.id }}')) {
         enableTextSelection('characterBio-{{ character.id }}', 'character');
-    }
-    {% endfor %}
-
-    // Outline events (all acts)
-    {% for outline in project.chapter_outlines.all %}
-    if (document.getElementById('outline-events-text-{{ outline.id }}')) {
-        enableTextSelection('outline-events-text-{{ outline.id }}', 'outline');
     }
     {% endfor %}
 

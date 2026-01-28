@@ -434,25 +434,9 @@ msgstr "角色"
 msgid "No characters yet. Characters will be auto-generated based on plot."
 msgstr ""
 
-#: frontend/templates/novels/project_detail.html:272
-msgid "Add Outline"
-msgstr "添加大纲"
-
 #: frontend/templates/novels/project_detail.html:273
 msgid "Write Chapter"
 msgstr "写章节"
-
-#: frontend/templates/novels/project_detail.html:275
-#, fuzzy
-#| msgid "Create Outline First"
-msgid "Create Outline"
-msgstr "先创建大纲"
-
-#: frontend/templates/novels/project_detail.html:289
-#, fuzzy
-#| msgid "Create Outline First"
-msgid "Chapter Outlines"
-msgstr "先创建大纲"
 
 #: frontend/templates/novels/project_detail.html:299
 msgid "POV:"
@@ -514,10 +498,6 @@ msgstr "重新生成"
 #| msgid "Write Chapter"
 msgid "Written Chapters"
 msgstr "写章节"
-
-#: frontend/templates/novels/project_detail.html:415
-msgid "No chapters written yet. Create an outline to start writing!"
-msgstr "还没有写章节。创建大纲开始写作！"
 
 #: frontend/templates/novels/project_detail.html:424
 msgid "Writing Tools"

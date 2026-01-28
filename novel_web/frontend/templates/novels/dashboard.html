@@ -165,7 +165,7 @@ document.getElementById('createProjectForm').addEventListener('submit', async (e
 });
 
 function deleteProject(projectId, projectTitle) {
-    if (!confirm(`Are you sure you want to delete "${projectTitle}"? This action cannot be undone and will delete all chapters, outlines, and related data.`)) {
+    if (!confirm(`Are you sure you want to delete "${projectTitle}"? This action cannot be undone and will delete all chapters and related data.`)) {
         return;
     }
 
