@@ -2037,6 +2037,11 @@ if (manualForm) {
             completeProgressBar();
             showToast('Idea saved and plot/characters created successfully!', 'success');
 
+            // Reload page so server-rendered plot and characters sections appear
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+
             // Update the current idea display
             const currentIdeaText = document.getElementById('currentIdeaText');
             const currentIdeaDisplay = document.getElementById('currentIdeaDisplay');

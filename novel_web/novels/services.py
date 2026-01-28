@@ -405,7 +405,7 @@ Return ONLY the JSON object, no additional text or explanation."""
                 plot_json = json.loads(json_str)
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse JSON response: {e}")
-                logger.error(f"Response content: {content[:500]}")
+                logger.error(f"Response content: {content}")
                 # Fallback to regex parsing for backward compatibility
                 plot = {
                     'premise': '',
@@ -668,7 +668,7 @@ Return ONLY the JSON array, no additional text or explanation."""
                 protagonists = [protagonists]
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON response: {e}")
-            logger.error(f"Content was: {content[:500]}...")
+            logger.error(f"Content was: {content}")
             # Return empty list
             protagonists = []
 
@@ -777,7 +777,7 @@ Return ONLY the JSON object, no additional text or explanation."""
             antagonist = json.loads(content)
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON response: {e}")
-            logger.error(f"Content was: {content[:500]}...")
+            logger.error(f"Content was: {content}")
             antagonist = {}
 
         logger.info(f"CharacterService.create_antagonist - Successfully generated antagonist with token usage: {token_usage}")
@@ -869,7 +869,7 @@ Return ONLY the JSON array, no additional text or explanation."""
                 supporting = [supporting]
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON response: {e}")
-            logger.error(f"Content was: {content[:500]}...")
+            logger.error(f"Content was: {content}")
             supporting = []
 
         logger.info(f"CharacterService.create_supporting - Successfully generated {len(supporting)} supporting characters")
@@ -955,7 +955,7 @@ Format as JSON object."""
             setting = json.loads(content)
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON response: {e}")
-            logger.error(f"Content was: {content[:500]}...")
+            logger.error(f"Content was: {content}")
             setting = {}
 
         logger.info(f"SettingService.create_primary_setting - Successfully generated primary setting")
@@ -1037,7 +1037,7 @@ Format as JSON array of location objects."""
                 locations = [locations]
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON response: {e}")
-            logger.error(f"Content was: {content[:500]}...")
+            logger.error(f"Content was: {content}")
             locations = []
 
         logger.info(f"SettingService.create_secondary_locations - Successfully generated {len(locations)} secondary locations")
@@ -1172,7 +1172,7 @@ Return ONLY the JSON array, no additional text or explanation."""
                     if json_match:
                         chapters = json.loads(json_match.group(1))
         except (json.JSONDecodeError, AttributeError) as e:
-            logger.error(f"Failed to parse outline JSON: {e}, content: {content[:500]}")
+            logger.error(f"Failed to parse outline JSON: {e}, content: {content}")
             chapters = []
 
         # Ensure chapters have required fields
@@ -1470,7 +1470,7 @@ class WritingService:
         raw_response = response.content if hasattr(response, 'content') else str(response)
 
         # Log the raw response for debugging
-        logger.info(f"OpenAI raw response (first 500 chars): {raw_response[:500]}")
+        logger.info(f"OpenAI raw response (first 500 chars): {raw_response}")
 
         # Try to parse as JSON
         try:
@@ -1616,7 +1616,7 @@ class WritingService:
         raw_response = response.content if hasattr(response, 'content') else str(response)
 
         # Log the raw response for debugging
-        logger.info(f"=======OpenAI raw RESPONSE (first 500 chars)=======: {raw_response[:500]}\n================================================================================")
+        logger.info(f"=======OpenAI raw RESPONSE (first 500 chars)=======: {raw_response}\n================================================================================")
 
         # Try to parse as JSON
         try:
@@ -1882,7 +1882,7 @@ class ConsistencyService:
             character_check = json.loads(content)
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON response: {e}")
-            logger.error(f"Content was: {content[:500]}...")
+            logger.error(f"Content was: {content}")
             character_check = {
                 'issues': [],
                 'summary': 'Unable to analyze consistency',
@@ -1921,7 +1921,7 @@ class ConsistencyService:
                 user_prompt += "**Chapter Summaries:**\n"
                 for i, chapter in enumerate(novel_data['chapters'][:10], 1):  # Limit to first 10
                     content = chapter.get('content', '')[:200]  # First 200 chars
-                    user_prompt += f"Chapter {i}: {content}...\n"
+                    user_prompt += f"Chapter {i}: {content}\n"
                 if len(novel_data['chapters']) > 10:
                     user_prompt += f"... and {len(novel_data['chapters']) - 10} more chapters\n"
                 user_prompt += "\n"
@@ -1971,7 +1971,7 @@ Format as JSON object."""
             report = json.loads(content)
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON response: {e}")
-            logger.error(f"Content was: {content[:500]}...")
+            logger.error(f"Content was: {content}")
             report = {
                 'character_consistency': [],
                 'plot_consistency': [],
