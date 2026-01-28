@@ -184,7 +184,7 @@ class PromptAssemblyService:
                             ])
                             parts.append(f"**Overall Story Structure (for context):**\n{other_acts_summary}")
                     else:
-                        # Fallback: Include all acts (for outline generation, plot tasks, or unassigned chapters)
+                        # Fallback: Include all acts (for plot tasks or unassigned chapters)
                         acts = "\n".join([
                             f"- Act {act.act_number} ({act.subject}): {act.description}"
                             for act in project.plot.acts.all()

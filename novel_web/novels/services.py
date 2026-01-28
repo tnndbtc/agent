@@ -11,7 +11,6 @@ from novel_agent.modules import (
     PlotGenerator,
     CharacterGenerator,
     SettingGenerator,
-    OutlinerModule,
     ChapterWriter,
     EditorModule,
     ConsistencyChecker
@@ -64,10 +63,6 @@ class ProjectService:
     def get_setting_generator(self):
         """Get setting generator module."""
         return SettingGenerator(self.context_manager, self.memory)
-
-    def get_outliner(self):
-        """Get outliner module."""
-        return OutlinerModule(self.context_manager, self.memory)
 
     def get_writer(self):
         """Get chapter writer module."""
@@ -1073,10 +1068,9 @@ class WritingService:
             return Decimal('1')
 
         # Find chapters for this act and surrounding acts
-        current_act_chapters = chapters.filter(Q(act=act) | Q(outline__act=act))
+        current_act_chapters = chapters.filter(act=act)
         next_act_chapters = chapters.filter(
-            Q(act__act_number__gt=act.act_number) |
-            Q(outline__act__act_number__gt=act.act_number)
+            act__act_number__gt=act.act_number
         ).order_by('order_key')
 
         if current_act_chapters.exists():
@@ -1085,8 +1079,7 @@ class WritingService:
         else:
             # No chapters for this act yet - find max from previous acts
             prev_act_chapters = chapters.filter(
-                Q(act__act_number__lt=act.act_number) |
-                Q(outline__act__act_number__lt=act.act_number)
+                act__act_number__lt=act.act_number
             )
             if prev_act_chapters.exists():
                 max_current = prev_act_chapters.aggregate(Max('order_key'))['order_key__max']
@@ -1134,7 +1127,7 @@ class WritingService:
     @staticmethod
     def write_chapter_from_act(project, act, writing_style='literary', language='English', target_word_count=3000, example_metadata=None, iteration=1, previous_scores=None):
         """
-        Write a complete chapter directly from an Act without outline.
+        Write a complete chapter directly from an Act.
 
         Args:
             project: NovelProject instance
@@ -1246,7 +1239,7 @@ class WritingService:
                 ai_title = response_data.get('title', None)
                 logger.info(f"Successfully parsed JSON response - Title: '{ai_title}', Content length: {len(content)} chars")
             else:
-                # Parsed JSON but not a dict (could be a list from outline generation)
+                # Parsed JSON but not a dict
                 logger.warning(f"JSON response is not a dictionary (got {type(response_data).__name__}), using raw content")
                 content = raw_response
                 ai_title = None
@@ -1734,7 +1727,7 @@ class AIModificationService:
             user: Django User instance (for token tracking)
             original_text: The selected text to modify
             user_prompt: User's modification instructions
-            content_type: Type of content (plot, character, outline, chapter, etc.)
+            content_type: Type of content (plot, character, chapter, etc.)
             project: Optional NovelProject instance (for styles, techniques, target_language)
 
         Returns:

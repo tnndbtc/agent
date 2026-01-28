@@ -138,14 +138,6 @@ class Command(BaseCommand):
                 }
             },
             {
-                'name_key': 'outliner',
-                'module_name': 'OutlinerModule',
-                'translations': {
-                    'en': 'You are a chapter outlining expert. You break down story arcs into detailed chapter-by-chapter outlines with clear story beats, pacing, and narrative flow.',
-                    'zh-hans': '你是章节大纲专家。你将故事弧线分解为详细的逐章大纲，具有清晰的故事节奏、节奏和叙事流动。'
-                }
-            },
-            {
                 'name_key': 'writer',
                 'module_name': 'ChapterWriter',
                 'translations': {

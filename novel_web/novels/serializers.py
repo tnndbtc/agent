@@ -338,7 +338,7 @@ class AIModificationRequestSerializer(serializers.Serializer):
         help_text="User's modification instructions"
     )
     content_type = serializers.ChoiceField(
-        choices=['plot', 'act', 'character', 'outline', 'chapter', 'text'],
+        choices=['plot', 'act', 'character', 'chapter', 'text'],
         default='text',
         help_text="Type of content being modified"
     )

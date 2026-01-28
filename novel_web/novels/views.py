@@ -226,7 +226,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         else:
             logger.warning(f"No acts data available for plot {plot.id}")
 
-        # Store plot in ChromaDB memory for outline generation
+        # Store plot in ChromaDB memory
         try:
             service = ProjectService(project)
             service.memory.store_plot({
@@ -323,7 +323,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
                     relationships=protagonist_data.get('relationships', '')
                 )
 
-                # Store protagonist in ChromaDB memory for outline generation
+                # Store protagonist in ChromaDB memory
                 try:
                     service = ProjectService(project)
                     service.memory.store_character({
@@ -380,7 +380,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
                     relationships=antagonist_data.get('relationships', '')
                 )
 
-                # Store antagonist in ChromaDB memory for outline generation
+                # Store antagonist in ChromaDB memory
                 try:
                     service = ProjectService(project)
                     service.memory.store_character({
@@ -1205,7 +1205,7 @@ class AIModificationViewSet(viewsets.ViewSet):
         {
             "original_text": "The text to modify",
             "user_prompt": "Make it more dramatic",
-            "content_type": "character",  // optional: plot, act, character, outline, chapter, text
+            "content_type": "character",  // optional: plot, act, character, chapter, text
             "save_prompt": false,  // optional: whether to save the prompt
             "prompt_name": "Make dramatic",  // required if save_prompt=true
             "saved_prompt_id": "uuid"  // optional: use a saved prompt instead of user_prompt
