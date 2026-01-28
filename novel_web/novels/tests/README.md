@@ -12,9 +12,8 @@ The integration tests cover the following scenarios as specified in the requirem
 2. **Create Project** - Novel project creation via API
 3. **Create Idea** - Brainstorming and idea generation
 4. **Auto Generate Plot and Characters** - Plot creation with automatic character generation
-5. **Auto Generate 3 Outlines** - Chapter outline generation
-6. **Auto Generate 3 Chapters** - Chapter writing from outlines
-7. **Complete End-to-End Workflow** - Full novel creation workflow
+5. **Auto Generate 3 Chapters** - Chapter writing from acts
+6. **Complete End-to-End Workflow** - Full novel creation workflow
 
 ## Directory Structure
 
@@ -22,11 +21,18 @@ The integration tests cover the following scenarios as specified in the requirem
 tests/
 ├── __init__.py
 ├── README.md (this file)
-├── conftest.py              # Pytest fixtures and configuration
-├── test_integration.py      # Main integration test suite
+├── conftest.py                      # Pytest fixtures and configuration
+├── test_user_login.py               # User authentication tests
+├── test_create_project.py           # Project creation tests
+├── test_ai_modification.py          # AI text modification tests
+├── test_chapter_prompt.py           # Chapter prompt generation tests
+├── test_write_chapter_from_act.py   # Chapter generation from acts tests
+├── test_example_api.py              # Example API tests
+├── test_save_idea_overview.py       # Idea saving tests
+├── test_project_detail_view.py      # Project detail view tests
 └── mocks/
     ├── __init__.py
-    └── openai_responses.py  # Mock OpenAI response generator
+    └── openai_responses.py          # Mock OpenAI response generator
 ```
 
 ## Running the Tests
@@ -70,19 +76,19 @@ This single command will:
    cd /home/tnnd/data/code/agent
    export DJANGO_SETTINGS_MODULE=novel_web.settings
    export OPENAI_API_KEY=test-key-123
-   python3 -m pytest novel_web/novels/tests/test_integration.py -v
+   python3 -m pytest novel_web/novels/tests/ -v
    ```
 
 ### Run Specific Test Class
 
 ```bash
-python3 -m pytest novel_web/novels/tests/test_integration.py::TestProjectCreation -v
+python3 -m pytest novel_web/novels/tests/test_create_project.py::TestProjectCreation -v
 ```
 
 ### Run With Coverage
 
 ```bash
-python3 -m pytest novel_web/novels/tests/test_integration.py --cov=novels --cov-report=html
+python3 -m pytest novel_web/novels/tests/ --cov=novels --cov-report=html
 ```
 
 ## Test Configuration
@@ -124,7 +130,6 @@ The `get_mock_response_for_prompt()` function in `mocks/openai_responses.py` exa
 - **Brainstorm prompts** → Returns 1-3 simple plot ideas
 - **Plot creation** → Returns JSON with 3-act structure
 - **Character creation** → Returns JSON with character details
-- **Outline generation** → Returns chapter outline data
 - **Chapter writing** → Returns generated chapter text (~100 words)
 
 ### Celery Configuration for Tests
@@ -142,9 +147,7 @@ This makes async tasks run immediately in the same process, simplifying testing.
 
 ### Current Status
 
-**Tests Run**: 15
-**Passed**: 1
-**Failed**: 14
+Tests are organized across multiple test files focusing on different aspects of the application. All OpenAI API calls are properly mocked to ensure fast, deterministic test execution.
 
 ### Known Issues and Fixes Needed
 
@@ -281,7 +284,7 @@ For questions about tests, see the main project documentation or check the test 
 
 ---
 
-**Last Updated**: 2026-01-15
+**Last Updated**: 2026-01-28
 **Test Framework**: pytest-django 4.11.1
 **Python Version**: 3.12+
 **Django Version**: 5.0.1

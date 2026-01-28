@@ -12,7 +12,7 @@ information is properly emphasized.
 import pytest
 from unittest.mock import patch, Mock
 from novels.services import WritingService
-from novels.models import Act, ChapterOutline, Plot
+from novels.models import Act, Plot
 
 
 @pytest.mark.django_db
@@ -42,17 +42,6 @@ class TestChapterPromptActEmphasis:
             description='Introduction to the protagonist and their ordinary world. Establish the status quo before the inciting incident disrupts everything.'
         )
 
-        # Create chapter outline for Act 1
-        outline = ChapterOutline.objects.create(
-            project=test_project,
-            act=act,
-            number=1,
-            title='The Ordinary World',
-            events='The protagonist wakes up and goes about their daily routine, unaware of the adventure to come.',
-            pacing='slow',
-            setting='Small village on the edge of the kingdom'
-        )
-
         # Mock ChatOpenAI to capture messages
         captured_messages = []
 
@@ -61,7 +50,7 @@ class TestChapterPromptActEmphasis:
             captured_messages.extend(messages)
 
             mock_response = Mock()
-            mock_response.content = 'Test chapter content here. This is the generated story text.'
+            mock_response.content = '{"title": "The Ordinary World", "content": "Test chapter content here. This is the generated story text."}'
             mock_response.response_metadata = {
                 'token_usage': {
                     'prompt_tokens': 500,
@@ -76,10 +65,10 @@ class TestChapterPromptActEmphasis:
             mock_instance.invoke = Mock(side_effect=mock_invoke)
             mock_chat_class.return_value = mock_instance
 
-            # Call WritingService.write_chapter
-            WritingService.write_chapter(
+            # Call WritingService.write_chapter_from_act
+            WritingService.write_chapter_from_act(
                 project=test_project,
-                chapter_outline=outline,
+                act=act,
                 language='English'
             )
 
@@ -99,19 +88,16 @@ class TestChapterPromptActEmphasis:
         print("="*80 + "\n")
 
         # Critical assertions - verify act emphasis exists
-        assert "**IMPORTANT - Current Story Act:**" in user_message, \
-            "FAIL: Prompt must include '**IMPORTANT - Current Story Act:**' header"
+        assert "**Current Act (for this chapter):**" in user_message, \
+            "FAIL: Prompt must include '**Current Act (for this chapter):**' header"
 
-        assert "This chapter is part of Act 1: SETUP" in user_message, \
-            "FAIL: Prompt must explicitly state 'This chapter is part of Act 1: SETUP'"
+        assert "Act 1 (SETUP)" in user_message, \
+            "FAIL: Prompt must include 'Act 1 (SETUP)'"
 
         # percentage field removed in migration 0023
 
         assert "Introduction to the protagonist and their ordinary world" in user_message, \
             "FAIL: Prompt must include full act description"
-
-        assert "Ensure the chapter's content, tone, and pacing align with this act's purpose" in user_message, \
-            "FAIL: Prompt must include instruction to align with act purpose"
 
     def test_chapter_prompt_includes_all_act_details(self, test_project):
         """
@@ -135,23 +121,13 @@ class TestChapterPromptActEmphasis:
             description='Rising action and complications. The protagonist faces challenges that test their resolve and force growth.'
         )
 
-        outline = ChapterOutline.objects.create(
-            project=test_project,
-            act=act,
-            number=5,
-            title='The Darkest Hour',
-            events='A major setback forces the protagonist to confront their deepest fears.',
-            pacing='fast',
-            setting='Deep in the dangerous forest'
-        )
-
         # Mock ChatOpenAI
         captured_messages = []
 
         def mock_invoke(messages):
             captured_messages.extend(messages)
             mock_response = Mock()
-            mock_response.content = '{"title": "Test Chapter", "content": "Chapter content..."}'
+            mock_response.content = '{"title": "The Darkest Hour", "content": "Chapter content..."}'
             mock_response.response_metadata = {
                 'token_usage': {'prompt_tokens': 400, 'completion_tokens': 300, 'total_tokens': 700}
             }
@@ -162,9 +138,9 @@ class TestChapterPromptActEmphasis:
             mock_instance.invoke = Mock(side_effect=mock_invoke)
             mock_chat_class.return_value = mock_instance
 
-            WritingService.write_chapter(
+            WritingService.write_chapter_from_act(
                 project=test_project,
-                chapter_outline=outline,
+                act=act,
                 language='English'
             )
 
@@ -228,24 +204,13 @@ class TestChapterPromptActEmphasis:
             description='Climax and return home'
         )
 
-        # Create outline for Act 3 (final act)
-        outline = ChapterOutline.objects.create(
-            project=test_project,
-            act=act3,  # Assigned to Act 3
-            number=15,
-            title='The Final Battle',
-            events='Hero faces villain in final showdown.',
-            pacing='fast',
-            setting='The dark tower'
-        )
-
         # Mock ChatOpenAI
         captured_messages = []
 
         def mock_invoke(messages):
             captured_messages.extend(messages)
             mock_response = Mock()
-            mock_response.content = 'Final battle content...'
+            mock_response.content = '{"title": "The Final Battle", "content": "Final battle content..."}'
             mock_response.response_metadata = {
                 'token_usage': {'prompt_tokens': 600, 'completion_tokens': 500, 'total_tokens': 1100}
             }
@@ -256,9 +221,10 @@ class TestChapterPromptActEmphasis:
             mock_instance.invoke = Mock(side_effect=mock_invoke)
             mock_chat_class.return_value = mock_instance
 
-            WritingService.write_chapter(
+            # Write chapter from Act 3 (final act)
+            WritingService.write_chapter_from_act(
                 project=test_project,
-                chapter_outline=outline,
+                act=act3,
                 language='English'
             )
 
@@ -272,7 +238,7 @@ class TestChapterPromptActEmphasis:
         assert user_message is not None
 
         # Should emphasize Act 3 (CURRENT act), not Act 1 or Act 2
-        assert "Act 3: RESOLUTION" in user_message, \
+        assert "Act 3 (RESOLUTION)" in user_message, \
             "FAIL: Prompt must emphasize Act 3 (current act for this chapter)"
 
         assert "Climax and return home" in user_message, \
@@ -284,7 +250,7 @@ class TestChapterPromptActEmphasis:
         act_emphasis_section = []
         in_emphasis = False
         for line in user_message_lines:
-            if "**IMPORTANT - Current Story Act:**" in line:
+            if "**Current Act (for this chapter):**" in line:
                 in_emphasis = True
             if in_emphasis:
                 act_emphasis_section.append(line)
@@ -295,69 +261,3 @@ class TestChapterPromptActEmphasis:
         assert "Act 3" in act_emphasis_text, \
             "Act emphasis section must mention Act 3"
 
-    def test_chapter_prompt_without_act_assignment(self, test_project):
-        """
-        Test graceful handling when chapter outline has no act assigned.
-
-        The system should not crash and should either skip the act emphasis
-        section or handle it gracefully.
-        """
-        from langchain_core.messages import HumanMessage
-
-        # Setup: Create plot
-        plot = Plot.objects.create(
-            project=test_project,
-            conflict='Uncover the truth'
-        )
-
-        # Create outline with NO act assignment
-        outline = ChapterOutline.objects.create(
-            project=test_project,
-            act=None,  # No act assigned
-            number=1,
-            title='Standalone Chapter',
-            events='Events occur.',
-            pacing='medium',
-            setting='Unknown location'
-        )
-
-        # Mock ChatOpenAI
-        captured_messages = []
-
-        def mock_invoke(messages):
-            captured_messages.extend(messages)
-            mock_response = Mock()
-            mock_response.content = '{"title": "Unassigned Chapter", "content": "Chapter content for unassigned act..."}'
-            mock_response.response_metadata = {
-                'token_usage': {'prompt_tokens': 300, 'completion_tokens': 150, 'total_tokens': 450}
-            }
-            return mock_response
-
-        # Should NOT crash
-        with patch('langchain_openai.ChatOpenAI') as mock_chat_class:
-            mock_instance = Mock()
-            mock_instance.invoke = Mock(side_effect=mock_invoke)
-            mock_chat_class.return_value = mock_instance
-
-            # This should complete without errors
-            WritingService.write_chapter(
-                project=test_project,
-                chapter_outline=outline,
-                language='English'
-            )
-
-        # Verify it completed successfully
-        assert len(captured_messages) > 0, "Should have called the AI despite missing act"
-
-        # Extract user message
-        user_message = None
-        for msg in captured_messages:
-            if isinstance(msg, HumanMessage) or (hasattr(msg, '__class__') and msg.__class__.__name__ == 'HumanMessage'):
-                user_message = msg.content
-                break
-
-        assert user_message is not None
-
-        # Act emphasis section should be absent (since no act is assigned)
-        # This is expected behavior - if there's no act, don't add the emphasis
-        # The code at services.py:1268-1274 has: "if chapter_outline_model.act:"

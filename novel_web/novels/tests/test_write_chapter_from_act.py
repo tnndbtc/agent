@@ -153,7 +153,6 @@ class TestWriteChapterTaskActual(TransactionTestCase):
         chapter = chapters.first()
         self.assertIsNotNone(chapter, "Chapter should exist")
         self.assertEqual(chapter.act_id, self.act.id, "Chapter should be directly associated with the act")
-        self.assertIsNone(chapter.outline, "Chapter should not have an outline when created from act")
 
         print(f"✓ Chapter created with direct act association: act_id={chapter.act_id}")
 
