@@ -54,40 +54,35 @@ An AI-powered novel writing assistant that helps authors create complete novels 
    - Create magic/technology systems for fantasy/sci-fi
    - Develop cultural elements and traditions
 
-5. **Chapter Outlining**
-   - Generate comprehensive chapter-by-chapter outlines
-   - Scene breakdowns for each chapter
-   - Pacing analysis and recommendations
-
-6. **Writing**
+5. **Writing**
    - Write chapters paragraph-by-paragraph
    - Generate dialogue, descriptions, and action scenes
    - Multi-language support (English, Chinese, French, Spanish, etc.)
 
-7. **Editing & Refinement**
+6. **Editing & Refinement**
    - Style improvements
    - Pacing adjustments
    - Grammar and mechanics checking
    - Dialogue enhancement
    - Text compression
 
-8. **Consistency Checking**
+7. **Consistency Checking**
    - Character trait consistency
    - Setting and world-building consistency
    - Timeline verification
    - Plot consistency
 
-9. **Scoring System**
+8. **Scoring System**
    - Adjustable scoring categories and weights
    - Detailed feedback for each category
    - Overall grade and recommendations
 
-10. **Example Management**
+9. **Example Management**
     - Store good and bad writing examples
     - Learn from examples during generation
     - Category-based organization
 
-11. **Multi-Language Export**
+10. **Multi-Language Export**
     - Export to .txt files in multiple languages
     - Complete package export with all components
     - Individual chapter exports
@@ -270,12 +265,11 @@ This demonstrates:
 2. Creating detailed plot structure
 3. Generating characters (protagonist, antagonist, supporting)
 4. Building world and settings
-5. Creating chapter outline
-6. Writing a complete chapter
-7. Editing for style
-8. Checking consistency
-9. Scoring the chapter
-10. Exporting to file
+5. Writing a complete chapter
+6. Editing for style
+7. Checking consistency
+8. Scoring the chapter
+9. Exporting to file
 
 #### Programmatic Usage
 
@@ -312,8 +306,7 @@ for idea in ideas:
 4. Click "Brainstorm Ideas" to generate plot ideas
 5. Select an idea and create your plot
 6. Add characters and settings
-7. Generate a chapter outline
-8. Start writing!
+7. Start writing chapters!
 
 ### Mobile Usage
 
@@ -403,22 +396,14 @@ Click "Create Setting" to generate:
 - Social/political context
 - Cultural details
 
-#### 5. Generate Outline
+#### 5. Write Chapters
 
-Click "Create Outline" to generate:
-- Chapter-by-chapter breakdown
-- Scene descriptions
-- Plot progression
-- Pacing suggestions
-
-#### 6. Write Chapters
-
-Select a chapter from the outline and click "Write Chapter". The AI will:
-- Generate the full chapter based on outline
+Click "Write Chapter" to have the AI:
+- Generate full chapters based on your plot and acts
 - Match your specified style
 - Maintain consistency with previous chapters
 
-#### 7. Edit and Refine
+#### 6. Edit and Refine
 
 Use the chapter editor tools:
 - **Style Edit**: Improve prose quality
@@ -427,7 +412,7 @@ Use the chapter editor tools:
 - **Expand**: Add more detail
 - **Condense**: Tighten the prose
 
-#### 8. Score Novel
+#### 7. Score Novel
 
 When complete, click "Score Novel" to get:
 - Overall score (0-100)
@@ -439,7 +424,7 @@ When complete, click "Score Novel" to get:
   - Dialogue (10%)
   - Emotional Impact (5%)
 
-#### 9. Export
+#### 8. Export
 
 Click "Export" to download your novel in:
 - Plain text (.txt)
@@ -869,7 +854,6 @@ agent/
 │   │   ├── plot_generator.py
 │   │   ├── character_generator.py
 │   │   ├── setting_generator.py
-│   │   ├── outliner.py
 │   │   ├── chapter_writer.py
 │   │   ├── editor.py
 │   │   └── consistency_checker.py
@@ -950,7 +934,7 @@ memory.store_setting(name="Magic System", details="...") # → Embedded & stored
 **Document Chunking**: Large chapters are split into 1000-character chunks with 200-char overlap for better retrieval precision.
 
 **Metadata Storage**: Each document includes:
-- `type`: "character", "plot", "chapter", "setting", or "outline"
+- `type`: "character", "plot", "chapter", "setting"
 - `name`/`title`: Item identifier
 - `timestamp`: Creation time
 - `chapter_number`: For chapters
@@ -995,7 +979,7 @@ settings = memory.retrieve_by_type("setting", k=3)
 **D. Previous Chapter Context** (KEY SEMANTIC SEARCH)
 ```python
 recent_chapters = memory.retrieve_context(
-    query=f"Chapter {chapter_number} - {outline_title}",
+    query=f"Chapter {chapter_number} - {chapter_title}",
     k=2,
     filter_type="chapter"
 )
@@ -1036,7 +1020,7 @@ This context (truncated to ~1500 chars) is prepended to the LLM prompt, giving i
 For each scene in the chapter:
 
 ```python
-def _write_scene(scene, chapter_outline, context, good_examples, ...):
+def _write_scene(scene, act, context, good_examples, ...):
     prompt = f"""
     You are writing Chapter {number}.
 
@@ -1185,7 +1169,7 @@ similar_chapters = memory.retrieve_context(
 ### In Summary
 
 Vector memory transforms chapter generation from:
-- ❌ **Without**: "Write Chapter 10 with only this outline and 8K token limit"
+- ❌ **Without**: "Write Chapter 10 with only this prompt and 8K token limit"
 
 To:
 - ✅ **With**: "Write Chapter 10 with semantic awareness of all relevant plot points, character development, world-building details, and previous chapters across the entire 50-chapter project"
@@ -1323,7 +1307,6 @@ The Novel Writing Agent uses a **5-layer prompt architecture** that separates co
 **Context Types**:
 - `plot`: Plot premise, themes, structure, acts
 - `character`: Key characters (protagonist, antagonist, mentor)
-- `outline`: Chapter outlines
 - `chapter`: Existing chapter content
 - `brainstorm`: Idea generation context
 
@@ -1353,7 +1336,7 @@ The Novel Writing Agent uses a **5-layer prompt architecture** that separates co
 
 **Examples**:
 - "Generate 3 creative plot ideas for the Fantasy genre"
-- "Write Chapter 5 based on the outline"
+- "Write Chapter 5 based on the act"
 - "Modify this text to be more dramatic"
 
 **Lifespan**: Single operation only
@@ -1408,15 +1391,14 @@ Returns concatenated string of:
 
 ---
 
-**`build_style_instructions(project, language_code='en', chapter_outline=None)`**
+**`build_style_instructions(project, language_code='en')`**
 
 Builds Layer 3: Style + Techniques instructions
 
 ```python
 style_instructions = PromptAssemblyService.build_style_instructions(
     project=my_project,
-    language_code='en',
-    chapter_outline=outline  # Optional: Override style for specific chapter
+    language_code='en'
 )
 ```
 
@@ -1433,7 +1415,7 @@ Builds Layer 4: Project memory context
 ```python
 context = PromptAssemblyService.build_context_prompt(
     project=my_project,
-    context_type='chapter'  # plot | character | outline | chapter | brainstorm
+    context_type='chapter'  # plot | character | chapter | brainstorm
 )
 ```
 
@@ -1451,11 +1433,11 @@ Returns formatted context including:
 ```python
 system_message, user_message = PromptAssemblyService.assemble_full_prompt(
     agent_role_key='writer',
-    user_prompt='Write Chapter 5 based on the outline',
+    user_prompt='Write Chapter 5 based on the act',
     project=my_project,
     language_code='zh-hans',
     context_type='chapter',
-    chapter_outline=outline,
+    act=act,
     include_context=True
 )
 ```
@@ -1501,11 +1483,11 @@ response = llm.invoke([
 # Assemble prompt with full context
 system_msg, user_msg = PromptAssemblyService.assemble_full_prompt(
     agent_role_key='writer',
-    user_prompt='Write Chapter 5 based on the outline',
+    user_prompt='Write Chapter 5 based on the act',
     project=project,
     language_code='zh-hans',  # Output in Simplified Chinese
     context_type='chapter',
-    chapter_outline=chapter_outline,
+    act=act,
     include_context=True  # Include plot, characters, settings
 )
 
@@ -1557,9 +1539,6 @@ NovelProject
 ├── default_style (FK → WritingStyle)
 ├── selected_techniques (M2M → WritingTechnique)
 ├── target_language (CharField)
-
-ChapterOutline
-├── style_override (FK → WritingStyle)  # Optional chapter-specific style
 ```
 
 #### Translation Models Pattern
@@ -1602,7 +1581,7 @@ The 5-layer architecture was introduced in migration `0019_add_prompt_architectu
 3. Created `AgentRole` and `AgentRoleTranslation` models
 4. Created `WritingStyle` and `WritingStyleTranslation` models
 5. Created `WritingTechnique` and `WritingTechniqueTranslation` models
-6. Added relationships to `NovelProject` and `ChapterOutline`
+6. Added relationships to `NovelProject`
 
 ---
 
@@ -1652,7 +1631,6 @@ The following services have been refactored to use the 5-layer prompt architectu
 - **AIModificationService** - Text modification using PromptAssemblyService
 - **BrainstormService** - Idea generation using agent_role_key='brainstormer'
 - **PlotService** - Plot creation using agent_role_key='plotter'
-- **OutlineService** - Chapter outline creation using agent_role_key='outliner'
 - **WritingService** - Chapter writing using agent_role_key='writer'
 - **CharacterService** - Character creation using agent_role_key='character_creator'
 - **SettingService** - Setting/location creation using agent_role_key='setting_creator'
@@ -1666,7 +1644,6 @@ The Novel Writing Agent now uses the 5-layer prompt architecture consistently ac
 - Plot & Structure
 - Character Development
 - Setting & World-Building
-- Chapter Outlining
 - Content Writing
 - Editing & Refinement
 - Consistency Checking
@@ -1711,8 +1688,7 @@ The Novel Writing Agent now uses the 5-layer prompt architecture consistently ac
 
 **Solution**:
 1. Check project has `default_style` set: `project.default_style`
-2. For chapters, check if `chapter_outline.style_override` is set
-3. Verify style has translations for the project's `target_language`
+2. Verify style has translations for the project's `target_language`
 
 ---
 
