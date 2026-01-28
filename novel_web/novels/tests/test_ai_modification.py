@@ -78,20 +78,18 @@ def seed_prompt_architecture(db):
 class TestAIModificationAPI:
     """Test AI text modification endpoints."""
 
-    @patch('langchain_openai.ChatOpenAI')
+    @patch('openai.OpenAI')
     def test_modify_text_success(self, mock_openai, auth_client):
         """Test successful text modification."""
         # Mock OpenAI response
         mock_response = MagicMock()
-        mock_response.content = "The brave hero stormed dramatically into the chamber."
-        mock_response.response_metadata = {
-            'token_usage': {
-                'prompt_tokens': 50,
-                'completion_tokens': 20,
-                'total_tokens': 70
-            }
-        }
-        mock_openai.return_value.invoke.return_value = mock_response
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "The brave hero stormed dramatically into the chamber."
+        mock_response.usage = MagicMock()
+        mock_response.usage.prompt_tokens = 50
+        mock_response.usage.completion_tokens = 20
+        mock_response.usage.total_tokens = 70
+        mock_openai.return_value.chat.completions.create.return_value = mock_response
 
         response = auth_client.post('/api/ai-modifications/modify-text/', {
             'original_text': 'The hero walked into the room.',
@@ -135,19 +133,17 @@ class TestAIModificationAPI:
 
         assert response.status_code == 400
 
-    @patch('langchain_openai.ChatOpenAI')
+    @patch('openai.OpenAI')
     def test_modify_text_with_save_prompt(self, mock_openai, auth_client, user):
         """Test saving custom prompt during modification."""
         mock_response = MagicMock()
-        mock_response.content = "Modified text"
-        mock_response.response_metadata = {
-            'token_usage': {
-                'prompt_tokens': 10,
-                'completion_tokens': 5,
-                'total_tokens': 15
-            }
-        }
-        mock_openai.return_value.invoke.return_value = mock_response
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Modified text"
+        mock_response.usage = MagicMock()
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 5
+        mock_response.usage.total_tokens = 15
+        mock_openai.return_value.chat.completions.create.return_value = mock_response
 
         response = auth_client.post('/api/ai-modifications/modify-text/', {
             'original_text': 'Original text',
@@ -166,7 +162,7 @@ class TestAIModificationAPI:
         assert prompt.prompt_text == 'Custom modification'
         assert prompt.usage_count == 0
 
-    @patch('langchain_openai.ChatOpenAI')
+    @patch('openai.OpenAI')
     def test_modify_text_update_existing_prompt(self, mock_openai, auth_client, user):
         """Test updating an existing saved prompt."""
         # Create existing prompt
@@ -177,15 +173,13 @@ class TestAIModificationAPI:
         )
 
         mock_response = MagicMock()
-        mock_response.content = "Modified text"
-        mock_response.response_metadata = {
-            'token_usage': {
-                'prompt_tokens': 10,
-                'completion_tokens': 5,
-                'total_tokens': 15
-            }
-        }
-        mock_openai.return_value.invoke.return_value = mock_response
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Modified text"
+        mock_response.usage = MagicMock()
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 5
+        mock_response.usage.total_tokens = 15
+        mock_openai.return_value.chat.completions.create.return_value = mock_response
 
         response = auth_client.post('/api/ai-modifications/modify-text/', {
             'original_text': 'Original text',
@@ -201,7 +195,7 @@ class TestAIModificationAPI:
         prompt = UserPrompt.objects.get(user=user, name='Existing Prompt')
         assert prompt.prompt_text == 'New text'
 
-    @patch('langchain_openai.ChatOpenAI')
+    @patch('openai.OpenAI')
     def test_modify_text_with_saved_prompt_id(self, mock_openai, auth_client, user):
         """Test using a saved prompt by ID."""
         # Create saved prompt
@@ -213,15 +207,13 @@ class TestAIModificationAPI:
         )
 
         mock_response = MagicMock()
-        mock_response.content = "Modified text with drama"
-        mock_response.response_metadata = {
-            'token_usage': {
-                'prompt_tokens': 10,
-                'completion_tokens': 5,
-                'total_tokens': 15
-            }
-        }
-        mock_openai.return_value.invoke.return_value = mock_response
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Modified text with drama"
+        mock_response.usage = MagicMock()
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 5
+        mock_response.usage.total_tokens = 15
+        mock_openai.return_value.chat.completions.create.return_value = mock_response
 
         response = auth_client.post('/api/ai-modifications/modify-text/', {
             'original_text': 'Original text',
@@ -425,21 +417,19 @@ class TestUserPromptAPI:
 class TestAIModificationService:
     """Test the service layer directly."""
 
-    @patch('langchain_openai.ChatOpenAI')
+    @patch('openai.OpenAI')
     def test_modify_text_selection_service(self, mock_openai, user):
         """Test the service method directly."""
         from novels.services import AIModificationService
 
         mock_response = MagicMock()
-        mock_response.content = "Enhanced text with dramatic flair"
-        mock_response.response_metadata = {
-            'token_usage': {
-                'prompt_tokens': 30,
-                'completion_tokens': 10,
-                'total_tokens': 40
-            }
-        }
-        mock_openai.return_value.invoke.return_value = mock_response
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Enhanced text with dramatic flair"
+        mock_response.usage = MagicMock()
+        mock_response.usage.prompt_tokens = 30
+        mock_response.usage.completion_tokens = 10
+        mock_response.usage.total_tokens = 40
+        mock_openai.return_value.chat.completions.create.return_value = mock_response
 
         result = AIModificationService.modify_text_selection(
             user=user,
@@ -455,22 +445,20 @@ class TestAIModificationService:
         assert result['token_usage']['prompt_tokens'] == 30
         assert result['token_usage']['completion_tokens'] == 10
 
-    @patch('langchain_openai.ChatOpenAI')
+    @patch('openai.OpenAI')
     def test_content_type_specific_instructions(self, mock_openai, user):
         """Test that prompt architecture assembles system messages correctly."""
         from novels.services import AIModificationService
 
         mock_response = MagicMock()
-        mock_response.content = "Modified"
-        mock_response.response_metadata = {
-            'token_usage': {
-                'prompt_tokens': 10,
-                'completion_tokens': 5,
-                'total_tokens': 15
-            }
-        }
-        mock_llm = mock_openai.return_value
-        mock_llm.invoke.return_value = mock_response
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Modified"
+        mock_response.usage = MagicMock()
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 5
+        mock_response.usage.total_tokens = 15
+        mock_client = mock_openai.return_value
+        mock_client.chat.completions.create.return_value = mock_response
 
         # Test with 'character' content type
         AIModificationService.modify_text_selection(
@@ -481,26 +469,25 @@ class TestAIModificationService:
         )
 
         # Verify the system message includes text editing role instructions
-        call_args = mock_llm.invoke.call_args[0][0]
-        system_msg = call_args[0].content
+        call_args = mock_client.chat.completions.create.call_args
+        messages = call_args[1]['messages']  # Get messages from kwargs
+        system_msg = messages[0]['content']  # First message is system message
         assert "text editing" in system_msg.lower() or "modify" in system_msg.lower()
         assert len(system_msg) > 0  # System message should not be empty
 
-    @patch('langchain_openai.ChatOpenAI')
+    @patch('openai.OpenAI')
     def test_all_content_types(self, mock_openai, user):
         """Test all content types have instructions."""
         from novels.services import AIModificationService
 
         mock_response = MagicMock()
-        mock_response.content = "Modified"
-        mock_response.response_metadata = {
-            'token_usage': {
-                'prompt_tokens': 10,
-                'completion_tokens': 5,
-                'total_tokens': 15
-            }
-        }
-        mock_openai.return_value.invoke.return_value = mock_response
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Modified"
+        mock_response.usage = MagicMock()
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 5
+        mock_response.usage.total_tokens = 15
+        mock_openai.return_value.chat.completions.create.return_value = mock_response
 
         content_types = ['plot', 'act', 'character', 'chapter', 'text']
 

@@ -27,8 +27,6 @@ class TestChapterPromptActEmphasis:
         state "THIS CHAPTER IS PART OF ACT X" to ensure the AI writes with appropriate
         tone and pacing for the story position.
         """
-        from langchain_core.messages import HumanMessage, SystemMessage
-
         # Setup: Create plot with acts
         plot = Plot.objects.create(
             project=test_project,
@@ -42,28 +40,26 @@ class TestChapterPromptActEmphasis:
             description='Introduction to the protagonist and their ordinary world. Establish the status quo before the inciting incident disrupts everything.'
         )
 
-        # Mock ChatOpenAI to capture messages
+        # Mock OpenAI to capture messages
         captured_messages = []
 
-        def mock_invoke(messages):
+        def mock_create(**kwargs):
             """Capture messages and return mock response."""
-            captured_messages.extend(messages)
+            captured_messages.append(kwargs.get('messages', []))
 
             mock_response = Mock()
-            mock_response.content = '{"title": "The Ordinary World", "content": "Test chapter content here. This is the generated story text."}'
-            mock_response.response_metadata = {
-                'token_usage': {
-                    'prompt_tokens': 500,
-                    'completion_tokens': 200,
-                    'total_tokens': 700
-                }
-            }
+            mock_response.choices = [Mock()]
+            mock_response.choices[0].message.content = '{"title": "The Ordinary World", "content": "Test chapter content here. This is the generated story text."}'
+            mock_response.usage = Mock()
+            mock_response.usage.prompt_tokens = 500
+            mock_response.usage.completion_tokens = 200
+            mock_response.usage.total_tokens = 700
             return mock_response
 
-        with patch('langchain_openai.ChatOpenAI') as mock_chat_class:
-            mock_instance = Mock()
-            mock_instance.invoke = Mock(side_effect=mock_invoke)
-            mock_chat_class.return_value = mock_instance
+        with patch('openai.OpenAI') as mock_openai_class:
+            mock_client = Mock()
+            mock_client.chat.completions.create = Mock(side_effect=mock_create)
+            mock_openai_class.return_value = mock_client
 
             # Call WritingService.write_chapter_from_act
             WritingService.write_chapter_from_act(
@@ -72,14 +68,17 @@ class TestChapterPromptActEmphasis:
                 language='English'
             )
 
-        # Extract user message
+        # Extract user message from captured messages (OpenAI format is list of dicts)
         user_message = None
-        for msg in captured_messages:
-            if isinstance(msg, HumanMessage) or (hasattr(msg, '__class__') and msg.__class__.__name__ == 'HumanMessage'):
-                user_message = msg.content
+        for messages_list in captured_messages:
+            for msg in messages_list:
+                if msg.get('role') == 'user':
+                    user_message = msg['content']
+                    break
+            if user_message:
                 break
 
-        assert user_message is not None, "No HumanMessage found in captured messages"
+        assert user_message is not None, "No user message found in captured messages"
 
         print("\n" + "="*80)
         print("CAPTURED CHAPTER GENERATION PROMPT:")
@@ -106,8 +105,6 @@ class TestChapterPromptActEmphasis:
         Verifies that act number, subject, and description are all
         included to provide complete context for the AI.
         """
-        from langchain_core.messages import HumanMessage
-
         # Setup: Create plot with Act 2
         plot = Plot.objects.create(
             project=test_project,
@@ -121,22 +118,24 @@ class TestChapterPromptActEmphasis:
             description='Rising action and complications. The protagonist faces challenges that test their resolve and force growth.'
         )
 
-        # Mock ChatOpenAI
+        # Mock OpenAI
         captured_messages = []
 
-        def mock_invoke(messages):
-            captured_messages.extend(messages)
+        def mock_create(**kwargs):
+            captured_messages.append(kwargs.get('messages', []))
             mock_response = Mock()
-            mock_response.content = '{"title": "The Darkest Hour", "content": "Chapter content..."}'
-            mock_response.response_metadata = {
-                'token_usage': {'prompt_tokens': 400, 'completion_tokens': 300, 'total_tokens': 700}
-            }
+            mock_response.choices = [Mock()]
+            mock_response.choices[0].message.content = '{"title": "The Darkest Hour", "content": "Chapter content..."}'
+            mock_response.usage = Mock()
+            mock_response.usage.prompt_tokens = 400
+            mock_response.usage.completion_tokens = 300
+            mock_response.usage.total_tokens = 700
             return mock_response
 
-        with patch('langchain_openai.ChatOpenAI') as mock_chat_class:
-            mock_instance = Mock()
-            mock_instance.invoke = Mock(side_effect=mock_invoke)
-            mock_chat_class.return_value = mock_instance
+        with patch('openai.OpenAI') as mock_openai_class:
+            mock_client = Mock()
+            mock_client.chat.completions.create = Mock(side_effect=mock_create)
+            mock_openai_class.return_value = mock_client
 
             WritingService.write_chapter_from_act(
                 project=test_project,
@@ -144,11 +143,14 @@ class TestChapterPromptActEmphasis:
                 language='English'
             )
 
-        # Extract user message
+        # Extract user message from captured messages (OpenAI format is list of dicts)
         user_message = None
-        for msg in captured_messages:
-            if isinstance(msg, HumanMessage) or (hasattr(msg, '__class__') and msg.__class__.__name__ == 'HumanMessage'):
-                user_message = msg.content
+        for messages_list in captured_messages:
+            for msg in messages_list:
+                if msg.get('role') == 'user':
+                    user_message = msg['content']
+                    break
+            if user_message:
                 break
 
         assert user_message is not None
@@ -175,8 +177,6 @@ class TestChapterPromptActEmphasis:
         This ensures chapters are written with the correct tone for their position
         in the story, not confused with other acts.
         """
-        from langchain_core.messages import HumanMessage
-
         # Setup: Create plot with all 3 acts
         plot = Plot.objects.create(
             project=test_project,
@@ -204,22 +204,24 @@ class TestChapterPromptActEmphasis:
             description='Climax and return home'
         )
 
-        # Mock ChatOpenAI
+        # Mock OpenAI
         captured_messages = []
 
-        def mock_invoke(messages):
-            captured_messages.extend(messages)
+        def mock_create(**kwargs):
+            captured_messages.append(kwargs.get('messages', []))
             mock_response = Mock()
-            mock_response.content = '{"title": "The Final Battle", "content": "Final battle content..."}'
-            mock_response.response_metadata = {
-                'token_usage': {'prompt_tokens': 600, 'completion_tokens': 500, 'total_tokens': 1100}
-            }
+            mock_response.choices = [Mock()]
+            mock_response.choices[0].message.content = '{"title": "The Final Battle", "content": "Final battle content..."}'
+            mock_response.usage = Mock()
+            mock_response.usage.prompt_tokens = 600
+            mock_response.usage.completion_tokens = 500
+            mock_response.usage.total_tokens = 1100
             return mock_response
 
-        with patch('langchain_openai.ChatOpenAI') as mock_chat_class:
-            mock_instance = Mock()
-            mock_instance.invoke = Mock(side_effect=mock_invoke)
-            mock_chat_class.return_value = mock_instance
+        with patch('openai.OpenAI') as mock_openai_class:
+            mock_client = Mock()
+            mock_client.chat.completions.create = Mock(side_effect=mock_create)
+            mock_openai_class.return_value = mock_client
 
             # Write chapter from Act 3 (final act)
             WritingService.write_chapter_from_act(
@@ -228,11 +230,14 @@ class TestChapterPromptActEmphasis:
                 language='English'
             )
 
-        # Extract user message
+        # Extract user message from captured messages (OpenAI format is list of dicts)
         user_message = None
-        for msg in captured_messages:
-            if isinstance(msg, HumanMessage) or (hasattr(msg, '__class__') and msg.__class__.__name__ == 'HumanMessage'):
-                user_message = msg.content
+        for messages_list in captured_messages:
+            for msg in messages_list:
+                if msg.get('role') == 'user':
+                    user_message = msg['content']
+                    break
+            if user_message:
                 break
 
         assert user_message is not None

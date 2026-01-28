@@ -222,9 +222,9 @@ class PromptAssemblyService:
     @staticmethod
     def assemble_full_prompt(agent_role_key, user_prompt, project=None,
                             language_code='en', context_type='text',
-                            act=None, include_context=True):
+                            act=None, include_context=True, use_5_message_format=False):
         """
-        Assemble all 5 layers into final (system_message, user_message).
+        Assemble all 5 layers into OpenAI API message format.
 
         Args:
             agent_role_key: Key for agent role (e.g., 'brainstormer', 'writer')
@@ -234,47 +234,95 @@ class PromptAssemblyService:
             context_type: Type of context for Layer 4
             act: Optional Act for chapter creation
             include_context: Whether to include Layer 4 context
+            use_5_message_format: Use 5-message format with developer role (default: False)
 
         Returns:
-            tuple: (system_message, user_message)
+            list: List of message dicts for OpenAI API:
+                  [{"role": "system", "content": "..."}, {"role": "user", "content": "..."}]
+                  Or 5-message format if use_5_message_format=True
         """
-        logger.info(f"Assembling prompt for {agent_role_key}, language={language_code}, context_type={context_type}")
+        logger.info(f"Assembling prompt for {agent_role_key}, language={language_code}, context_type={context_type}, 5_msg_format={use_5_message_format}")
 
-        # Layer 1 + 2: System prompt (policies + role)
-        system_message = PromptAssemblyService.build_system_prompt(
+        # Extract individual layer contents
+        # Layer 1 + 2: System policies + role definition
+        system_prompt_combined = PromptAssemblyService.build_system_prompt(
             agent_role_key, language_code
         )
 
-        user_parts = []
+        # For 5-message format, we need to separate policies and role
+        # For now, we'll split on the separator if present
+        if use_5_message_format and "\n\n---\n\n" in system_prompt_combined:
+            parts = system_prompt_combined.split("\n\n---\n\n")
+            system_policy = parts[0] if len(parts) > 0 else ""
+            role_definition = parts[1] if len(parts) > 1 else ""
+        else:
+            system_policy = system_prompt_combined
+            role_definition = ""
 
-        # Layer 4: Context (if enabled and project provided)
-        if include_context and project:
-            context = PromptAssemblyService.build_context_prompt(
-                project, context_type, act=act
-            )
-            if context:
-                user_parts.append(f"## Project Context\n{context}")
-
-        # Layer 3: Style and techniques (if project provided)
+        # Layer 3: Style and techniques
+        style_instructions = ""
         if project:
-            style = PromptAssemblyService.build_style_instructions(
+            style_instructions = PromptAssemblyService.build_style_instructions(
                 project, language_code
             )
-            if style:
-                user_parts.append(style)
 
-        # Layer 5: User prompt
-        user_parts.append(f"## Task\n{user_prompt}")
+        # Layer 4: Project context (memory)
+        project_context = ""
+        if include_context and project:
+            project_context = PromptAssemblyService.build_context_prompt(
+                project, context_type, act=act
+            )
 
-        # Language output instruction (if not English)
+        # Layer 5: User task
+        user_task = user_prompt
+
+        # Add language instruction to user task if not English
         if language_code != 'en':
             lang_name = get_language_name(language_code)
-            user_parts.append(f"\n**IMPORTANT:** Generate all output in {lang_name}.")
+            user_task = f"{user_task}\n\n**IMPORTANT:** Generate all output in {lang_name}."
 
-        user_message = "\n\n---\n\n".join(user_parts)
+        # Build messages based on format
+        if use_5_message_format:
+            # 5-message format: Each layer gets its own message with appropriate role
+            messages = []
 
-        logger.info(f"Final prompt: system={len(system_message)} chars, user={len(user_message)} chars")
-        # Removed DEBUG logging of full prompt content to avoid duplication
-        # The ai_client.py monkey-patch already logs all OpenAI API calls
+            # Layer 1: System Policy (system role)
+            if system_policy:
+                messages.append({"role": "system", "content": system_policy})
 
-        return system_message, user_message
+            # Layer 2: Role Definition (developer role)
+            if role_definition:
+                messages.append({"role": "developer", "content": role_definition})
+
+            # Layer 3: Writing Style (developer role)
+            if style_instructions:
+                messages.append({"role": "developer", "content": style_instructions})
+
+            # Layer 4: Project Context/Memory (developer role)
+            if project_context:
+                messages.append({"role": "developer", "content": f"## Project Context\n{project_context}"})
+
+            # Layer 5: User Task (user role)
+            messages.append({"role": "user", "content": f"## Task\n{user_task}"})
+
+            logger.info(f"Built 5-message format: {len(messages)} messages")
+            return messages
+        else:
+            # 2-message format (backward compatible): Combine into system + user
+            system_message = system_prompt_combined
+
+            user_parts = []
+            if project_context:
+                user_parts.append(f"## Project Context\n{project_context}")
+            if style_instructions:
+                user_parts.append(style_instructions)
+            user_parts.append(f"## Task\n{user_task}")
+
+            user_message = "\n\n---\n\n".join(user_parts)
+
+            logger.info(f"Built 2-message format: system={len(system_message)} chars, user={len(user_message)} chars")
+
+            return [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message}
+            ]

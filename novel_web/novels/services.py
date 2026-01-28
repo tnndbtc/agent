@@ -102,8 +102,8 @@ class PlotService:
         Returns:
             tuple: (plot_dict, token_usage)
         """
-        from langchain_openai import ChatOpenAI
-        from langchain_core.messages import SystemMessage, HumanMessage
+        from openai import OpenAI
+        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
         import json
 
@@ -149,8 +149,8 @@ You MUST return a JSON object with the following structure for acts and characte
 
 Return ONLY the JSON object, no additional text or explanation."""
 
-        # Assemble full prompt
-        system_message, user_message = PromptAssemblyService.assemble_full_prompt(
+        # Assemble full prompt - now returns list of message dicts
+        messages = PromptAssemblyService.assemble_full_prompt(
             agent_role_key='plotter',
             user_prompt=user_prompt,
             project=project,
@@ -159,23 +159,24 @@ Return ONLY the JSON object, no additional text or explanation."""
             include_context=False
         )
 
-        # Call OpenAI
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+        # Call OpenAI directly
+        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
 
         try:
-            response = llm.invoke([
-                SystemMessage(content=system_message),
-                HumanMessage(content=user_message)
-            ])
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages,
+                temperature=0.7
+            )
 
             # Extract token usage
             token_usage = {
-                'prompt_tokens': response.response_metadata.get('token_usage', {}).get('prompt_tokens', 0),
-                'completion_tokens': response.response_metadata.get('token_usage', {}).get('completion_tokens', 0),
-                'total_tokens': response.response_metadata.get('token_usage', {}).get('total_tokens', 0)
+                'prompt_tokens': response.usage.prompt_tokens,
+                'completion_tokens': response.usage.completion_tokens,
+                'total_tokens': response.usage.total_tokens
             }
 
-            content = response.content.strip()
+            content = response.choices[0].message.content.strip()
 
             # Parse JSON response
             # Try to extract JSON if there's surrounding text
@@ -257,8 +258,8 @@ Return ONLY the JSON object, no additional text or explanation."""
     @staticmethod
     def generate_subplots(project, main_plot, num_subplots=2, user_language='en'):
         """Generate subplots using 5-layer prompt architecture."""
-        from langchain_openai import ChatOpenAI
-        from langchain_core.messages import SystemMessage, HumanMessage
+        from openai import OpenAI
+        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
 
         logger.info(f"PlotService.generate_subplots - language: {user_language}, num: {num_subplots}")
@@ -275,7 +276,7 @@ For each subplot provide:
 
 Format as numbered list."""
 
-        system_message, user_message = PromptAssemblyService.assemble_full_prompt(
+        messages = PromptAssemblyService.assemble_full_prompt(
             agent_role_key='plotter',
             user_prompt=user_prompt,
             project=project,
@@ -284,15 +285,16 @@ Format as numbered list."""
             include_context=True
         )
 
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
 
         try:
-            response = llm.invoke([
-                SystemMessage(content=system_message),
-                HumanMessage(content=user_message)
-            ])
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages,
+                temperature=0.7
+            )
 
-            subplots = response.content.strip()
+            subplots = response.choices[0].message.content.strip()
             logger.info("PlotService.generate_subplots - Successfully generated subplots")
             return subplots
 
@@ -356,8 +358,8 @@ class CharacterService:
         Returns:
             tuple: (protagonists, token_usage) where token_usage contains prompt_tokens, completion_tokens, total_tokens
         """
-        from langchain_openai import ChatOpenAI
-        from langchain_core.messages import SystemMessage, HumanMessage
+        from openai import OpenAI
+        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
         import json
         import re
@@ -397,7 +399,7 @@ The array MUST contain exactly {num_options} protagonist character object(s).
 Return ONLY the JSON array, no additional text or explanation."""
 
         # Assemble full prompt using 5-layer architecture
-        system_message, user_message = PromptAssemblyService.assemble_full_prompt(
+        messages = PromptAssemblyService.assemble_full_prompt(
             agent_role_key='character_creator',
             user_prompt=user_prompt,
             project=project,
@@ -406,34 +408,27 @@ Return ONLY the JSON array, no additional text or explanation."""
             include_context=True
         )
 
-        logger.info(f"Built character creation prompt: system={len(system_message)} chars, user={len(user_message)} chars")
+        logger.info(f"Built character creation prompt with {len(messages)} messages")
 
-        # Call OpenAI
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
-        response = llm.invoke([
-            SystemMessage(content=system_message),
-            HumanMessage(content=user_message)
-        ])
+        # Call OpenAI directly
+        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.7
+        )
 
         # Extract token usage
         token_usage = {
-            'prompt_tokens': 0,
-            'completion_tokens': 0,
-            'total_tokens': 0
+            'prompt_tokens': response.usage.prompt_tokens,
+            'completion_tokens': response.usage.completion_tokens,
+            'total_tokens': response.usage.total_tokens
         }
 
-        if hasattr(response, 'response_metadata') and 'token_usage' in response.response_metadata:
-            usage = response.response_metadata['token_usage']
-            token_usage = {
-                'prompt_tokens': usage.get('prompt_tokens', 0),
-                'completion_tokens': usage.get('completion_tokens', 0),
-                'total_tokens': usage.get('total_tokens', 0)
-            }
-
-        logger.info(f"OpenAI response received: {len(response.content)} chars, tokens: {token_usage}")
+        content = response.choices[0].message.content.strip()
+        logger.info(f"OpenAI response received: {len(content)} chars, tokens: {token_usage}")
 
         # Parse JSON response
-        content = response.content.strip()
 
         # Try to extract JSON if wrapped in markdown code blocks
         if '```json' in content:
@@ -467,8 +462,8 @@ Return ONLY the JSON array, no additional text or explanation."""
         Returns:
             tuple: (antagonist, token_usage) where token_usage contains prompt_tokens, completion_tokens, total_tokens
         """
-        from langchain_openai import ChatOpenAI
-        from langchain_core.messages import SystemMessage, HumanMessage
+        from openai import OpenAI
+        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
         import json
         import re
@@ -513,7 +508,7 @@ Return ONLY the JSON array, no additional text or explanation."""
 Return ONLY the JSON object, no additional text or explanation."""
 
         # Assemble full prompt using 5-layer architecture
-        system_message, user_message = PromptAssemblyService.assemble_full_prompt(
+        messages = PromptAssemblyService.assemble_full_prompt(
             agent_role_key='character_creator',
             user_prompt=user_prompt,
             project=project,
@@ -522,30 +517,23 @@ Return ONLY the JSON object, no additional text or explanation."""
             include_context=True
         )
 
-        # Call OpenAI
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
-        response = llm.invoke([
-            SystemMessage(content=system_message),
-            HumanMessage(content=user_message)
-        ])
+        # Call OpenAI directly
+        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.7
+        )
 
         # Extract token usage
         token_usage = {
-            'prompt_tokens': 0,
-            'completion_tokens': 0,
-            'total_tokens': 0
+            'prompt_tokens': response.usage.prompt_tokens,
+            'completion_tokens': response.usage.completion_tokens,
+            'total_tokens': response.usage.total_tokens
         }
 
-        if hasattr(response, 'response_metadata') and 'token_usage' in response.response_metadata:
-            usage = response.response_metadata['token_usage']
-            token_usage = {
-                'prompt_tokens': usage.get('prompt_tokens', 0),
-                'completion_tokens': usage.get('completion_tokens', 0),
-                'total_tokens': usage.get('total_tokens', 0)
-            }
-
         # Parse JSON response
-        content = response.content.strip()
+        content = response.choices[0].message.content.strip()
 
         # Try to extract JSON if wrapped in markdown code blocks
         if '```json' in content:
@@ -575,8 +563,8 @@ Return ONLY the JSON object, no additional text or explanation."""
         Returns:
             list: List of supporting characters (without token usage for backward compatibility)
         """
-        from langchain_openai import ChatOpenAI
-        from langchain_core.messages import SystemMessage, HumanMessage
+        from openai import OpenAI
+        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
         import json
         import re
@@ -617,7 +605,7 @@ The array MUST contain exactly {len(roles)} supporting character object(s), one 
 Return ONLY the JSON array, no additional text or explanation."""
 
         # Assemble full prompt using 5-layer architecture
-        system_message, user_message = PromptAssemblyService.assemble_full_prompt(
+        messages = PromptAssemblyService.assemble_full_prompt(
             agent_role_key='character_creator',
             user_prompt=user_prompt,
             project=project,
@@ -626,15 +614,16 @@ Return ONLY the JSON array, no additional text or explanation."""
             include_context=True
         )
 
-        # Call OpenAI
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
-        response = llm.invoke([
-            SystemMessage(content=system_message),
-            HumanMessage(content=user_message)
-        ])
+        # Call OpenAI directly
+        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.7
+        )
 
         # Parse JSON response
-        content = response.content.strip()
+        content = response.choices[0].message.content.strip()
 
         # Try to extract JSON if wrapped in markdown code blocks
         if '```json' in content:
@@ -671,8 +660,8 @@ class SettingService:
         Returns:
             dict: Primary setting data
         """
-        from langchain_openai import ChatOpenAI
-        from langchain_core.messages import SystemMessage, HumanMessage
+        from openai import OpenAI
+        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
         import json
         import re
@@ -702,7 +691,7 @@ class SettingService:
 Format as JSON object."""
 
         # Assemble full prompt using 5-layer architecture
-        system_message, user_message = PromptAssemblyService.assemble_full_prompt(
+        messages = PromptAssemblyService.assemble_full_prompt(
             agent_role_key='setting_creator',
             user_prompt=user_prompt,
             project=project,
@@ -711,19 +700,21 @@ Format as JSON object."""
             include_context=True
         )
 
-        logger.info(f"Built setting creation prompt: system={len(system_message)} chars, user={len(user_message)} chars")
+        logger.info(f"Built setting creation prompt with {len(messages)} messages")
 
-        # Call OpenAI
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
-        response = llm.invoke([
-            SystemMessage(content=system_message),
-            HumanMessage(content=user_message)
-        ])
+        # Call OpenAI directly
+        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.7
+        )
 
-        logger.info(f"OpenAI response received: {len(response.content)} chars")
+        content = response.choices[0].message.content
+        logger.info(f"OpenAI response received: {len(content)} chars")
 
         # Parse JSON response
-        content = response.content.strip()
+        content = content.strip()
 
         # Try to extract JSON if wrapped in markdown code blocks
         if '```json' in content:
@@ -753,8 +744,8 @@ Format as JSON object."""
         Returns:
             list: List of secondary locations
         """
-        from langchain_openai import ChatOpenAI
-        from langchain_core.messages import SystemMessage, HumanMessage
+        from openai import OpenAI
+        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
         import json
         import re
@@ -785,7 +776,7 @@ Format as JSON object."""
 Format as JSON array of location objects."""
 
         # Assemble full prompt using 5-layer architecture
-        system_message, user_message = PromptAssemblyService.assemble_full_prompt(
+        messages = PromptAssemblyService.assemble_full_prompt(
             agent_role_key='setting_creator',
             user_prompt=user_prompt,
             project=project,
@@ -794,15 +785,16 @@ Format as JSON array of location objects."""
             include_context=True
         )
 
-        # Call OpenAI
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
-        response = llm.invoke([
-            SystemMessage(content=system_message),
-            HumanMessage(content=user_message)
-        ])
+        # Call OpenAI directly
+        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.7
+        )
 
         # Parse JSON response
-        content = response.content.strip()
+        content = response.choices[0].message.content.strip()
 
         # Try to extract JSON if wrapped in markdown code blocks
         if '```json' in content:
@@ -932,8 +924,8 @@ class WritingService:
         Returns:
             Tuple of (chapter_data, token_usage)
         """
-        from langchain_openai import ChatOpenAI
-        from langchain_core.messages import SystemMessage, HumanMessage
+        from openai import OpenAI
+        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
         from .models import Chapter
 
@@ -978,7 +970,7 @@ class WritingService:
 
         # Assemble full prompt using 5-layer architecture
         # Pass act for context instead of chapter_outline
-        system_message, user_message = PromptAssemblyService.assemble_full_prompt(
+        messages = PromptAssemblyService.assemble_full_prompt(
             agent_role_key='novelist',
             user_prompt=user_prompt,
             project=project,
@@ -988,33 +980,25 @@ class WritingService:
             act=act  # Pass act for context
         )
 
-        logger.info(f"Built act-based chapter prompt: system={len(system_message)} chars, user={len(user_message)} chars")
+        logger.info(f"Built act-based chapter prompt with {len(messages)} messages")
 
-        # Call OpenAI
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
-        response = llm.invoke([
-            SystemMessage(content=system_message),
-            HumanMessage(content=user_message)
-        ])
+        # Call OpenAI directly
+        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.7
+        )
 
         # Extract token usage
-        token_usage = {}
-        if hasattr(response, 'response_metadata') and 'token_usage' in response.response_metadata:
-            usage = response.response_metadata['token_usage']
-            token_usage = {
-                'prompt_tokens': usage.get('prompt_tokens', 0),
-                'completion_tokens': usage.get('completion_tokens', 0),
-                'total_tokens': usage.get('total_tokens', 0)
-            }
-        elif hasattr(response, 'usage_metadata'):
-            token_usage = {
-                'prompt_tokens': getattr(response.usage_metadata, 'input_tokens', 0),
-                'completion_tokens': getattr(response.usage_metadata, 'output_tokens', 0),
-                'total_tokens': getattr(response.usage_metadata, 'total_tokens', 0)
-            }
+        token_usage = {
+            'prompt_tokens': response.usage.prompt_tokens,
+            'completion_tokens': response.usage.completion_tokens,
+            'total_tokens': response.usage.total_tokens
+        }
 
         # Extract content and title from JSON response
-        raw_response = response.content if hasattr(response, 'content') else str(response)
+        raw_response = response.choices[0].message.content
 
         # Log the raw response for debugging
         logger.info(f"=======OpenAI raw RESPONSE (first 500 chars)=======: {raw_response}\n================================================================================")
@@ -1081,8 +1065,8 @@ class EditingService:
         Returns:
             str: Edited content
         """
-        from langchain_openai import ChatOpenAI
-        from langchain_core.messages import SystemMessage, HumanMessage
+        from openai import OpenAI
+        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
 
         logger.info(f"EditingService.edit_for_style - project: {project.id}, target_style: {target_style}, content_length: {len(content)}")
@@ -1098,7 +1082,7 @@ class EditingService:
         user_prompt += content
 
         # Assemble full prompt using 5-layer architecture
-        system_message, user_message = PromptAssemblyService.assemble_full_prompt(
+        messages = PromptAssemblyService.assemble_full_prompt(
             agent_role_key='editor',
             user_prompt=user_prompt,
             project=project,
@@ -1107,16 +1091,17 @@ class EditingService:
             include_context=True
         )
 
-        logger.info(f"Built editing prompt: system={len(system_message)} chars, user={len(user_message)} chars")
+        logger.info(f"Built editing prompt with {len(messages)} messages")
 
-        # Call OpenAI
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
-        response = llm.invoke([
-            SystemMessage(content=system_message),
-            HumanMessage(content=user_message)
-        ])
+        # Call OpenAI directly
+        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.7
+        )
 
-        result = response.content.strip()
+        result = response.choices[0].message.content.strip()
         logger.info(f"EditingService.edit_for_style - Successfully edited content, result_length: {len(result)}")
         return result
 
@@ -1127,8 +1112,8 @@ class EditingService:
         Returns:
             str: Grammar-corrected content
         """
-        from langchain_openai import ChatOpenAI
-        from langchain_core.messages import SystemMessage, HumanMessage
+        from openai import OpenAI
+        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
 
         logger.info(f"EditingService.edit_for_grammar - project: {project.id}, content_length: {len(content)}")
@@ -1145,7 +1130,7 @@ class EditingService:
         user_prompt += content
 
         # Assemble full prompt using 5-layer architecture
-        system_message, user_message = PromptAssemblyService.assemble_full_prompt(
+        messages = PromptAssemblyService.assemble_full_prompt(
             agent_role_key='editor',
             user_prompt=user_prompt,
             project=project,
@@ -1154,14 +1139,15 @@ class EditingService:
             include_context=False  # Grammar editing doesn't need full context
         )
 
-        # Call OpenAI
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)  # Lower temperature for grammar
-        response = llm.invoke([
-            SystemMessage(content=system_message),
-            HumanMessage(content=user_message)
-        ])
+        # Call OpenAI directly
+        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.3  # Lower temperature for grammar
+        )
 
-        result = response.content.strip()
+        result = response.choices[0].message.content.strip()
         logger.info(f"EditingService.edit_for_grammar - Successfully corrected grammar, result_length: {len(result)}")
         return result
 
@@ -1172,8 +1158,8 @@ class EditingService:
         Returns:
             str: Improved dialogue
         """
-        from langchain_openai import ChatOpenAI
-        from langchain_core.messages import SystemMessage, HumanMessage
+        from openai import OpenAI
+        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
 
         logger.info(f"EditingService.improve_dialogue - project: {project.id}, characters: {character_names}, dialogue_length: {len(dialogue)}")
@@ -1190,7 +1176,7 @@ class EditingService:
         user_prompt += dialogue
 
         # Assemble full prompt using 5-layer architecture
-        system_message, user_message = PromptAssemblyService.assemble_full_prompt(
+        messages = PromptAssemblyService.assemble_full_prompt(
             agent_role_key='editor',
             user_prompt=user_prompt,
             project=project,
@@ -1199,14 +1185,15 @@ class EditingService:
             include_context=True  # Context helps maintain character voices
         )
 
-        # Call OpenAI
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
-        response = llm.invoke([
-            SystemMessage(content=system_message),
-            HumanMessage(content=user_message)
-        ])
+        # Call OpenAI directly
+        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.7
+        )
 
-        result = response.content.strip()
+        result = response.choices[0].message.content.strip()
         logger.info(f"EditingService.improve_dialogue - Successfully improved dialogue, result_length: {len(result)}")
         return result
 
@@ -1221,8 +1208,8 @@ class ConsistencyService:
         Returns:
             dict: Consistency report with identified issues
         """
-        from langchain_openai import ChatOpenAI
-        from langchain_core.messages import SystemMessage, HumanMessage
+        from openai import OpenAI
+        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
         import json
         import re
@@ -1247,7 +1234,7 @@ class ConsistencyService:
         user_prompt += "- score: Consistency score from 1-10 (10 = perfectly consistent)"
 
         # Assemble full prompt using 5-layer architecture
-        system_message, user_message = PromptAssemblyService.assemble_full_prompt(
+        messages = PromptAssemblyService.assemble_full_prompt(
             agent_role_key='consistency_checker',
             user_prompt=user_prompt,
             project=project,
@@ -1256,17 +1243,18 @@ class ConsistencyService:
             include_context=True  # Context helps identify inconsistencies
         )
 
-        logger.info(f"Built consistency check prompt: system={len(system_message)} chars, user={len(user_message)} chars")
+        logger.info(f"Built consistency check prompt with {len(messages)} messages")
 
-        # Call OpenAI
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)  # Lower temperature for analytical task
-        response = llm.invoke([
-            SystemMessage(content=system_message),
-            HumanMessage(content=user_message)
-        ])
+        # Call OpenAI directly
+        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.3  # Lower temperature for analytical task
+        )
 
         # Parse JSON response
-        content = response.content.strip()
+        content = response.choices[0].message.content.strip()
 
         # Try to extract JSON if wrapped in markdown code blocks
         if '```json' in content:
@@ -1300,8 +1288,8 @@ class ConsistencyService:
         Returns:
             dict: Full consistency report for the entire novel
         """
-        from langchain_openai import ChatOpenAI
-        from langchain_core.messages import SystemMessage, HumanMessage
+        from openai import OpenAI
+        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
         import json
         import re
@@ -1338,7 +1326,7 @@ Generate a comprehensive consistency report with:
 Format as JSON object."""
 
         # Assemble full prompt using 5-layer architecture
-        system_message, user_message = PromptAssemblyService.assemble_full_prompt(
+        messages = PromptAssemblyService.assemble_full_prompt(
             agent_role_key='consistency_checker',
             user_prompt=user_prompt,
             project=project,
@@ -1347,15 +1335,16 @@ Format as JSON object."""
             include_context=True
         )
 
-        # Call OpenAI
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
-        response = llm.invoke([
-            SystemMessage(content=system_message),
-            HumanMessage(content=user_message)
-        ])
+        # Call OpenAI directly
+        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.3
+        )
 
         # Parse JSON response
-        content = response.content.strip()
+        content = response.choices[0].message.content.strip()
 
         # Try to extract JSON if wrapped in markdown code blocks
         if '```json' in content:
@@ -1528,20 +1517,17 @@ class AIModificationService:
                 'token_usage': dict
             }
         """
-        from langchain_openai import ChatOpenAI
-        from langchain_core.messages import SystemMessage, HumanMessage
+        from openai import OpenAI
+        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
 
         logger.info(f"Modifying {content_type} text (length: {len(original_text)}) with prompt: {user_prompt[:100]}...")
-
-        # Initialize LLM
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
 
         # Determine language code
         language_code = project.target_language if project else 'en'
 
         # Assemble prompts using 5-layer architecture
-        system_message, user_context = PromptAssemblyService.assemble_full_prompt(
+        messages = PromptAssemblyService.assemble_full_prompt(
             agent_role_key='text_modifier',
             user_prompt=user_prompt,
             project=project,
@@ -1550,28 +1536,33 @@ class AIModificationService:
             include_context=False  # Don't include full project context for quick edits
         )
 
-        # Add original text to user message
+        # Add original text to the last user message
         final_user_message = f"""**Original Text:**
 {original_text}
 
-{user_context}
+{messages[-1]['content']}
 
 **Instructions:** Provide ONLY the modified text (no explanations, no markers, no comments). Return the complete modified text that should replace the original."""
 
-        # Call OpenAI
-        try:
-            response = llm.invoke([
-                SystemMessage(content=system_message),
-                HumanMessage(content=final_user_message)
-            ])
+        # Replace the last message content with the final version
+        messages[-1]['content'] = final_user_message
 
-            modified_text = response.content.strip()
+        # Call OpenAI directly
+        try:
+            client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages,
+                temperature=0.7
+            )
+
+            modified_text = response.choices[0].message.content.strip()
 
             # Extract token usage
             token_usage = {
-                'prompt_tokens': response.response_metadata.get('token_usage', {}).get('prompt_tokens', 0),
-                'completion_tokens': response.response_metadata.get('token_usage', {}).get('completion_tokens', 0),
-                'total_tokens': response.response_metadata.get('token_usage', {}).get('total_tokens', 0)
+                'prompt_tokens': response.usage.prompt_tokens,
+                'completion_tokens': response.usage.completion_tokens,
+                'total_tokens': response.usage.total_tokens
             }
 
             logger.info(f"Successfully modified text. Original length: {len(original_text)}, "
