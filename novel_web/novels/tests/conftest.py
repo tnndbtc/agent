@@ -587,16 +587,6 @@ def create_plot_data():
 
 
 @pytest.fixture
-def create_outline_data():
-    """Factory fixture to create outline request data."""
-    def _create_data(num_chapters=3):
-        return {
-            'num_chapters': num_chapters
-        }
-    return _create_data
-
-
-@pytest.fixture
 def create_chapter_data():
     """Factory fixture to create chapter writing request data."""
     def _create_data(chapter_outline_id, word_count=100):

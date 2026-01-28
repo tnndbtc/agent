@@ -502,7 +502,7 @@ class TestAIModificationService:
         }
         mock_openai.return_value.invoke.return_value = mock_response
 
-        content_types = ['plot', 'act', 'character', 'outline', 'chapter', 'text']
+        content_types = ['plot', 'act', 'character', 'chapter', 'text']
 
         for content_type in content_types:
             result = AIModificationService.modify_text_selection(
