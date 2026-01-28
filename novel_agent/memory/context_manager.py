@@ -20,8 +20,7 @@ class ContextManager:
             "characters": [],
             "plot": None,
             "settings": [],
-            "current_chapter": None,
-            "outline": None
+            "current_chapter": None
         }
 
     def build_context_for_task(self, task_type: str, query: str, k: int = 5) -> str:
@@ -147,7 +146,6 @@ class ContextManager:
             "plot": self.memory.get_plot_summary(),
             "characters": self.memory.get_all_characters(),
             "settings": self.memory.retrieve_by_type("setting", k=10),
-            "outline": self.memory.retrieve_by_type("outline", k=1),
             "chapters": self.memory.get_all_chapters()
         }
 
@@ -177,11 +175,6 @@ class ContextManager:
             summary_parts.append("\n=== SETTINGS ===")
             for i, setting in enumerate(story_context["settings"], 1):
                 summary_parts.append(f"\n{i}. {setting.page_content.split(':')[1].split('Time')[0].strip() if ':' in setting.page_content else 'Unknown'}")
-
-        # Outline
-        if story_context["outline"]:
-            summary_parts.append("\n=== OUTLINE ===")
-            summary_parts.append(story_context["outline"][0].page_content if story_context["outline"] else "")
 
         # Chapters
         if story_context["chapters"]:

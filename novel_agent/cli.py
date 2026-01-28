@@ -12,8 +12,7 @@ from novel_agent.modules import (
     SettingGenerator,
     ChapterWriter,
     EditorModule,
-    ConsistencyChecker,
-    OutlinerModule
+    ConsistencyChecker
 )
 from novel_agent.output import NovelExporter, NovelScorer
 
@@ -35,7 +34,6 @@ class NovelAgentCLI:
         self.plot_gen = PlotGenerator(self.context_manager, self.memory)
         self.char_gen = CharacterGenerator(self.context_manager, self.memory)
         self.setting_gen = SettingGenerator(self.context_manager, self.memory)
-        self.outliner = OutlinerModule(self.context_manager, self.memory)
         self.writer = ChapterWriter(self.context_manager, self.memory, self.example_manager)
         self.editor = EditorModule(self.example_manager)
         self.checker = ConsistencyChecker(self.context_manager, self.memory)
@@ -50,7 +48,6 @@ class NovelAgentCLI:
             'plot': None,
             'characters': [],
             'settings': [],
-            'outline': None,
             'chapters': []
         }
 
@@ -75,18 +72,16 @@ class NovelAgentCLI:
             elif choice == '3':
                 self.create_characters()
             elif choice == '4':
-                self.create_outline()
-            elif choice == '5':
                 self.write_chapters()
-            elif choice == '6':
+            elif choice == '5':
                 self.edit_content()
-            elif choice == '7':
+            elif choice == '6':
                 self.check_consistency()
-            elif choice == '8':
+            elif choice == '7':
                 self.score_novel()
-            elif choice == '9':
+            elif choice == '8':
                 self.export_novel()
-            elif choice == '10':
+            elif choice == '9':
                 self.manage_examples()
             elif choice == '0':
                 print("\nThank you for using Novel Writing Agent!")
@@ -102,13 +97,12 @@ class NovelAgentCLI:
         print("1. Start New Novel (Complete Workflow)")
         print("2. Brainstorm Plot Ideas")
         print("3. Create Characters")
-        print("4. Create Chapter Outline")
-        print("5. Write Chapters")
-        print("6. Edit & Refine")
-        print("7. Check Consistency")
-        print("8. Score Novel")
-        print("9. Export Novel")
-        print("10. Manage Examples (Good/Bad)")
+        print("4. Write Chapters")
+        print("5. Edit & Refine")
+        print("6. Check Consistency")
+        print("7. Score Novel")
+        print("8. Export Novel")
+        print("9. Manage Examples (Good/Bad)")
         print("0. Exit")
         print("=" * 80)
 
@@ -178,36 +172,26 @@ class NovelAgentCLI:
         self.current_project['settings'].append(primary_setting)
         print(f"✓ Created setting: {primary_setting.get('location', 'Unknown')}")
 
-        # Step 4: Outline
-        print("\n--- Step 4: Creating Chapter Outline ---")
-        num_chapters = int(input("Number of chapters (default 20): ").strip() or "20")
-
-        print(f"Generating {num_chapters}-chapter outline...")
-        outline = self.outliner.create_chapter_outline(plot, num_chapters)
-        self.current_project['outline'] = outline
-
-        print(f"\n✓ Created outline with {len(outline['chapters'])} chapters")
-
-        # Step 5: Write chapters
-        print("\n--- Step 5: Writing Chapters ---")
+        # Step 4: Write chapters
+        print("\n--- Step 4: Writing Chapters ---")
         write_now = input("Start writing chapters now? (y/n): ").strip().lower()
 
         if write_now == 'y':
-            chapters_to_write = input(f"How many chapters to write (1-{num_chapters}): ").strip()
-            chapters_to_write = int(chapters_to_write) if chapters_to_write else 1
+            num_chapters = int(input("How many chapters to write (default 1): ").strip() or "1")
 
-            for i in range(min(chapters_to_write, len(outline['chapters']))):
+            for i in range(num_chapters):
                 print(f"\nWriting Chapter {i+1}...")
-                chapter = self.writer.write_chapter(outline['chapters'][i])
+                # Write chapter directly from plot context
+                chapter = self.writer.write_chapter_from_context(plot, i+1)
                 self.current_project['chapters'].append(chapter)
-                print(f"✓ Chapter {i+1} complete ({chapter['word_count']} words)")
+                print(f"✓ Chapter {i+1} complete ({chapter.get('word_count', 0)} words)")
 
         print("\n" + "=" * 80)
         print("✓ NEW NOVEL WORKFLOW COMPLETE!")
         print("=" * 80)
         print(f"Title: {self.current_project['title']}")
         print(f"Characters: {len(self.current_project['characters'])}")
-        print(f"Chapters Written: {len(self.current_project['chapters'])}/{num_chapters}")
+        print(f"Chapters Written: {len(self.current_project['chapters'])}")
 
     def brainstorm_ideas(self):
         """Brainstorm plot ideas."""
@@ -230,12 +214,6 @@ class NovelAgentCLI:
     def create_characters(self):
         """Create characters."""
         print("\n--- Character Creation ---")
-        # Implementation here
-        print("Feature coming soon...")
-
-    def create_outline(self):
-        """Create chapter outline."""
-        print("\n--- Chapter Outline ---")
         # Implementation here
         print("Feature coming soon...")
 
@@ -292,7 +270,6 @@ class NovelAgentCLI:
         print("\nExport Options:")
         print("1. Complete Package (all files)")
         print("2. Novel Text Only")
-        print("3. Outline Only")
 
         choice = input("Choice: ").strip()
 
@@ -306,12 +283,6 @@ class NovelAgentCLI:
         elif choice == '2':
             path = self.exporter.export_to_text(self.current_project, language)
             print(f"\n✓ Exported novel to: {path}")
-        elif choice == '3':
-            if self.current_project['outline']:
-                path = self.exporter.export_outline(self.current_project['outline'])
-                print(f"\n✓ Exported outline to: {path}")
-            else:
-                print("❌ No outline to export.")
 
     def manage_examples(self):
         """Manage good/bad examples."""

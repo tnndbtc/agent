@@ -6,7 +6,6 @@ from .setting_generator import SettingGenerator
 from .chapter_writer import ChapterWriter
 from .editor import EditorModule
 from .consistency_checker import ConsistencyChecker
-from .outliner import OutlinerModule
 
 __all__ = [
     "BrainstormingModule",
@@ -15,6 +14,5 @@ __all__ = [
     "SettingGenerator",
     "ChapterWriter",
     "EditorModule",
-    "ConsistencyChecker",
-    "OutlinerModule"
+    "ConsistencyChecker"
 ]

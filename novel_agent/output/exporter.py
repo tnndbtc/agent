@@ -89,35 +89,6 @@ class NovelExporter:
 
         return str(output_path)
 
-    def export_outline(
-        self,
-        outline_data: Dict[str, Any],
-        filename: Optional[str] = None
-    ) -> str:
-        """
-        Export novel outline to a text file.
-
-        Args:
-            outline_data: Outline dictionary
-            filename: Optional custom filename
-
-        Returns:
-            Path to exported file
-        """
-        if not filename:
-            title = outline_data.get('title', 'Untitled')
-            safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '-', '_')).strip()
-            filename = f"{safe_title}_Outline.txt"
-
-        output_path = self.output_dir / filename
-
-        content = self._format_outline_text(outline_data)
-
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(content)
-
-        return str(output_path)
-
     def export_character_profiles(
         self,
         characters: List[Dict[str, Any]],
@@ -175,13 +146,6 @@ class NovelExporter:
         with open(novel_path, 'w', encoding='utf-8') as f:
             f.write(self._format_novel_text(novel_data, language))
         exported_files['novel'] = str(novel_path)
-
-        # Export outline
-        if novel_data.get('outline'):
-            outline_path = package_dir / "Outline.txt"
-            with open(outline_path, 'w', encoding='utf-8') as f:
-                f.write(self._format_outline_text(novel_data['outline']))
-            exported_files['outline'] = str(outline_path)
 
         # Export character profiles
         if novel_data.get('characters'):
@@ -273,32 +237,6 @@ class NovelExporter:
         lines.append(f"Word count: {chapter_data.get('word_count', len(content.split()))}".center(80))
         lines.append(f"Language: {language}".center(80))
         lines.append("-" * 80)
-
-        return "\n".join(lines)
-
-    def _format_outline_text(self, outline_data: Dict[str, Any]) -> str:
-        """Format outline as text."""
-        lines = []
-
-        title = outline_data.get('title', 'Untitled')
-        lines.append("=" * 80)
-        lines.append(f"Outline: {title}".center(80))
-        lines.append("=" * 80)
-        lines.append("")
-
-        chapters = outline_data.get('chapters', [])
-        for chapter in chapters:
-            lines.append(f"\nChapter {chapter.get('number', '?')}: {chapter.get('title', 'Untitled')}")
-            lines.append("-" * 40)
-            if chapter.get('pov'):
-                lines.append(f"POV: {chapter['pov']}")
-            if chapter.get('setting'):
-                lines.append(f"Setting: {chapter['setting']}")
-            if chapter.get('events'):
-                lines.append(f"Events: {chapter['events']}")
-            if chapter.get('pacing'):
-                lines.append(f"Pacing: {chapter['pacing']}")
-            lines.append("")
 
         return "\n".join(lines)
 

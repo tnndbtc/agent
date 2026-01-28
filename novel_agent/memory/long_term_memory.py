@@ -134,27 +134,6 @@ class LongTermMemory:
         ids = self.vector_store.add_documents([doc])
         return ids[0] if ids else None
 
-    def store_outline(self, outline_data: Dict[str, Any]) -> str:
-        """
-        Store chapter outline information.
-
-        Args:
-            outline_data: Dictionary containing outline details
-
-        Returns:
-            ID of the stored document
-        """
-        outline_text = self._format_outline(outline_data)
-        metadata = {
-            "type": "outline",
-            "title": outline_data.get("title", "Untitled"),
-            "timestamp": datetime.now().isoformat()
-        }
-
-        doc = Document(page_content=outline_text, metadata=metadata)
-        ids = self.vector_store.add_documents([doc])
-        return ids[0] if ids else None
-
     def retrieve_context(self, query: str, k: int = 5, filter_type: Optional[str] = None) -> List[Document]:
         """
         Retrieve relevant context from memory.
@@ -259,18 +238,4 @@ Time Period: {data.get('time_period', 'Not specified')}
 Description: {data.get('description', 'Not specified')}
 Culture: {data.get('culture', 'Not specified')}
 Important Locations: {data.get('important_locations', 'Not specified')}
-"""
-
-    def _format_outline(self, data: Dict[str, Any]) -> str:
-        """Format outline data for storage."""
-        chapters = data.get('chapters', [])
-        chapter_text = "\n".join([
-            f"Chapter {i+1}: {ch.get('title', 'Untitled')} - {ch.get('summary', 'No summary')}"
-            for i, ch in enumerate(chapters)
-        ])
-
-        return f"""Outline: {data.get('title', 'Untitled')}
-Total Chapters: {len(chapters)}
-
-{chapter_text}
 """

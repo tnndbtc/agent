@@ -16,7 +16,6 @@ from novel_agent.modules import (
     PlotGenerator,
     CharacterGenerator,
     SettingGenerator,
-    OutlinerModule,
     ChapterWriter,
     EditorModule,
     ConsistencyChecker
@@ -41,7 +40,6 @@ def main():
     plot_gen = PlotGenerator(context_manager, memory)
     char_gen = CharacterGenerator(context_manager, memory)
     setting_gen = SettingGenerator(context_manager, memory)
-    outliner = OutlinerModule(context_manager, memory)
     writer = ChapterWriter(context_manager, memory, example_manager)
     editor = EditorModule(example_manager)
     checker = ConsistencyChecker(context_manager, memory)
@@ -90,45 +88,40 @@ def main():
     primary_setting = setting_gen.create_primary_setting(plot)
     print(f"✓ Primary setting: {primary_setting.get('location', 'Unknown')}")
 
-    # Step 7: Create outline
-    print("\n8. Creating chapter outline...")
-    outline = outliner.create_chapter_outline(plot, num_chapters=10)
-    print(f"✓ Created outline with {len(outline['chapters'])} chapters")
-
-    # Step 8: Write first chapter
-    print("\n9. Writing Chapter 1...")
-    chapter1 = writer.write_chapter(
-        outline['chapters'][0],
+    # Step 7: Write first chapter
+    print("\n8. Writing Chapter 1...")
+    chapter1 = writer.write_chapter_from_context(
+        plot,
+        chapter_number=1,
         writing_style="literary",
         language="English"
     )
-    print(f"✓ Chapter 1 complete: {chapter1['word_count']} words")
+    print(f"✓ Chapter 1 complete: {chapter1.get('word_count', 0)} words")
 
-    # Step 9: Edit chapter
-    print("\n10. Editing Chapter 1 for style...")
-    edit_results = editor.edit_for_style(chapter1['content'][:1000])
-    print(f"✓ Editing complete: {len(edit_results['issues'])} issues found")
+    # Step 8: Edit chapter
+    print("\n9. Editing Chapter 1 for style...")
+    edit_results = editor.edit_for_style(chapter1.get('content', '')[:1000])
+    print(f"✓ Editing complete: {len(edit_results.get('issues', []))} issues found")
 
-    # Step 10: Check consistency
-    print("\n11. Checking consistency...")
-    consistency = checker.check_character_consistency(chapter1['content'])
+    # Step 9: Check consistency
+    print("\n10. Checking consistency...")
+    consistency = checker.check_character_consistency(chapter1.get('content', ''))
     print(f"✓ Consistency check: {len(consistency.get('issues', []))} issues found")
 
-    # Step 11: Score chapter
-    print("\n12. Scoring chapter...")
+    # Step 10: Score chapter
+    print("\n11. Scoring chapter...")
     chapter_score = scorer.score_chapter(chapter1)
-    print(f"✓ Chapter score: {chapter_score['total_score']:.1f}/10.0 ({chapter_score['grade']})")
+    print(f"✓ Chapter score: {chapter_score.get('total_score', 0):.1f}/10.0 ({chapter_score.get('grade', 'N/A')})")
 
-    # Step 12: Export
-    print("\n13. Exporting novel...")
+    # Step 11: Export
+    print("\n12. Exporting novel...")
     novel_data = {
-        'title': plot['title'],
+        'title': plot.get('title', 'Untitled'),
         'genre': plot.get('genre', ''),
         'author': 'Novel Writing Agent',
         'plot': plot,
         'characters': [protagonist, antagonist] + supporting,
         'settings': [primary_setting],
-        'outline': outline,
         'chapters': [chapter1]
     }
 
@@ -139,11 +132,11 @@ def main():
     print("\n" + "=" * 80)
     print("WORKFLOW COMPLETE!")
     print("=" * 80)
-    print(f"Novel Title: {plot['title']}")
+    print(f"Novel Title: {plot.get('title', 'Untitled')}")
     print(f"Characters: {len(novel_data['characters'])}")
     print(f"Chapters: {len(novel_data['chapters'])}")
-    print(f"Total Words: {chapter1['word_count']}")
-    print(f"Chapter Score: {chapter_score['total_score']:.1f}/10.0")
+    print(f"Total Words: {chapter1.get('word_count', 0)}")
+    print(f"Chapter Score: {chapter_score.get('total_score', 0):.1f}/10.0")
     print(f"Output File: {exported_path}")
     print("=" * 80)
 

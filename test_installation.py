@@ -25,7 +25,6 @@ try:
         PlotGenerator,
         CharacterGenerator,
         SettingGenerator,
-        OutlinerModule,
         ChapterWriter,
         EditorModule,
         ConsistencyChecker
@@ -54,7 +53,6 @@ try:
     plot_gen = PlotGenerator(context_manager, memory)
     char_gen = CharacterGenerator(context_manager, memory)
     setting_gen = SettingGenerator(context_manager, memory)
-    outliner = OutlinerModule(context_manager, memory)
     writer = ChapterWriter(context_manager, memory, example_manager)
     editor = EditorModule(example_manager)
     checker = ConsistencyChecker(context_manager, memory)
