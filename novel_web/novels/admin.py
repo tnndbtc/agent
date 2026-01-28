@@ -2,7 +2,7 @@
 from django.contrib import admin
 from .models import (
     NovelProject, Plot, Character, Setting,
-    ChapterOutline, Chapter, Example, GenerationTask,
+    Chapter, Example, GenerationTask,
     ScoreCategory, ScoreCategoryTranslation, ExampleScore,
     SystemPolicy, SystemPolicyTranslation,
     AgentRole, AgentRoleTranslation,
@@ -40,14 +40,6 @@ class SettingAdmin(admin.ModelAdmin):
     """Admin for Setting."""
     list_display = ['location', 'project', 'is_primary', 'updated_at']
     list_filter = ['is_primary']
-
-
-@admin.register(ChapterOutline)
-class ChapterOutlineAdmin(admin.ModelAdmin):
-    """Admin for ChapterOutline."""
-    list_display = ['number', 'title', 'project', 'pacing']
-    list_filter = ['pacing']
-    search_fields = ['title', 'project__title']
 
 
 @admin.register(Chapter)

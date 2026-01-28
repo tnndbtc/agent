@@ -94,26 +94,22 @@ class PromptAssemblyService:
         return system_prompt
 
     @staticmethod
-    def build_style_instructions(project, language_code='en', chapter_outline=None):
+    def build_style_instructions(project, language_code='en'):
         """
         Build Layer 3: Style + Techniques instructions.
 
         Args:
             project: NovelProject instance
             language_code: Language code (e.g., 'en', 'zh-hans')
-            chapter_outline: Optional ChapterOutline for style override
 
         Returns:
             str: Assembled style and technique instructions
         """
         parts = []
 
-        # Get applicable style (chapter override > project default)
+        # Get project default style
         style = None
-        if chapter_outline and chapter_outline.style_override:
-            style = chapter_outline.style_override
-            logger.debug(f"Using chapter style override: {style.name_key}")
-        elif project.default_style:
+        if project.default_style:
             style = project.default_style
             logger.debug(f"Using project default style: {style.name_key}")
 
@@ -154,7 +150,7 @@ class PromptAssemblyService:
 
         Args:
             project: NovelProject instance
-            context_type: Type of context ('plot', 'character', 'outline', 'chapter', 'brainstorm', 'text')
+            context_type: Type of context ('plot', 'character', 'chapter', 'brainstorm', 'text')
             **kwargs: Additional context parameters
 
         Returns:
@@ -163,17 +159,16 @@ class PromptAssemblyService:
         parts = []
 
         # Include plot context for story-related tasks
-        if context_type in ['plot', 'brainstorm', 'outline', 'character', 'chapter']:
+        if context_type in ['plot', 'brainstorm', 'character', 'chapter']:
             if hasattr(project, 'plot'):
-                # Removed premise - it was causing pollution in outline/chapter generation
+                # Removed premise - it was causing pollution in chapter generation
                 # Removed themes field in migration 0023
                 # Acts provide better structured context
 
                 if project.plot.acts.exists():
-                    # Check if we have a specific chapter_outline or act to determine relevant act
-                    chapter_outline = kwargs.get('chapter_outline')
-                    direct_act = kwargs.get('act')  # Direct act for chapter creation without outline
-                    relevant_act = direct_act or (chapter_outline.act if chapter_outline and hasattr(chapter_outline, 'act') else None)
+                    # Check if we have a specific act to determine relevant act
+                    direct_act = kwargs.get('act')  # Direct act for chapter creation
+                    relevant_act = direct_act
 
                     if relevant_act and context_type == 'chapter':
                         # Include ONLY the relevant act in full detail
@@ -199,7 +194,7 @@ class PromptAssemblyService:
                 logger.debug(f"Added plot context for {project.title}")
 
         # Include character context for character-related and chapter writing tasks
-        if context_type in ['character', 'outline', 'chapter']:
+        if context_type in ['character', 'chapter']:
             chars = project.characters.filter(
                 role__in=['protagonist', 'antagonist', 'mentor']
             )[:3]  # Limit to top 3 key characters
@@ -213,7 +208,7 @@ class PromptAssemblyService:
                 logger.debug(f"Added {len(chars)} characters to context")
 
         # Include setting context for world-building tasks
-        if context_type in ['outline', 'chapter']:
+        if context_type in ['chapter']:
             primary_setting = project.settings.filter(is_primary=True).first()
             if primary_setting:
                 parts.append(f"**Primary Setting:** {primary_setting.location} - {primary_setting.description[:200] if primary_setting.description else 'No description yet'}")
@@ -227,7 +222,7 @@ class PromptAssemblyService:
     @staticmethod
     def assemble_full_prompt(agent_role_key, user_prompt, project=None,
                             language_code='en', context_type='text',
-                            chapter_outline=None, act=None, include_context=True):
+                            act=None, include_context=True):
         """
         Assemble all 5 layers into final (system_message, user_message).
 
@@ -237,8 +232,7 @@ class PromptAssemblyService:
             project: Optional NovelProject instance
             language_code: Language code (e.g., 'en', 'zh-hans')
             context_type: Type of context for Layer 4
-            chapter_outline: Optional ChapterOutline for style override
-            act: Optional Act for direct chapter creation
+            act: Optional Act for chapter creation
             include_context: Whether to include Layer 4 context
 
         Returns:
@@ -256,7 +250,7 @@ class PromptAssemblyService:
         # Layer 4: Context (if enabled and project provided)
         if include_context and project:
             context = PromptAssemblyService.build_context_prompt(
-                project, context_type, chapter_outline=chapter_outline, act=act
+                project, context_type, act=act
             )
             if context:
                 user_parts.append(f"## Project Context\n{context}")
@@ -264,7 +258,7 @@ class PromptAssemblyService:
         # Layer 3: Style and techniques (if project provided)
         if project:
             style = PromptAssemblyService.build_style_instructions(
-                project, language_code, chapter_outline
+                project, language_code
             )
             if style:
                 user_parts.append(style)

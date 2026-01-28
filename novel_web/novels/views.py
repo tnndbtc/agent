@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 from .models import (
     NovelProject, Plot, Act, Character, Setting,
-    ChapterOutline, Chapter, Example, GenerationTask, APIPerformanceMetric,
+    Chapter, Example, GenerationTask, APIPerformanceMetric,
     ScoreCategory, ScoreCategoryTranslation, ExampleScore,
     UserProfile, UserPrompt,
     SystemPolicy, AgentRole, WritingStyle, WritingTechnique
@@ -21,7 +21,7 @@ from .models import (
 from .serializers import (
     NovelProjectSerializer, NovelProjectListSerializer,
     PlotSerializer, ActSerializer, CharacterSerializer, SettingSerializer,
-    ChapterOutlineSerializer, ChapterSerializer, ChapterListSerializer,
+    ChapterSerializer, ChapterListSerializer,
     ExampleSerializer, GenerationTaskSerializer,
     BrainstormRequestSerializer, CreatePlotRequestSerializer,
     CreateCharacterRequestSerializer, WriteChapterRequestSerializer,
@@ -33,12 +33,12 @@ from .serializers import (
 )
 from .services import (
     BrainstormService, PlotService, CharacterService,
-    SettingService, OutlineService, WritingService,
+    SettingService, WritingService,
     EditingService, ConsistencyService, ScoringService, ExportService,
     ProjectService, AIModificationService
 )
 from .prompt_assembly import get_language_name
-from .tasks import brainstorm_ideas_task, write_chapter_task, create_outline_task, score_novel_task
+from .tasks import brainstorm_ideas_task, write_chapter_task, score_novel_task
 from .permissions import IsOwner
 from .ai_client import generate_theme_from_idea
 
@@ -540,224 +540,6 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         return Response(CharacterSerializer(character).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
-    def create_outline(self, request, pk=None):
-        """Create chapter outline."""
-        project = self.get_object()
-
-        # Get user's language preference
-        user_language = getattr(request, 'LANGUAGE_CODE', 'en')
-
-        # Log raw request data for debugging
-        logger.info(f"Create Outline API called - User: {request.user.username}, Project: {project.id}, "
-                   f"Language: {user_language}, Raw request.data: {request.data}")
-
-        num_chapters = int(request.data.get('num_chapters', 1))  # Default to 1 chapter if not specified
-        act_id = request.data.get('act_id')  # Optional act ID for associating outlines
-
-        logger.info(f"Create Outline - num_chapters: {num_chapters}, act_id: {act_id}")
-
-        # Validate act_id if provided
-        if act_id:
-            from .models import Act
-            try:
-                act = Act.objects.get(id=act_id, plot__project=project)
-                logger.info(f"Outline will be associated with Act {act.act_number}: {act.subject}")
-            except Act.DoesNotExist:
-                logger.error(f"Act {act_id} not found for project {project.id}")
-                return Response(
-                    {'error': f'Act with id {act_id} not found for this project'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-        # Create generation task
-        task = GenerationTask.objects.create(
-            project=project,
-            user=request.user,
-            task_type='outline',
-            input_data={'num_chapters': num_chapters, 'act_id': act_id}
-        )
-
-        # Start async task
-        create_outline_task.delay(
-            task_id=str(task.id),
-            project_id=str(project.id),
-            num_chapters=num_chapters,
-            act_id=act_id,
-            user_language=user_language
-        )
-
-        return Response({
-            'task_id': task.id,
-            'status': 'Task started. Check status at /api/tasks/{id}/'
-        }, status=status.HTTP_202_ACCEPTED)
-
-    @action(detail=True, methods=['post'])
-    def regenerate_chapter_outline(self, request, pk=None):
-        """Regenerate a single chapter outline."""
-        project = self.get_object()
-        chapter_number = int(request.data.get('chapter_number')) if request.data.get('chapter_number') else None
-
-        if not chapter_number:
-            return Response(
-                {'error': 'chapter_number is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Create generation task
-        task = GenerationTask.objects.create(
-            project=project,
-            user=request.user,
-            task_type='outline_single',
-            input_data={'chapter_number': chapter_number}
-        )
-
-        # Get user's language preference
-        user_language = getattr(request, 'LANGUAGE_CODE', 'en')
-
-        # Start async task
-        from .tasks import regenerate_single_outline_task
-        regenerate_single_outline_task.delay(
-            task_id=str(task.id),
-            project_id=str(project.id),
-            chapter_number=chapter_number,
-            user_language=user_language
-        )
-
-        return Response({
-            'task_id': task.id,
-            'status': 'Task started. Check status at /api/tasks/{id}/'
-        }, status=status.HTTP_202_ACCEPTED)
-
-    @action(detail=True, methods=['delete'], url_path='delete_outline/(?P<outline_id>[^/.]+)')
-    def delete_outline(self, request, pk=None, outline_id=None):
-        """Delete a chapter outline (allows gaps in numbering)."""
-        project = self.get_object()
-        outline = get_object_or_404(ChapterOutline, id=outline_id, project=project)
-        outline.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-    @action(detail=True, methods=['post'], url_path='swap_outlines')
-    def swap_outlines(self, request, pk=None):
-        """Swap two chapter outlines by exchanging their order_keys."""
-        from django.db import transaction
-        from decimal import Decimal
-
-        project = self.get_object()
-        outline1_id = request.data.get('outline1_id')
-        outline2_id = request.data.get('outline2_id')
-
-        if not outline1_id or not outline2_id:
-            return Response(
-                {'error': 'Both outline1_id and outline2_id are required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        outline1 = get_object_or_404(ChapterOutline, id=outline1_id, project=project)
-        outline2 = get_object_or_404(ChapterOutline, id=outline2_id, project=project)
-
-        with transaction.atomic():
-            # Swap order_keys
-            outline1.order_key, outline2.order_key = outline2.order_key, outline1.order_key
-            outline1.save(update_fields=['order_key'])
-            outline2.save(update_fields=['order_key'])
-
-        logger.info(f"Swapped outlines {outline1_id} and {outline2_id} for project {project.id}")
-
-        return Response({
-            'status': 'Outlines swapped successfully',
-            'outline1': {'id': str(outline1.id), 'number': outline1.number, 'order_key': str(outline1.order_key)},
-            'outline2': {'id': str(outline2.id), 'number': outline2.number, 'order_key': str(outline2.order_key)}
-        }, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=['post'], url_path='reorder_outlines')
-    def reorder_outlines(self, request, pk=None):
-        """Reorder chapter outlines by updating their order_keys in bulk."""
-        from django.db import transaction
-        from decimal import Decimal
-
-        project = self.get_object()
-        outline_orders = request.data.get('outline_orders', [])
-        # Expected format: [{'id': 'uuid1', 'order_key': '1.000000'}, {'id': 'uuid2', 'order_key': '2.000000'}, ...]
-
-        if not outline_orders:
-            return Response(
-                {'error': 'outline_orders array is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        with transaction.atomic():
-            for item in outline_orders:
-                outline = get_object_or_404(
-                    ChapterOutline,
-                    id=item['id'],
-                    project=project
-                )
-                outline.order_key = Decimal(str(item['order_key']))
-                outline.save(update_fields=['order_key'])
-
-        logger.info(f"Reordered {len(outline_orders)} outlines for project {project.id}")
-
-        return Response({
-            'status': 'Outlines reordered successfully',
-            'count': len(outline_orders)
-        }, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=['post'], url_path='insert_outline_between')
-    def insert_outline_between(self, request, pk=None):
-        """Calculate order_key for inserting an outline between two existing outlines."""
-        from decimal import Decimal
-
-        project = self.get_object()
-        before_id = request.data.get('before_id')
-        after_id = request.data.get('after_id')
-
-        if not before_id or not after_id:
-            return Response(
-                {'error': 'Both before_id and after_id are required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        before_outline = get_object_or_404(ChapterOutline, id=before_id, project=project)
-        after_outline = get_object_or_404(ChapterOutline, id=after_id, project=project)
-
-        # Calculate midpoint
-        new_order_key = (before_outline.order_key + after_outline.order_key) / Decimal('2')
-
-        logger.info(f"Calculated order_key for insertion: {new_order_key} (between {before_outline.order_key} and {after_outline.order_key})")
-
-        return Response({
-            'order_key': str(new_order_key),
-            'before': {'id': str(before_outline.id), 'order_key': str(before_outline.order_key)},
-            'after': {'id': str(after_outline.id), 'order_key': str(after_outline.order_key)}
-        }, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=['patch'], url_path='update_outline/(?P<outline_id>[^/.]+)')
-    def update_outline(self, request, pk=None, outline_id=None):
-        """Update chapter outline fields (setting, events, pacing)."""
-        project = self.get_object()
-        outline = get_object_or_404(ChapterOutline, id=outline_id, project=project)
-
-        # Update fields if provided
-        if 'setting' in request.data:
-            outline.setting = request.data['setting']
-        if 'events' in request.data:
-            outline.events = request.data['events']
-        if 'pacing' in request.data:
-            outline.pacing = request.data['pacing']
-
-        outline.save()
-
-        logger.info(f"Updated outline {outline_id} for project {project.id}")
-
-        return Response({
-            'id': str(outline.id),
-            'setting': outline.setting,
-            'events': outline.events,
-            'pacing': outline.pacing,
-            'message': 'Outline updated successfully'
-        }, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=['post'])
     def write_chapter(self, request, pk=None):
         """Write a chapter."""
         project = self.get_object()
@@ -766,41 +548,20 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
 
         # Convert UUID to string for JSON serialization
         validated_data = serializer.validated_data.copy()
-        chapter_outline_id = validated_data.get('chapter_outline_id')
         act_id = validated_data.get('act_id')
-        outline = None  # Initialize outline to None
 
-        # Handle chapter creation based on whether we have outline_id or act_id
-        if chapter_outline_id:
-            # Traditional flow with existing outline
-            try:
-                outline = ChapterOutline.objects.get(
-                    id=chapter_outline_id,
-                    project=project
-                )
-                logger.info(f"Found ChapterOutline: {outline.id} - Title: {outline.title}")
-                validated_data['chapter_outline_id'] = str(chapter_outline_id)
-            except ChapterOutline.DoesNotExist:
-                logger.error(f"ChapterOutline {chapter_outline_id} not found for project {project.id}")
-                return Response({
-                    'error': f'Chapter outline {chapter_outline_id} not found or does not belong to this project'
-                }, status=status.HTTP_404_NOT_FOUND)
-
-        elif act_id:
-            # Direct chapter creation from act WITHOUT outline
-            try:
-                act = Act.objects.get(
-                    id=act_id,
-                    plot__project=project
-                )
-                logger.info(f"Found Act: {act.id} - Subject: {act.subject} for direct chapter creation")
-                # Keep act_id in validated_data for the task
-                # No outline creation!
-            except Act.DoesNotExist:
-                logger.error(f"Act {act_id} not found for project {project.id}")
-                return Response({
-                    'error': f'Act {act_id} not found or does not belong to this project'
-                }, status=status.HTTP_404_NOT_FOUND)
+        # Validate act exists
+        try:
+            act = Act.objects.get(
+                id=act_id,
+                plot__project=project
+            )
+            logger.info(f"Found Act: {act.id} - Subject: {act.subject} for chapter creation")
+        except Act.DoesNotExist:
+            logger.error(f"Act {act_id} not found for project {project.id}")
+            return Response({
+                'error': f'Act {act_id} not found or does not belong to this project'
+            }, status=status.HTTP_404_NOT_FOUND)
 
         # Convert example_id UUID to string for JSON serialization (if present)
         if 'example_id' in validated_data and validated_data['example_id'] is not None:
@@ -811,16 +572,9 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             user_language_code = getattr(request, 'LANGUAGE_CODE', 'en')
             validated_data['language'] = get_language_name(user_language_code)
 
-        # Log the API call with appropriate context
-        if outline:
-            logger.info(f"Write Chapter API called - User: {request.user.username}, Project: {project.id}, "
-                       f"Outline: {outline.title}, Language: {validated_data.get('language')}, Input: {validated_data}")
-        elif act_id:
-            logger.info(f"Write Chapter API called - User: {request.user.username}, Project: {project.id}, "
-                       f"Act ID: {act_id}, Language: {validated_data.get('language')}, Input: {validated_data}")
-        else:
-            logger.info(f"Write Chapter API called - User: {request.user.username}, Project: {project.id}, "
-                       f"Language: {validated_data.get('language')}, Input: {validated_data}")
+        # Log the API call
+        logger.info(f"Write Chapter API called - User: {request.user.username}, Project: {project.id}, "
+                   f"Act ID: {act_id}, Language: {validated_data.get('language')}, Input: {validated_data}")
 
         # Create generation task
         task = GenerationTask.objects.create(

@@ -3,7 +3,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import (
     NovelProject, Plot, Act, Character, Setting,
-    ChapterOutline, Chapter, Example, GenerationTask,
+    Chapter, Example, GenerationTask,
     ScoreCategory, ScoreCategoryTranslation, ExampleScore,
     UserPrompt,
     SystemPolicy, SystemPolicyTranslation,
@@ -60,19 +60,8 @@ class SettingSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 
-class ChapterOutlineSerializer(serializers.ModelSerializer):
-    """Serializer for ChapterOutline model."""
-
-    class Meta:
-        model = ChapterOutline
-        fields = '__all__'
-        read_only_fields = ['id', 'created_at', 'updated_at']
-
-
 class ChapterSerializer(serializers.ModelSerializer):
     """Serializer for Chapter model."""
-
-    outline = ChapterOutlineSerializer(read_only=True)
 
     class Meta:
         model = Chapter
@@ -96,7 +85,6 @@ class NovelProjectSerializer(serializers.ModelSerializer):
     plot = PlotSerializer(read_only=True)
     characters = CharacterSerializer(many=True, read_only=True)
     settings = SettingSerializer(many=True, read_only=True)
-    chapter_outlines = ChapterOutlineSerializer(many=True, read_only=True)
     chapters = ChapterListSerializer(many=True, read_only=True)
     default_style_display = serializers.SerializerMethodField()
 
@@ -105,7 +93,7 @@ class NovelProjectSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'user', 'title', 'status',
             'total_word_count', 'created_at', 'updated_at',
-            'plot', 'characters', 'settings', 'chapter_outlines', 'chapters',
+            'plot', 'characters', 'settings', 'chapters',
             'selected_techniques', 'default_style', 'default_style_display'
         ]
         read_only_fields = ['id', 'user', 'chroma_collection_name', 'total_word_count', 'created_at', 'updated_at']
@@ -267,11 +255,9 @@ class CreateCharacterRequestSerializer(serializers.Serializer):
 
 class WriteChapterRequestSerializer(serializers.Serializer):
     """Request serializer for chapter writing with optional iterative quality improvement."""
-    chapter_outline_id = serializers.UUIDField(required=False, allow_null=True)
     act_id = serializers.IntegerField(
-        required=False,
-        allow_null=True,
-        help_text="Act ID for direct chapter creation without outline"
+        required=True,
+        help_text="Act ID for chapter creation"
     )
     writing_style = serializers.CharField(default='literary')
     language = serializers.CharField(required=False, allow_blank=True)
@@ -296,45 +282,6 @@ class WriteChapterRequestSerializer(serializers.Serializer):
         max_value=10,
         help_text="Maximum tokens as multiple of first iteration (default: 3)"
     )
-
-    def validate(self, data):
-        """Validate that either chapter_outline_id or act_id is provided."""
-        chapter_outline_id = data.get('chapter_outline_id')
-        act_id = data.get('act_id')
-
-        if not chapter_outline_id and not act_id:
-            raise serializers.ValidationError(
-                "Either chapter_outline_id or act_id must be provided."
-            )
-
-        if chapter_outline_id and act_id:
-            raise serializers.ValidationError(
-                "Cannot provide both chapter_outline_id and act_id. Choose one."
-            )
-
-        return data
-
-    def validate_chapter_outline_id(self, value):
-        """Validate that the chapter outline exists."""
-        if not value:
-            return value
-
-        # Import here to avoid circular imports
-        from novels.models import ChapterOutline
-
-        # If we have project context from the view, validate against it
-        if hasattr(self, 'context') and 'project' in self.context:
-            project = self.context['project']
-            if not ChapterOutline.objects.filter(id=value, project=project).exists():
-                raise serializers.ValidationError(
-                    f"Chapter outline {value} not found or does not belong to this project."
-                )
-        else:
-            # Basic validation - just check if the outline exists
-            if not ChapterOutline.objects.filter(id=value).exists():
-                raise serializers.ValidationError(f"Chapter outline {value} not found.")
-
-        return value
 
     def validate_act_id(self, value):
         """Validate that the act exists."""

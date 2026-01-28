@@ -58,8 +58,7 @@ def project_detail(request, pk):
         'has_plot': hasattr(project, 'plot'),
         'characters': project.characters.all(),
         'settings': project.settings.all(),
-        'outlines': project.chapter_outlines.all(),
-        'chapters': project.chapters.select_related('act', 'outline__act').all(),
+        'chapters': project.chapters.select_related('act').all(),
         'previous_ideas': previous_ideas
     }
 

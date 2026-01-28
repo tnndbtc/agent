@@ -8,10 +8,10 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import threading
 import time
-from .models import GenerationTask, NovelProject, Chapter, ChapterOutline, APIPerformanceMetric, UserProfile
+from .models import GenerationTask, NovelProject, Chapter, APIPerformanceMetric, UserProfile
 from .services import (
     BrainstormService, PlotService, CharacterService,
-    SettingService, OutlineService, WritingService,
+    SettingService, WritingService,
     EditingService, ScoringService
 )
 
@@ -181,15 +181,14 @@ def brainstorm_ideas_task(self, task_id, project_id, genre=None, theme=None, num
 
 
 @shared_task(bind=True, max_retries=3)
-def write_chapter_task(self, task_id, project_id, chapter_outline_id=None, act_id=None, writing_style='literary', language='English', target_word_count=3000, example_id=None, iterative_mode=True, max_iterations_multiplier=3):
+def write_chapter_task(self, task_id, project_id, act_id, writing_style='literary', language='English', target_word_count=3000, example_id=None, iterative_mode=True, max_iterations_multiplier=3):
     """
     Write a chapter asynchronously with optional iterative quality improvement.
 
     Args:
         task_id: Generation task ID
         project_id: Novel project ID
-        chapter_outline_id: Chapter outline ID (optional if act_id provided)
-        act_id: Act ID for direct chapter creation without outline
+        act_id: Act ID for chapter creation
         writing_style: Writing style (literary, commercial, etc.)
         language: Target language
         target_word_count: Target word count for the chapter
@@ -198,7 +197,7 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id=None, act_i
         max_iterations_multiplier: Maximum tokens as multiple of first iteration (default: 3)
     """
     logger.info(f"Write chapter task started - task_id: {task_id}, project_id: {project_id}, "
-                f"outline_id: {chapter_outline_id}, act_id: {act_id}, language: {language}, writing_style: {writing_style}, "
+                f"act_id: {act_id}, language: {language}, writing_style: {writing_style}, "
                 f"example_id: {example_id}, iterative_mode: {iterative_mode}")
     try:
         task = GenerationTask.objects.get(id=task_id)
@@ -219,66 +218,21 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id=None, act_i
             update_task_progress(task_id, 0, f"Error: {error_msg}")
             return
 
-        # Handle outline-based or act-based chapter creation
-        outline = None
-        act = None
-        outline_data = None
-
-        if chapter_outline_id:
-            # Traditional flow with outline
-            try:
-                outline = ChapterOutline.objects.get(id=chapter_outline_id, project=project)
-                logger.info(f"Found ChapterOutline: {outline.id} - Title: {outline.title}")
-            except ChapterOutline.DoesNotExist:
-                error_msg = f"Chapter outline {chapter_outline_id} not found for project {project_id}"
-                logger.error(error_msg)
-                task.status = 'failed'
-                task.error_message = error_msg
-                task.save()
-                update_task_progress(task_id, 0, f"Error: {error_msg}")
-                return
-
-            outline_data = {
-                'number': outline.number,
-                'title': outline.title,
-                'pov': outline.pov,
-                'setting': outline.setting,
-                'events': outline.events,
-                'character_development': outline.character_development,
-                'pacing': outline.pacing,
-                'story_beats': outline.story_beats
-            }
-
-            # Validate that we're using the correct outline for this chapter number
-            # This prevents the bug where wrong outline associations cause chapter data loss
-            logger.debug(f"Validating outline.number={outline.number} for chapter generation")
-
-        elif act_id:
-            # Direct creation from act WITHOUT outline
-            try:
-                from .models import Act
-                act = Act.objects.get(id=act_id, plot__project=project)
-                logger.info(f"Found Act: {act.id} - Subject: {act.subject} for direct chapter creation")
-            except Act.DoesNotExist:
-                error_msg = f"Act {act_id} not found for project {project_id}"
-                logger.error(error_msg)
-                task.status = 'failed'
-                task.error_message = error_msg
-                task.save()
-                update_task_progress(task_id, 0, f"Error: {error_msg}")
-                return
-
-            # No outline_data when using act directly
-            logger.info(f"Creating chapter directly from Act {act.act_number}: {act.subject}")
-
-        else:
-            error_msg = "Neither chapter_outline_id nor act_id provided"
+        # Get act for chapter creation
+        try:
+            from .models import Act
+            act = Act.objects.get(id=act_id, plot__project=project)
+            logger.info(f"Found Act: {act.id} - Subject: {act.subject} for chapter creation")
+        except Act.DoesNotExist:
+            error_msg = f"Act {act_id} not found for project {project_id}"
             logger.error(error_msg)
             task.status = 'failed'
             task.error_message = error_msg
             task.save()
             update_task_progress(task_id, 0, f"Error: {error_msg}")
             return
+
+        logger.info(f"Creating chapter from Act {act.act_number}: {act.subject}")
 
         # Load example metadata if example_id provided (metadata only, NO content!)
         example_metadata = None
@@ -332,30 +286,16 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id=None, act_i
                 logger.info(f"{iteration_msg} - Calling WritingService.write_chapter with language='{language}'")
 
                 # Pass example_metadata (NO content!), iteration, and previous_scores
-                # Pass either outline (traditional) or act (direct creation)
-                if outline:
-                    chapter_data, token_usage = WritingService.write_chapter(
-                        project,
-                        outline,
-                        writing_style=writing_style,
-                        language=language,
-                        target_word_count=target_word_count,
-                        example_metadata=example_metadata,
-                        iteration=iteration,
-                        previous_scores=previous_scores
-                    )
-                else:
-                    # Direct creation from act
-                    chapter_data, token_usage = WritingService.write_chapter_from_act(
-                        project,
-                        act,
-                        writing_style=writing_style,
-                        language=language,
-                        target_word_count=target_word_count,
-                        example_metadata=example_metadata,
-                        iteration=iteration,
-                        previous_scores=previous_scores
-                    )
+                chapter_data, token_usage = WritingService.write_chapter_from_act(
+                    project,
+                    act,
+                    writing_style=writing_style,
+                    language=language,
+                    target_word_count=target_word_count,
+                    example_metadata=example_metadata,
+                    iteration=iteration,
+                    previous_scores=previous_scores
+                )
 
                 # Accumulate tokens
                 if token_usage:
@@ -512,29 +452,12 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id=None, act_i
 
         update_task_progress(task_id, 80, "Saving chapter...")
 
-
-        # Validate chapter_number matches outline.number to prevent data loss bug (only for outline-based)
-        if outline and outline.number != chapter_data['chapter_number']:
-            error_msg = (f"Chapter number mismatch: outline.number={outline.number} but "
-                        f"chapter_data['chapter_number']={chapter_data['chapter_number']}. "
-                        f"This would cause wrong outline associations and data loss.")
-            logger.error(error_msg)
-            task.status = 'failed'
-            task.error_message = error_msg
-            task.save()
-            update_task_progress(task_id, 0, f"Error: {error_msg}")
-            return
-
-
         # Create or update chapter
-        # IMPORTANT: Do NOT include 'outline' in defaults - it causes a bug where
-        # wrong outline associations can overwrite existing chapters due to OneToOneField
         chapter, created = Chapter.objects.update_or_create(
             project=project,
             chapter_number=chapter_data['chapter_number'],
             version=1,  # Explicit version in lookup
             defaults={
-                # 'outline' intentionally NOT here - set separately below
                 'title': chapter_data['title'],
                 'content': chapter_data['content'],
                 'summary': chapter_data.get('summary', ''),
@@ -546,19 +469,10 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id=None, act_i
             }
         )
 
-
-        # Set outline separately to avoid OneToOneField conflicts (only if we have an outline)
-        # Only update if it's a new chapter or the outline has changed
-        if outline and (created or chapter.outline != outline):
-            logger.info(f"{'Setting' if created else 'Updating'} outline for chapter {chapter.chapter_number}: {outline.number}")
-            chapter.outline = outline
-            chapter.save(update_fields=['outline'])
-
-        # Set act directly if creating from act without outline
-        if act_id and not outline:
-            logger.info(f"Setting direct act association for chapter {chapter.chapter_number} to act {act_id}")
-            chapter.act_id = act_id
-            chapter.save(update_fields=['act_id'])
+        # Set act association
+        logger.info(f"Setting act association for chapter {chapter.chapter_number} to act {act_id}")
+        chapter.act_id = act_id
+        chapter.save(update_fields=['act_id'])
 
         # Reorder all chapters by act to ensure proper sequencing
         WritingService.reorder_chapters_by_act(project)
@@ -614,380 +528,6 @@ def write_chapter_task(self, task_id, project_id, chapter_outline_id=None, act_i
             logger.error(f"Write chapter task {task_id} failed after {self.max_retries} retries")
             raise
 
-
-@shared_task(bind=True, max_retries=3, time_limit=180, soft_time_limit=150)
-def create_outline_task(self, task_id, project_id, num_chapters=1, act_id=None, user_language='en'):
-    """Create chapter outline asynchronously.
-
-    Args:
-        task_id: ID of the GenerationTask
-        project_id: ID of the NovelProject
-        num_chapters: Number of chapter outlines to generate
-        act_id: Optional ID of Act to associate outlines with
-        user_language: Language for generation
-
-    Time limits: 150s soft limit (raises exception), 180s hard limit (kills task).
-    """
-    logger.info(f"Create Outline task started - task_id: {task_id}, project_id: {project_id}, "
-               f"num_chapters: {num_chapters}, act_id: {act_id}, user_language: {user_language}")
-
-    try:
-        task = GenerationTask.objects.get(id=task_id)
-        task.status = 'running'
-        task.started_at = timezone.now()
-        task.celery_task_id = self.request.id
-        task.save(update_fields=['status', 'started_at', 'celery_task_id'])
-
-        project = NovelProject.objects.get(id=project_id)
-
-        # Get plot data
-        if not hasattr(project, 'plot'):
-            raise ValueError("Project must have a plot before creating outline")
-
-        plot_data = {
-            'title': project.title,  # Use project title instead of deprecated premise
-            # Removed 'premise' key - it was causing pollution in generated outlines
-            # 'themes' removed - field removed in migration 0023
-            'conflict': project.plot.conflict,
-            'structure': project.plot.structure,
-            'arc': project.plot.arc
-        }
-
-        # Fetch act if act_id is provided (key feature: include act context)
-        act = None
-        if act_id:
-            from .models import Act
-            try:
-                act = Act.objects.get(id=act_id, plot=project.plot)
-                logger.info(f"Fetched Act {act.act_number}: {act.subject} for outline generation")
-
-                # KEY: Add act information to plot_data so it's included in the prompt
-                plot_data['act_context'] = {
-                    'act_number': act.act_number,
-                    'subject': act.subject,
-                    # percentage field removed in migration 0023
-                    'description': act.description
-                }
-                logger.info(f"Including act context in outline generation: {act.subject}")
-            except Act.DoesNotExist:
-                logger.error(f"Act {act_id} not found for project {project_id}")
-                act = None
-
-        # Retrieve the original brainstorm idea for richer context
-        idea_data = None
-        try:
-            brainstorm_tasks = GenerationTask.objects.filter(
-                project=project,
-                task_type='brainstorm',
-                status='completed'
-            ).order_by('-created_at')
-
-            if brainstorm_tasks.exists():
-                result = brainstorm_tasks.first().result_data
-                if result and 'ideas' in result and len(result['ideas']) > 0:
-                    # Use the first idea (or the one that was selected for plot creation)
-                    idea_data = result['ideas'][0]
-                    logger.info(f"Retrieved original brainstorm idea for outline generation: {idea_data.get('title', 'Untitled')}")
-        except Exception as e:
-            logger.warning(f"Failed to retrieve original brainstorm idea: {e}")
-
-        update_task_progress(task_id, 17, f"Generating {num_chapters} chapter outline...")
-
-        # Start incremental progress updates (17% -> 75%, +5% every 2 seconds)
-        progress_updater = ProgressUpdater(task_id, 17, 75, increment=5, interval=2)
-        progress_updater.start(f"Generating {num_chapters} chapter outline...")
-
-        try:
-            outline, token_usage = OutlineService.create_outline(project, plot_data, num_chapters, user_language=user_language, idea_data=idea_data)
-            logger.info(f"Create Outline task generated outline with {len(outline.get('chapters', []))} chapters, tokens: {token_usage}")
-        finally:
-            progress_updater.stop()
-
-        update_task_progress(task_id, 80, "Saving outline...")
-
-        from decimal import Decimal
-
-        # Get all existing outlines for global order_key calculation
-        all_existing_outlines = ChapterOutline.objects.filter(project=project)
-        max_order_key = all_existing_outlines.aggregate(
-            max_key=models.Max('order_key')
-        )['max_key'] or Decimal('0')
-
-        # Get existing numbers from ALL outlines in the project (global numbering)
-        # Chapters are numbered sequentially across the entire novel (1, 2, 3, 4, 5...)
-        # NOT per-act (which would cause chapter number collisions)
-        all_project_outlines = ChapterOutline.objects.filter(project=project)
-        existing_numbers = set(all_project_outlines.values_list('number', flat=True))
-
-        # Find available numbers (gaps first, then append)
-        def find_available_numbers(existing_numbers, count):
-            """Find 'count' available numbers, preferring gaps over appending."""
-            available = []
-
-            if existing_numbers:
-                max_num = max(existing_numbers)
-                # Find gaps first
-                for i in range(1, max_num + 1):
-                    if i not in existing_numbers:
-                        available.append(i)
-                        if len(available) == count:
-                            return available
-
-                # Append after max if not enough gaps
-                for i in range(max_num + 1, max_num + count + 1):
-                    available.append(i)
-                    if len(available) == count:
-                        return available
-            else:
-                # No existing outlines, start from 1
-                available = list(range(1, count + 1))
-
-            return available
-
-        total_chapters = len(outline['chapters'])
-        available_numbers = find_available_numbers(existing_numbers, total_chapters)
-
-        logger.warning(f"[NUMBERING FIX] Create Outline task - Existing chapter numbers: {sorted(existing_numbers) if existing_numbers else 'None'}")
-        logger.warning(f"[NUMBERING FIX] Create Outline task - Assigning global numbers: {available_numbers} (act={act.act_number if act else 'None'})")
-        logger.info(f"Create Outline task - Saving {total_chapters} chapters to database (requested: {num_chapters})")
-        logger.info(f"Create Outline task - Assigning numbers: {available_numbers}")
-
-        # Assign numbers and order_keys
-        for i, chapter_data in enumerate(outline['chapters']):
-            chapter_data['number'] = available_numbers[i]
-            chapter_data['order_key'] = max_order_key + Decimal(str(i + 1))
-
-        # Save chapter outlines to database with progress updates
-        for i, chapter_data in enumerate(outline['chapters'], 1):
-            chapter_title = chapter_data.get('title', f"Chapter {chapter_data['number']}")
-            logger.debug(f"Create Outline task - Saving chapter {i}/{total_chapters}: {chapter_title} (number={chapter_data['number']}, order_key={chapter_data['order_key']})")
-            ChapterOutline.objects.create(
-                project=project,
-                act=act,  # Associate with act if provided
-                number=chapter_data['number'],
-                order_key=chapter_data['order_key'],
-                title=chapter_data.get('title', f"Chapter {chapter_data['number']}"),
-                pov=chapter_data.get('pov', ''),
-                setting=chapter_data.get('setting', ''),
-                events=chapter_data.get('events', ''),
-                character_development=chapter_data.get('character_development', ''),
-                pacing=chapter_data.get('pacing', 'medium'),
-                story_beats=chapter_data.get('story_beats', '')
-            )
-
-            # Update progress every 3 chapters or on last chapter
-            if i % 3 == 0 or i == total_chapters:
-                progress = 80 + int((i / total_chapters) * 15)
-                update_task_progress(task_id, progress, f"Saved {i}/{total_chapters} chapters...")
-
-        update_task_progress(task_id, 95, "Finalizing...")
-
-        # Save token usage to user profile
-        if token_usage and task.user:
-            try:
-                profile, created = UserProfile.objects.get_or_create(user=task.user)
-                profile.add_tokens(
-                    prompt_tokens=token_usage.get('prompt_tokens', 0),
-                    completion_tokens=token_usage.get('completion_tokens', 0),
-                    total_tokens=token_usage.get('total_tokens', 0)
-                )
-                logger.info(f"Saved outline tokens to user {task.user.username}: {token_usage}")
-            except Exception as e:
-                logger.error(f"Failed to save outline tokens to user profile: {e}")
-
-        task.result_data = {
-            'num_chapters': len(outline['chapters']),
-            'token_usage': token_usage
-        }
-        task.status = 'completed'
-        task.completed_at = timezone.now()
-        task.progress = 100
-        task.save()
-
-        # Track API performance
-        if task.started_at and task.completed_at:
-            duration = (task.completed_at - task.started_at).total_seconds()
-            APIPerformanceMetric.objects.create(
-                api_type='outline',
-                duration_seconds=duration,
-                input_params={'num_chapters': num_chapters},
-                success=True
-            )
-
-        update_task_progress(task_id, 100, "Outline complete!")
-
-        return {'num_chapters': len(outline['chapters'])}
-
-    except SoftTimeLimitExceeded:
-        logger.error(f"Create outline task timed out after 150 seconds")
-        task = GenerationTask.objects.get(id=task_id)
-        task.status = 'failed'
-        task.error_message = f"Outline generation timed out. Try generating fewer chapters (you requested {num_chapters})."
-        task.save()
-
-        # Broadcast error to WebSocket
-        update_task_progress(task_id, task.progress, task.error_message)
-        raise
-    except Exception as exc:
-        logger.error(f"Create outline task failed: {exc}")
-        task = GenerationTask.objects.get(id=task_id)
-        task.status = 'failed'
-        task.error_message = str(exc)
-        task.save()
-
-        # Broadcast error to WebSocket BEFORE retrying
-        update_task_progress(task_id, task.progress, f"Error: {str(exc)}")
-
-        # Only retry if we haven't exhausted retries
-        if self.request.retries < self.max_retries:
-            logger.info(f"Retrying outline task, attempt {self.request.retries + 1}/{self.max_retries}")
-            raise self.retry(exc=exc, countdown=60)
-        else:
-            # Final failure after all retries exhausted
-            logger.error(f"Outline task {task_id} failed after {self.max_retries} retries")
-            raise
-
-
-@shared_task(bind=True, max_retries=3, time_limit=120, soft_time_limit=100)
-def regenerate_single_outline_task(self, task_id, project_id, chapter_number, user_language='en'):
-    """Regenerate a single chapter outline asynchronously.
-
-    Time limits: 100s soft limit (raises exception), 120s hard limit (kills task).
-    """
-    try:
-        task = GenerationTask.objects.get(id=task_id)
-        task.status = 'running'
-        task.started_at = timezone.now()
-        task.celery_task_id = self.request.id
-        task.save(update_fields=['status', 'started_at', 'celery_task_id'])
-
-        project = NovelProject.objects.get(id=project_id)
-
-        # Get plot data
-        if not hasattr(project, 'plot'):
-            raise ValueError("Project must have a plot before regenerating outline")
-
-        plot_data = {
-            'title': project.title,  # Use project title instead of deprecated premise
-            # Removed 'premise' key - it was causing pollution in generated outlines
-            # 'themes' removed - field removed in migration 0023
-            'conflict': project.plot.conflict,
-            'structure': project.plot.structure,
-            'arc': project.plot.arc
-        }
-
-        update_task_progress(task_id, 17, f"Regenerating chapter {chapter_number} outline...")
-
-        # Get existing outlines for context
-        all_outlines = list(project.chapter_outlines.all().order_by('number'))
-        total_chapters = len(all_outlines)
-
-        # Start incremental progress updates (17% -> 75%, +5% every 2 seconds)
-        progress_updater = ProgressUpdater(task_id, 17, 75, increment=5, interval=2)
-        progress_updater.start(f"Regenerating chapter {chapter_number} outline...")
-
-        try:
-            # Generate new outline for this chapter
-            outline, token_usage = OutlineService.create_outline(project, plot_data, total_chapters, user_language=user_language)
-
-            # Save token usage to user profile
-            if token_usage and token_usage.get('total_tokens', 0) > 0:
-                logger.info(f"Saving token usage to UserProfile: {token_usage}")
-                user_profile, _ = UserProfile.objects.get_or_create(user=project.user)
-                user_profile.total_tokens += token_usage.get('total_tokens', 0)
-                user_profile.prompt_tokens += token_usage.get('prompt_tokens', 0)
-                user_profile.completion_tokens += token_usage.get('completion_tokens', 0)
-                user_profile.save()
-        finally:
-            progress_updater.stop()
-
-        update_task_progress(task_id, 80, "Saving outline...")
-
-        # Find and update the specific chapter outline
-        if chapter_number <= len(outline['chapters']):
-            chapter_data = outline['chapters'][chapter_number - 1]
-
-            # Get existing outline to preserve order_key
-            from decimal import Decimal
-            existing_outline = ChapterOutline.objects.filter(
-                project=project,
-                number=chapter_number
-            ).first()
-
-            if existing_outline:
-                # Update existing outline, preserving order_key
-                existing_outline.title = chapter_data.get('title', f"Chapter {chapter_number}")
-                existing_outline.pov = chapter_data.get('pov', '')
-                existing_outline.setting = chapter_data.get('setting', '')
-                existing_outline.events = chapter_data.get('events', '')
-                existing_outline.character_development = chapter_data.get('character_development', '')
-                existing_outline.pacing = chapter_data.get('pacing', 'medium')
-                existing_outline.story_beats = chapter_data.get('story_beats', '')
-                existing_outline.save()
-            else:
-                # Create new outline with appropriate order_key
-                max_order_key = ChapterOutline.objects.filter(
-                    project=project
-                ).aggregate(max_key=models.Max('order_key'))['max_key'] or Decimal('0')
-
-                ChapterOutline.objects.create(
-                    project=project,
-                    number=chapter_number,
-                    order_key=max_order_key + Decimal('1'),
-                    title=chapter_data.get('title', f"Chapter {chapter_number}"),
-                    pov=chapter_data.get('pov', ''),
-                    setting=chapter_data.get('setting', ''),
-                    events=chapter_data.get('events', ''),
-                    character_development=chapter_data.get('character_development', ''),
-                    pacing=chapter_data.get('pacing', 'medium'),
-                    story_beats=chapter_data.get('story_beats', '')
-                )
-        else:
-            raise ValueError(f"Generated outline doesn't include chapter {chapter_number}")
-
-        update_task_progress(task_id, 95, "Finalizing...")
-
-        task.result_data = {
-            'chapter_number': chapter_number,
-            'token_usage': token_usage
-        }
-        task.status = 'completed'
-        task.completed_at = timezone.now()
-        task.progress = 100
-        task.save()
-
-        update_task_progress(task_id, 100, "Outline regenerated!")
-
-        return {'chapter_number': chapter_number, 'token_usage': token_usage}
-
-    except SoftTimeLimitExceeded:
-        logger.error(f"Regenerate outline task timed out after 100 seconds")
-        task = GenerationTask.objects.get(id=task_id)
-        task.status = 'failed'
-        task.error_message = "Outline regeneration timed out. Please try again."
-        task.save()
-
-        # Broadcast error to WebSocket
-        update_task_progress(task_id, task.progress, task.error_message)
-        raise
-    except Exception as exc:
-        logger.error(f"Regenerate outline task failed: {exc}")
-        task = GenerationTask.objects.get(id=task_id)
-        task.status = 'failed'
-        task.error_message = str(exc)
-        task.save()
-
-        # Broadcast error to WebSocket BEFORE retrying
-        update_task_progress(task_id, task.progress, f"Error: {str(exc)}")
-
-        # Only retry if we haven't exhausted retries
-        if self.request.retries < self.max_retries:
-            logger.info(f"Retrying regenerate outline task, attempt {self.request.retries + 1}/{self.max_retries}")
-            raise self.retry(exc=exc, countdown=60)
-        else:
-            # Final failure after all retries exhausted
-            logger.error(f"Regenerate outline task {task_id} failed after {self.max_retries} retries")
-            raise
 
 
 @shared_task(bind=True, max_retries=3)
