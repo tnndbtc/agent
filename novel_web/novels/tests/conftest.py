@@ -387,7 +387,6 @@ def mock_openai_chat():
     with patch('novel_agent.modules.brainstorming.ChatOpenAI', return_value=mock_instance), \
          patch('novel_agent.modules.plot_generator.ChatOpenAI', return_value=mock_instance), \
          patch('novel_agent.modules.character_generator.ChatOpenAI', return_value=mock_instance), \
-         patch('novel_agent.modules.outliner.ChatOpenAI', return_value=mock_instance), \
          patch('novel_agent.modules.chapter_writer.ChatOpenAI', return_value=mock_instance), \
          patch('novel_agent.modules.editor.ChatOpenAI', return_value=mock_instance), \
          patch('novel_agent.modules.consistency_checker.ChatOpenAI', return_value=mock_instance), \
@@ -586,14 +585,3 @@ def create_plot_data():
     return _create_data
 
 
-@pytest.fixture
-def create_chapter_data():
-    """Factory fixture to create chapter writing request data."""
-    def _create_data(chapter_outline_id, word_count=100):
-        return {
-            'chapter_outline_id': chapter_outline_id,
-            'writing_style': 'literary',
-            'language': 'English',
-            'target_word_count': word_count
-        }
-    return _create_data

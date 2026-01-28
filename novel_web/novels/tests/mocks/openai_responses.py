@@ -130,36 +130,6 @@ class MockOpenAIResponses:
         return json.dumps([char_data], indent=2)
 
     @staticmethod
-    def chapter_outline_response(chapter_number=1, total_chapters=20):
-        """Mock response for single chapter outline creation."""
-        return f"""---
-CHAPTER {chapter_number}: The Beginning
-POV: Third person limited
-Setting: The hero's village
-Events: The hero goes about their normal life until something extraordinary happens that changes everything
-Character Development: Hero is established as ordinary but with hidden potential
-Pacing: medium
-Story Beats: Introduces the inciting incident that starts the adventure
----"""
-
-    @staticmethod
-    def full_outline_response(num_chapters=3):
-        """Mock response for complete outline generation in JSON format."""
-        import json
-        chapters = []
-        for i in range(1, num_chapters + 1):
-            chapters.append({
-                "number": i,
-                "title": f"Chapter {i} - The Journey Continues",
-                "summary": f"The hero faces challenge number {i} and overcomes it through courage and skill, learning an important lesson.",
-                "events": f"Challenge {i} begins when the hero arrives at a critical moment. After struggling with the obstacle and facing doubt, the hero overcomes through determination and discovers an important revelation about the quest.",
-                "pacing": "fast" if i % 2 == 0 else "medium",
-                "setting": f"Location {i} on the hero's path",
-                "word_count_target": 3000
-            })
-        return json.dumps(chapters, indent=2)
-
-    @staticmethod
     def chapter_content_response(chapter_number=1, word_count=100):
         """Mock response for chapter writing."""
         # Generate chapter content with approximate word count
@@ -260,21 +230,6 @@ def get_mock_response_for_prompt(prompt_text):
     # Brainstorm/Ideas
     if 'brainstorm' in prompt_lower or 'plot idea' in prompt_lower:
         return MockOpenAIResponses.brainstorm_response()
-
-    # Outlines - CHECK THESE FIRST before plot since they contain "chapter"
-    elif 'outline for chapter' in prompt_lower or ('chapter' in prompt_lower and 'regenerate' in prompt_lower):
-        # Single chapter outline - extract chapter number from prompt
-        match = re.search(r'chapter\s+(\d+)', prompt_lower)
-        chapter_number = int(match.group(1)) if match else 1
-        return MockOpenAIResponses.chapter_outline_response(chapter_number=chapter_number)
-    elif 'chapter-by-chapter' in prompt_lower or ('outline' in prompt_lower and 'chapter' in prompt_lower):
-        # Full multi-chapter outline - extract num_chapters from prompt
-        match = re.search(r'(\d+)-chapter outline', prompt_lower)
-        if not match:
-            # Try alternative patterns
-            match = re.search(r'create.*?(\d+)\s+chapter', prompt_lower)
-        num_chapters = int(match.group(1)) if match else 3
-        return MockOpenAIResponses.full_outline_response(num_chapters=num_chapters)
 
     # Plot creation
     elif 'plot structure' in prompt_lower or 'three-act' in prompt_lower:

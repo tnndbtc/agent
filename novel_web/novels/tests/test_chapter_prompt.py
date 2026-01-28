@@ -5,8 +5,8 @@ This test ensures that when writing chapter content, the AI prompt clearly state
 which act the chapter belongs to, preventing chapters from being written with
 incorrect tone/pacing for their story position.
 
-Similar to test_outline_prompt.py, this test captures the actual prompts sent to
-the AI and verifies that act information is properly emphasized.
+This test captures the actual prompts sent to the AI and verifies that act
+information is properly emphasized.
 """
 
 import pytest

@@ -3,7 +3,7 @@ import pytest
 from django.contrib.auth.models import User
 from rest_framework.test import APIClient
 from novels.models import (
-    UserPrompt, NovelProject, Chapter, ChapterOutline, Plot,
+    UserPrompt, NovelProject, Chapter, Plot,
     SystemPolicy, SystemPolicyTranslation,
     AgentRole, AgentRoleTranslation
 )

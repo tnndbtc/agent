@@ -7,7 +7,7 @@ from django.test import TestCase, Client
 from django.contrib.auth.models import User
 from django.urls import reverse
 from django.template.exceptions import TemplateSyntaxError
-from novels.models import NovelProject, Plot, Act, Chapter, ChapterOutline
+from novels.models import NovelProject, Plot, Act, Chapter
 
 
 class TestProjectDetailView(TestCase):
@@ -46,33 +46,10 @@ class TestProjectDetailView(TestCase):
             description="The middle conflict"
         )
 
-        # Create outlines associated with acts
-        self.outline1 = ChapterOutline.objects.create(
-            project=self.project,
-            act=self.act1,
-            number=1,
-            title="Chapter 1 Outline",
-            pov="Main Character",
-            setting="City",
-            events="Opening events",
-            pacing="slow"
-        )
-
-        self.outline2 = ChapterOutline.objects.create(
-            project=self.project,
-            act=self.act2,
-            number=2,
-            title="Chapter 2 Outline",
-            pov="Secondary Character",
-            setting="Forest",
-            events="Conflict events",
-            pacing="fast"
-        )
-
-        # Create chapters associated with outlines
+        # Create chapters associated with acts
         self.chapter1 = Chapter.objects.create(
             project=self.project,
-            outline=self.outline1,
+            act=self.act1,
             chapter_number=1,
             title="Chapter 1",
             content="Chapter 1 content here...",
@@ -82,7 +59,7 @@ class TestProjectDetailView(TestCase):
 
         self.chapter2 = Chapter.objects.create(
             project=self.project,
-            outline=self.outline2,
+            act=self.act2,
             chapter_number=2,
             title="Chapter 2",
             content="Chapter 2 content here...",
@@ -90,10 +67,9 @@ class TestProjectDetailView(TestCase):
             is_draft=False
         )
 
-        # Create an orphan chapter (no outline, created directly)
+        # Create a chapter without an act
         self.chapter3 = Chapter.objects.create(
             project=self.project,
-            outline=None,  # No outline - created directly
             chapter_number=3,
             title="Chapter 3 - Direct",
             content="Chapter 3 content created directly...",
@@ -119,7 +95,6 @@ class TestProjectDetailView(TestCase):
             self.assertEqual(response.context['project'], self.project)
             self.assertTrue(response.context['has_plot'])
             self.assertEqual(len(response.context['chapters']), 3)
-            self.assertEqual(len(response.context['outlines']), 2)
 
             # Check that chapters are displayed in the response
             self.assertContains(response, "Chapter 1")
@@ -154,7 +129,7 @@ class TestProjectDetailView(TestCase):
             chroma_collection_name=f"test_{uuid.uuid4().hex[:8]}"
         )
 
-        # Create chapters without acts/outlines
+        # Create chapters without acts
         Chapter.objects.create(
             project=project_no_acts,
             chapter_number=1,
@@ -176,7 +151,7 @@ class TestProjectDetailView(TestCase):
             raise
 
     def test_project_detail_view_with_empty_project(self):
-        """Test project detail view with no chapters or outlines."""
+        """Test project detail view with no chapters."""
         empty_project = NovelProject.objects.create(
             user=self.user,
             title="Empty Novel",
