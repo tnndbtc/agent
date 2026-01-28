@@ -220,22 +220,6 @@ class GenerationTaskSerializer(serializers.ModelSerializer):
 
 # Request/Response serializers for AI operations
 
-class BrainstormRequestSerializer(serializers.Serializer):
-    """Request serializer for brainstorming."""
-    genre = serializers.CharField(required=False, allow_blank=True)
-    theme = serializers.CharField(required=False, allow_blank=True)
-    num_ideas = serializers.IntegerField(default=3, min_value=1, max_value=10)
-    custom_prompt = serializers.CharField(required=False, allow_blank=True)
-
-
-class PlotIdeaSerializer(serializers.Serializer):
-    """Serializer for plot ideas (from brainstorming)."""
-    title = serializers.CharField()
-    premise = serializers.CharField(required=False, allow_blank=True)  # Optional - not persisted to Plot model
-    conflict = serializers.CharField()
-    hook = serializers.CharField()
-
-
 class CreatePlotRequestSerializer(serializers.Serializer):
     """Request serializer for plot creation."""
     idea_data = serializers.JSONField()

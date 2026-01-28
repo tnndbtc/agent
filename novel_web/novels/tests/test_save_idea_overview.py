@@ -1,9 +1,8 @@
 """
-Test that after saving a manual idea and creating plot/characters,
+Test that after creating plot/characters directly from idea,
 the project detail page (Overview tab) renders the plot and characters.
 
-This reproduces the bug where the JS form handler updates only the idea text
-but never reloads the page, so plot/characters don't appear in the UI.
+This verifies the JS form handler properly reloads the page after plot creation.
 """
 import re
 import pytest
@@ -14,30 +13,21 @@ from novels.models import Plot, Character
 @pytest.mark.integration
 @pytest.mark.django_db
 class TestSaveIdeaOverview:
-    """Test the full flow: save idea -> create plot -> verify overview shows data."""
+    """Test the full flow: create plot directly from idea -> verify overview shows data."""
 
     def test_overview_shows_plot_and_characters_after_save_idea(
         self, authenticated_client, test_project, mock_all_openai
     ):
         """
-        After saving a manual idea and creating plot/characters via API,
+        After creating plot/characters via API directly from idea,
         the project detail page should render plot and characters.
         """
         project = test_project
 
-        # Step 1: Save a manual idea
+        # Step 1: Create plot and characters directly from idea (simplified workflow)
         idea_data = {
             'premise': 'A young wizard discovers a hidden world beneath the ocean.'
         }
-        idea_response = authenticated_client.post(
-            f'/api/projects/{project.id}/save_manual_idea/',
-            {'idea': idea_data},
-            format='json'
-        )
-        assert idea_response.status_code == 201
-        assert 'task_id' in idea_response.data
-
-        # Step 2: Create plot and characters (uses the idea)
         plot_response = authenticated_client.post(
             f'/api/projects/{project.id}/create_plot/',
             {
@@ -55,7 +45,7 @@ class TestSaveIdeaOverview:
         assert 'protagonist' in plot_response.data
         assert 'antagonist' in plot_response.data
 
-        # Step 3: Verify data exists in the database
+        # Step 2: Verify data exists in the database
         assert Plot.objects.filter(project=project).exists(), \
             "Plot should exist in DB after create_plot API call"
         assert Character.objects.filter(project=project, role='protagonist').exists(), \
@@ -63,21 +53,21 @@ class TestSaveIdeaOverview:
         assert Character.objects.filter(project=project, role='antagonist').exists(), \
             "Antagonist should exist in DB after create_plot API call"
 
-        # Step 4: Load the project detail page (simulates page reload)
+        # Step 3: Load the project detail page (simulates page reload)
         web_client = Client()
         web_client.login(username='testuser', password='testpass123')
         page_response = web_client.get(f'/en/project/{project.id}/')
 
         assert page_response.status_code == 200
 
-        # Step 5: Verify the page context includes plot and characters
+        # Step 4: Verify the page context includes plot and characters
         assert page_response.context['has_plot'] is True, \
             "Page context should have has_plot=True after plot creation"
         characters = list(page_response.context['characters'])
         assert len(characters) >= 2, \
             f"Page context should have at least 2 characters, got {len(characters)}"
 
-        # Step 6: Verify the HTML contains character and plot content
+        # Step 5: Verify the HTML contains character and plot content
         content = page_response.content.decode()
         protagonist = Character.objects.get(project=project, role='protagonist')
         antagonist = Character.objects.get(project=project, role='antagonist')
@@ -91,9 +81,8 @@ class TestSaveIdeaOverview:
         self, authenticated_client, test_project, mock_all_openai
     ):
         """
-        Reproduces the bug: the JS handler for manualForm submit calls
-        save_manual_idea and create_plot, but after success it only updates
-        the idea text and never triggers window.location.reload().
+        Verifies that the JS handler for manualForm submit calls create_plot
+        and triggers window.location.reload() after success.
 
         Without a reload, the server-rendered plot/characters sections
         (controlled by {% if has_plot %} and {% if characters %}) remain

@@ -10,7 +10,7 @@ import threading
 import time
 from .models import GenerationTask, NovelProject, Chapter, APIPerformanceMetric, UserProfile
 from .services import (
-    BrainstormService, PlotService, CharacterService,
+    PlotService, CharacterService,
     SettingService, WritingService,
     EditingService, ScoringService
 )
@@ -82,102 +82,6 @@ def update_task_progress(task_id, progress, message=""):
         logger.error(f"Task {task_id} not found")
     except Exception as e:
         logger.error(f"Error updating task progress: {e}")
-
-
-@shared_task(bind=True, max_retries=3)
-def brainstorm_ideas_task(self, task_id, project_id, genre=None, theme=None, num_ideas=3, custom_prompt=None, user_language='en'):
-    """Generate plot ideas asynchronously."""
-    logger.info(f"Brainstorm task started - task_id: {task_id}, project_id: {project_id}, "
-               f"genre: {genre}, theme: {theme}, num_ideas: {num_ideas}, custom_prompt: {custom_prompt}, user_language: {user_language}")
-
-    try:
-        task = GenerationTask.objects.get(id=task_id)
-        task.status = 'running'
-        task.started_at = timezone.now()
-        task.celery_task_id = self.request.id
-        task.save(update_fields=['status', 'started_at', 'celery_task_id'])
-
-        project = NovelProject.objects.get(id=project_id)
-
-        update_task_progress(task_id, 17, "Generating plot ideas...")
-
-        # Start incremental progress updates (17% -> 85%, +5% every 2 seconds)
-        progress_updater = ProgressUpdater(task_id, 17, 85, increment=5, interval=2)
-        progress_updater.start("Generating plot ideas...")
-
-        try:
-            ideas, token_usage = BrainstormService.generate_ideas(
-                project,
-                genre=genre,
-                theme=theme,
-                num_ideas=num_ideas,
-                custom_prompt=custom_prompt,
-                use_context=False,  # Skip context retrieval for faster generation
-                user_language=user_language
-            )
-            logger.info(f"Brainstorm task generated {len(ideas)} ideas, tokens: {token_usage}")
-
-            # Save token usage to user profile
-            if token_usage and task.user:
-                try:
-                    profile, created = UserProfile.objects.get_or_create(user=task.user)
-                    profile.add_tokens(
-                        prompt_tokens=token_usage.get('prompt_tokens', 0),
-                        completion_tokens=token_usage.get('completion_tokens', 0),
-                        total_tokens=token_usage.get('total_tokens', 0)
-                    )
-                    logger.info(f"Saved brainstorm tokens to user {task.user.username}: {token_usage}")
-                except Exception as e:
-                    logger.error(f"Failed to save brainstorm tokens to user profile: {e}")
-        finally:
-            progress_updater.stop()
-
-        update_task_progress(task_id, 90, "Finalizing ideas...")
-
-        task.result_data = {
-            'ideas': ideas,
-            'token_usage': token_usage
-        }
-        task.status = 'completed'
-        task.completed_at = timezone.now()
-        task.progress = 100
-        task.save()
-
-        # Track API performance
-        if task.started_at and task.completed_at:
-            duration = (task.completed_at - task.started_at).total_seconds()
-            APIPerformanceMetric.objects.create(
-                api_type='brainstorm',
-                duration_seconds=duration,
-                input_params={'num_ideas': num_ideas, 'theme': theme or ''},
-                success=True
-            )
-
-        update_task_progress(task_id, 100, "Complete!")
-
-        return {
-            'ideas': ideas,
-            'token_usage': token_usage
-        }
-
-    except Exception as exc:
-        logger.error(f"Brainstorm task failed: {exc}")
-        task = GenerationTask.objects.get(id=task_id)
-        task.status = 'failed'
-        task.error_message = str(exc)
-        task.save()
-
-        # Broadcast error to WebSocket BEFORE retrying
-        update_task_progress(task_id, task.progress, f"Error: {str(exc)}")
-
-        # Only retry if we haven't exhausted retries
-        if self.request.retries < self.max_retries:
-            logger.info(f"Retrying brainstorm task, attempt {self.request.retries + 1}/{self.max_retries}")
-            raise self.retry(exc=exc, countdown=60)
-        else:
-            # Final failure after all retries exhausted
-            logger.error(f"Brainstorm task {task_id} failed after {self.max_retries} retries")
-            raise
 
 
 @shared_task(bind=True, max_retries=3)

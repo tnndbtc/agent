@@ -23,7 +23,7 @@ from .serializers import (
     PlotSerializer, ActSerializer, CharacterSerializer, SettingSerializer,
     ChapterSerializer, ChapterListSerializer,
     ExampleSerializer, GenerationTaskSerializer,
-    BrainstormRequestSerializer, CreatePlotRequestSerializer,
+    CreatePlotRequestSerializer,
     CreateCharacterRequestSerializer, WriteChapterRequestSerializer,
     EditRequestSerializer, ScoreRequestSerializer,
     ScoreCategorySerializer, ScoreCategoryTranslationSerializer, ExampleScoreSerializer,
@@ -32,13 +32,13 @@ from .serializers import (
     WritingStyleSerializer, WritingTechniqueSerializer
 )
 from .services import (
-    BrainstormService, PlotService, CharacterService,
+    PlotService, CharacterService,
     SettingService, WritingService,
     EditingService, ConsistencyService, ScoringService, ExportService,
     ProjectService, AIModificationService
 )
 from .prompt_assembly import get_language_name
-from .tasks import brainstorm_ideas_task, write_chapter_task, score_novel_task
+from .tasks import write_chapter_task, score_novel_task
 from .permissions import IsOwner
 from .ai_client import generate_theme_from_idea
 
@@ -59,70 +59,6 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
-
-    @action(detail=True, methods=['post'])
-    def brainstorm(self, request, pk=None):
-        """Generate plot ideas."""
-        project = self.get_object()
-        serializer = BrainstormRequestSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        # Get user's language preference
-        user_language = getattr(request, 'LANGUAGE_CODE', 'en')
-
-        logger.info(f"Brainstorm API called - User: {request.user.username}, Project: {project.id}, "
-                   f"Language: {user_language}, Input: {serializer.validated_data}")
-
-        # Create generation task
-        task = GenerationTask.objects.create(
-            project=project,
-            user=request.user,
-            task_type='brainstorm',
-            input_data=serializer.validated_data
-        )
-
-        # Start async task
-        brainstorm_ideas_task.delay(
-            task_id=str(task.id),
-            project_id=str(project.id),
-            user_language=user_language,
-            **serializer.validated_data
-        )
-
-        return Response({
-            'task_id': task.id,
-            'status': 'Task started. Check status at /api/tasks/{id}/'
-        }, status=status.HTTP_202_ACCEPTED)
-
-    @action(detail=True, methods=['post'], url_path='save_manual_idea')
-    def save_manual_idea(self, request, pk=None):
-        """Save a manually entered idea."""
-        project = self.get_object()
-        idea_data = request.data.get('idea')
-
-        if not idea_data:
-            return Response(
-                {'error': 'Idea data is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        # Removed premise requirement - premise field is deprecated
-
-        # Create a completed generation task with the manual idea
-        from django.utils import timezone
-        task = GenerationTask.objects.create(
-            project=project,
-            user=request.user,
-            task_type='brainstorm',
-            status='completed',
-            input_data={'manual': True},
-            result_data={'ideas': [idea_data]},
-            completed_at=timezone.now()
-        )
-
-        return Response({
-            'message': 'Idea saved successfully',
-            'task_id': task.id
-        }, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
     def create_plot(self, request, pk=None):

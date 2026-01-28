@@ -44,121 +44,28 @@
             </div>
         </div>
 
-        <!-- Ideas Section (Embedded Brainstorm Functionality) -->
-        <div class="section brainstorm-section">
+        <!-- Ideas Section -->
+        <div class="section">
             <h3>{% trans "Ideas" %}</h3>
 
-            <!-- Idea Form Section -->
-            <div class="idea-form-section" style="margin-top: 1rem;">
-                {% if previous_ideas %}
-                <!-- Show current idea with Modify button -->
-                <div class="current-idea-display" id="currentIdeaDisplay" style="margin-bottom: 1rem; padding: 1rem; background-color: #f9f9f9; border-radius: 8px;">
-                    <strong>Current Idea:</strong>
-                    <div id="currentIdeaText" style="margin-top: 0.5rem;">
-                        {% firstof previous_ideas.0.premise previous_ideas.0.description "No description" %}
-                    </div>
-                    <button type="button" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;" onclick="showModifyForm()">
-                        ✏️ Modify
-                    </button>
-                </div>
-
-                <!-- Edit Form - Hidden by default when idea exists -->
-                <form id="manualForm" class="form-card" style="display: none;">
-                    <div class="form-group">
-                        <label for="manual_premise">Modify Idea</label>
-                        <textarea id="manual_premise" name="premise" class="form-control" rows="4" required
-                                  placeholder="Describe your plot idea..."
-                                  data-original-value="{% firstof previous_ideas.0.premise previous_ideas.0.description "" %}">{% firstof previous_ideas.0.premise previous_ideas.0.description "" %}</textarea>
-                    </div>
-
-                    <div id="progressContainer" class="progress-container" style="display: none;">
-                        <div class="progress-bar">
-                            <div id="progressBarFill" class="progress-bar-fill">0%</div>
-                        </div>
-                        <div id="progressText" class="progress-text">Saving idea and creating plot & characters...</div>
-                    </div>
-
-                    <div style="display: flex; gap: 10px;">
-                        <button type="submit" class="btn btn-primary" id="saveIdeaBtn" disabled style="opacity: 0.5; flex: 1;">
-                            💾 Save Idea and continue
-                        </button>
-                        <button type="button" class="btn btn-secondary" onclick="cancelModifyForm()" style="flex: 0.5;">
-                            Cancel
-                        </button>
-                    </div>
-                </form>
-                {% else %}
-                <!-- Show form directly for new ideas -->
-                <form id="manualForm" class="form-card">
-                    <div class="form-group">
-                        <label for="manual_premise">Enter Your Idea</label>
-                        <textarea id="manual_premise" name="premise" class="form-control" rows="4" required
-                                  placeholder="Describe your plot idea..."></textarea>
-                    </div>
-
-                    <div id="progressContainer" class="progress-container" style="display: none;">
-                        <div class="progress-bar">
-                            <div id="progressBarFill" class="progress-bar-fill">0%</div>
-                        </div>
-                        <div id="progressText" class="progress-text">Saving idea and creating plot & characters...</div>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary btn-block" id="saveIdeaBtn">
-                        💾 Save Idea and continue
-                    </button>
-                </form>
-                {% endif %}
-            </div>
-
-            {% if not previous_ideas %}
-            <!-- Original Brainstorm Page - Only shown when no ideas exist -->
-            <div class="info-message">
-                <p>{% trans "Generate creative plot ideas for your novel. You can customize the theme and number of ideas to generate." %}</p>
-            </div>
-
-            <!-- Mode Toggle -->
-            <div class="mode-toggle">
-                <button type="button" class="mode-btn active" data-mode="generate" onclick="switchMode('generate')">
-                    🤖 Generate Ideas
-                </button>
-                <button type="button" class="mode-btn" data-mode="manual" onclick="switchMode('manual')">
-                    ✍️ Manual Input
-                </button>
-            </div>
-
-            <!-- AI Generation Form -->
-            <form id="brainstormForm" class="form-card" style="display: block;">
+            <form id="manualForm" class="form-card">
                 <div class="form-group">
-                    <label for="theme">{% trans "Theme" %} ({% trans "optional" %})</label>
-                    <input type="text" id="theme" name="theme" class="form-control"
-                           placeholder="{% trans "e.g., Redemption, Coming of age, Good vs Evil" %}">
-                    <small class="form-text">{% trans "Enter a theme to guide the brainstorming" %}</small>
+                    <label for="manual_premise">{% trans "Enter Your Idea" %}</label>
+                    <textarea id="manual_premise" name="premise" class="form-control" rows="4" required
+                              placeholder="{% trans "Describe your plot idea..." %}"></textarea>
                 </div>
 
-                <div class="form-group">
-                    <label for="num_ideas">{% trans "Number of Ideas" %}</label>
-                    <input type="number" id="num_ideas" name="num_ideas" class="form-control"
-                           value="3" min="1" max="20" required>
-                    <small class="form-text">{% trans "Enter a number between 1 and 20" %}</small>
-                </div>
-
-                <div id="brainstormProgressContainer" class="progress-container" style="display: none;">
+                <div id="progressContainer" class="progress-container" style="display: none;">
                     <div class="progress-bar">
-                        <div id="brainstormProgressBarFill" class="progress-bar-fill">0%</div>
+                        <div id="progressBarFill" class="progress-bar-fill">0%</div>
                     </div>
-                    <div id="brainstormProgressText" class="progress-text">Generating ideas...</div>
+                    <div id="progressText" class="progress-text">{% trans "Creating plot & characters..." %}</div>
                 </div>
 
-                <button type="submit" class="btn btn-primary btn-block" id="generateIdeasBtn">
-                    {% trans "Generate Ideas" %}
+                <button type="submit" class="btn btn-primary btn-block" id="saveIdeaBtn">
+                    💾 {% trans "Save Idea and continue" %}
                 </button>
             </form>
-
-            <div id="resultsSection" class="results-section" style="display: none;">
-                <h3>{% trans "Generated Ideas" %}</h3>
-                <div id="ideasContainer" class="ideas-container"></div>
-            </div>
-            {% endif %}
         </div>
 
         <!-- Plot Section -->
@@ -605,181 +512,6 @@
 </div>
 
 <style>
-/* Brainstorm Section Styles */
-.brainstorm-section .info-message {
-    background: #eff6ff;
-    border-left: 4px solid #3b82f6;
-    padding: 1rem;
-    margin-bottom: 1.5rem;
-    border-radius: 4px;
-}
-
-.brainstorm-section .info-message p {
-    margin: 0;
-    color: #1e40af;
-}
-
-.brainstorm-section .form-card {
-    background: #f9fafb;
-    padding: 1.5rem;
-    border-radius: 8px;
-}
-
-.brainstorm-section .form-group {
-    margin-bottom: 1.5rem;
-}
-
-.brainstorm-section .form-group label {
-    display: block;
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-    color: #374151;
-}
-
-.brainstorm-section .form-control {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    font-size: 1rem;
-    transition: border-color 0.2s;
-}
-
-.brainstorm-section .form-control:focus {
-    outline: none;
-    border-color: #4f46e5;
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
-}
-
-.brainstorm-section .form-text {
-    display: block;
-    margin-top: 0.25rem;
-    font-size: 0.875rem;
-    color: #6b7280;
-}
-
-.brainstorm-section .btn-block {
-    width: 100%;
-    margin-top: 1rem;
-}
-
-.brainstorm-section .results-section {
-    margin-top: 2rem;
-    padding-top: 2rem;
-    border-top: 2px solid #e5e7eb;
-}
-
-.brainstorm-section .results-section h3 {
-    margin-bottom: 1rem;
-    color: #1f2937;
-}
-
-.brainstorm-section .ideas-container {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.brainstorm-section .idea-card {
-    background: white;
-    border: 2px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 1.5rem;
-    transition: all 0.2s;
-    cursor: pointer;
-}
-
-.brainstorm-section .idea-card:hover {
-    border-color: #4f46e5;
-    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.15);
-}
-
-.brainstorm-section .idea-card.selected {
-    border-color: #4f46e5;
-    background: #eff6ff;
-}
-
-.brainstorm-section .idea-card.current-idea {
-    cursor: default;
-}
-
-.brainstorm-section .idea-title {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: #1f2937;
-    margin-bottom: 0.5rem;
-}
-
-.brainstorm-section .idea-premise {
-    color: #4b5563;
-    line-height: 1.6;
-    margin-bottom: 0.75rem;
-}
-
-.brainstorm-section .idea-tags {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-}
-
-.brainstorm-section .tag {
-    display: inline-block;
-    padding: 0.25rem 0.75rem;
-    background: #e0e7ff;
-    color: #4338ca;
-    border-radius: 12px;
-    font-size: 0.875rem;
-    font-weight: 500;
-}
-
-.brainstorm-section .action-buttons {
-    margin-top: 1.5rem;
-    display: flex;
-    gap: 1rem;
-}
-
-.brainstorm-section .mode-toggle {
-    display: flex;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-    background: #f9fafb;
-    padding: 0.5rem;
-    border-radius: 8px;
-}
-
-.brainstorm-section .mode-btn {
-    flex: 1;
-    padding: 0.75rem 1.5rem;
-    border: 2px solid transparent;
-    border-radius: 6px;
-    background: white;
-    color: #6b7280;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.brainstorm-section .mode-btn:hover {
-    background: #f3f4f6;
-}
-
-.brainstorm-section .mode-btn.active {
-    background: #4f46e5;
-    color: white;
-    border-color: #4338ca;
-}
-
-.brainstorm-section textarea.form-control {
-    resize: vertical;
-    min-height: 100px;
-}
-
-.brainstorm-section .saved-ideas-section h4 {
-    margin-bottom: 1rem;
-    color: #1f2937;
-    font-size: 1.2rem;
-}
 
 .progress-container {
     margin: 1.5rem 0;
@@ -816,15 +548,6 @@
     font-size: 0.875rem;
 }
 
-@media (max-width: 768px) {
-    .brainstorm-section .action-buttons {
-        flex-direction: column;
-    }
-
-    .brainstorm-section .action-buttons .btn {
-        width: 100%;
-    }
-}
 
 /* Example Selection Modal Styles */
 .modal-overlay {
@@ -1332,23 +1055,6 @@
 <script>
 const projectId = '{{ project.id }}';
 
-// Brainstorm functionality - currentIdea initialization
-let currentIdea = {{ previous_ideas|length }} > 0 ? {
-    title: '{{ previous_ideas.0.title|default:"My Idea"|escapejs }}',
-    premise: `{{ previous_ideas.0.premise|default:""|escapejs }}`
-} : null;
-
-// Brainstorm functionality - Idea management functions
-function modifyIdea() {
-    document.getElementById('editSection').style.display = 'block';
-    document.querySelector('.saved-ideas-section').style.display = 'none';
-}
-
-function cancelEdit() {
-    document.getElementById('editSection').style.display = 'none';
-    document.querySelector('.saved-ideas-section').style.display = 'block';
-}
-
 // Create Plot progress bar management
 let createPlotProgressInterval = null;
 let createPlotCurrentProgress = 0;
@@ -1518,83 +1224,7 @@ function resetProgressBar() {
     }
 }
 
-// Functions for Modify button workflow
-function showModifyForm() {
-    const currentIdeaDisplay = document.getElementById('currentIdeaDisplay');
-    const manualForm = document.getElementById('manualForm');
-
-    if (currentIdeaDisplay) {
-        currentIdeaDisplay.style.display = 'none';
-    }
-    if (manualForm) {
-        manualForm.style.display = 'block';
-    }
-
-    // Focus on the textarea
-    const textarea = document.getElementById('manual_premise');
-    if (textarea) {
-        textarea.focus();
-    }
-}
-
-function cancelModifyForm() {
-    const currentIdeaDisplay = document.getElementById('currentIdeaDisplay');
-    const manualForm = document.getElementById('manualForm');
-    const textarea = document.getElementById('manual_premise');
-
-    if (currentIdeaDisplay) {
-        currentIdeaDisplay.style.display = 'block';
-    }
-    if (manualForm) {
-        manualForm.style.display = 'none';
-    }
-
-    // Reset textarea to original value
-    if (textarea) {
-        const originalValue = textarea.getAttribute('data-original-value') || '';
-        textarea.value = originalValue;
-    }
-
-    // Reset save button state
-    const saveIdeaBtn = document.getElementById('saveIdeaBtn');
-    if (saveIdeaBtn) {
-        saveIdeaBtn.disabled = true;
-        saveIdeaBtn.style.opacity = '0.5';
-    }
-}
-
-// Track changes to the idea textarea
-const manualPremiseTextarea = document.getElementById('manual_premise');
-const saveIdeaBtn = document.getElementById('saveIdeaBtn');
-
-if (manualPremiseTextarea && saveIdeaBtn) {
-    const originalValue = manualPremiseTextarea.getAttribute('data-original-value') || '';
-
-    // Function to check if idea has been modified
-    function checkIdeaModified() {
-        const currentValue = manualPremiseTextarea.value.trim();
-        const isModified = currentValue !== originalValue.trim() && currentValue !== '';
-
-        if (isModified) {
-            saveIdeaBtn.disabled = false;
-            saveIdeaBtn.style.opacity = '1';
-        } else {
-            saveIdeaBtn.disabled = true;
-            saveIdeaBtn.style.opacity = '0.5';
-        }
-    }
-
-    // Check on input
-    manualPremiseTextarea.addEventListener('input', checkIdeaModified);
-
-    // Initial check - only for edit mode (when there are previous ideas)
-    const hasPreviousIdeas = originalValue !== '';
-    if (hasPreviousIdeas) {
-        checkIdeaModified();
-    }
-}
-
-// Manual form submission - for both new and modified ideas
+// Manual form submission - simplified to directly create plot
 const manualForm = document.getElementById('manualForm');
 if (manualForm) {
     manualForm.addEventListener('submit', async function(e) {
@@ -1605,23 +1235,14 @@ if (manualForm) {
         };
 
         try {
+            // Reset tokens at the start of new workflow
+            resetTokens();
+
             // Get estimated duration for plot API
             const estimatedDuration = await getEstimatedDuration('plot');
             startProgressBar(estimatedDuration);
 
-            // Save the idea to the database
-            const ideaResponse = await apiRequest(`/api/projects/${projectId}/save_manual_idea/`, {
-                method: 'POST',
-                body: JSON.stringify({ idea: manualIdea })
-            });
-
-            // Check for token usage in idea response
-            if (ideaResponse && ideaResponse.token_usage) {
-                console.log('Idea save - calling showTokenUsage with:', ideaResponse.token_usage);
-                showTokenUsage(ideaResponse.token_usage);
-            }
-
-            // Automatically create plot and characters
+            // Directly create plot and characters from idea
             const plotResponse = await apiRequest(`/api/projects/${projectId}/create_plot/`, {
                 method: 'POST',
                 body: JSON.stringify({ idea_data: manualIdea })
@@ -1634,310 +1255,18 @@ if (manualForm) {
             }
 
             completeProgressBar();
-            showToast('Idea saved and plot/characters created successfully!', 'success');
+            showToast('Plot and characters created successfully!', 'success');
 
             // Reload page so server-rendered plot and characters sections appear
             setTimeout(() => {
                 window.location.reload();
             }, 1500);
 
-            // Update the current idea display
-            const currentIdeaText = document.getElementById('currentIdeaText');
-            const currentIdeaDisplay = document.getElementById('currentIdeaDisplay');
-
-            if (currentIdeaText) {
-                currentIdeaText.textContent = manualIdea.premise;
-            } else if (!currentIdeaDisplay) {
-                // Create the current idea display if it doesn't exist (first time save)
-                const ideaFormSection = document.querySelector('.idea-form-section');
-                const newDiv = document.createElement('div');
-                newDiv.className = 'current-idea-display';
-                newDiv.id = 'currentIdeaDisplay';
-                newDiv.style = 'margin-bottom: 1rem; padding: 1rem; background-color: #f9f9f9; border-radius: 8px;';
-                newDiv.innerHTML = `
-                    <strong>Current Idea:</strong>
-                    <div id="currentIdeaText" style="margin-top: 0.5rem;">${manualIdea.premise}</div>
-                    <button type="button" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;" onclick="showModifyForm()">
-                        ✏️ Modify
-                    </button>
-                `;
-                ideaFormSection.insertBefore(newDiv, manualForm);
-            }
-
-            // Hide the form and show the display
-            if (currentIdeaDisplay) {
-                currentIdeaDisplay.style.display = 'block';
-            }
-            manualForm.style.display = 'none';
-
-            // Reset progress bar
             resetProgressBar();
-
-            // Update the original value to the new saved value
-            if (manualPremiseTextarea) {
-                manualPremiseTextarea.setAttribute('data-original-value', manualIdea.premise);
-                // Disable save button again since we just saved
-                if (saveIdeaBtn) {
-                    saveIdeaBtn.disabled = true;
-                    saveIdeaBtn.style.opacity = '0.5';
-                }
-            }
         } catch (error) {
             resetProgressBar();
             showToast('Error: ' + error.message, 'error');
         }
-    });
-}
-
-// Edit form code removed - now using unified manualForm
-
-// Mode switching for AI generation vs manual input
-function switchMode(mode) {
-    const generateBtn = document.querySelector('[data-mode="generate"]');
-    const manualBtn = document.querySelector('[data-mode="manual"]');
-    const brainstormForm = document.getElementById('brainstormForm');
-    const ideaFormSection = document.querySelector('.idea-form-section');
-
-    if (mode === 'generate') {
-        generateBtn.classList.add('active');
-        manualBtn.classList.remove('active');
-        brainstormForm.style.display = 'block';
-        if (ideaFormSection) ideaFormSection.style.display = 'none';
-    } else {
-        generateBtn.classList.remove('active');
-        manualBtn.classList.add('active');
-        brainstormForm.style.display = 'none';
-        if (ideaFormSection) ideaFormSection.style.display = 'block';
-    }
-}
-
-// AI brainstorm form submission
-const brainstormForm = document.getElementById('brainstormForm');
-if (brainstormForm) {
-    brainstormForm.addEventListener('submit', async function(e) {
-        e.preventDefault();
-
-        const formData = {
-            theme: document.getElementById('theme').value || undefined,
-            num_ideas: parseInt(document.getElementById('num_ideas').value)
-        };
-
-        generateIdeas(formData);
-    });
-}
-
-// Brainstorm progress bar management
-let brainstormProgressInterval = null;
-let brainstormCurrentProgress = 0;
-
-function startBrainstormProgressBar(estimatedDuration = null) {
-    const progressContainer = document.getElementById('brainstormProgressContainer');
-    const progressBarFill = document.getElementById('brainstormProgressBarFill');
-    const generateBtn = document.getElementById('generateIdeasBtn');
-
-    if (progressContainer) {
-        progressContainer.style.display = 'block';
-        generateBtn.disabled = true;
-        generateBtn.style.opacity = '0.6';
-        brainstormCurrentProgress = 0;
-
-        // Calculate increment based on estimated duration or use default
-        let increment = 5; // Default: 5% every 2 seconds
-        if (estimatedDuration) {
-            // Calculate increment to reach 95% by estimated duration
-            increment = Math.max(1, Math.min(95 / (estimatedDuration / 2), 10));
-        }
-
-        brainstormProgressInterval = setInterval(() => {
-            if (brainstormCurrentProgress < 95) {
-                brainstormCurrentProgress += increment;
-                if (brainstormCurrentProgress > 95) brainstormCurrentProgress = 95;
-                progressBarFill.style.width = brainstormCurrentProgress + '%';
-                progressBarFill.textContent = Math.round(brainstormCurrentProgress) + '%';
-            }
-        }, 2000); // Update every 2 seconds
-    }
-}
-
-function completeBrainstormProgressBar() {
-    const progressBarFill = document.getElementById('brainstormProgressBarFill');
-
-    if (brainstormProgressInterval) {
-        clearInterval(brainstormProgressInterval);
-    }
-
-    brainstormCurrentProgress = 100;
-    progressBarFill.style.width = '100%';
-    progressBarFill.textContent = '100%';
-}
-
-function resetBrainstormProgressBar() {
-    const progressContainer = document.getElementById('brainstormProgressContainer');
-    const progressBarFill = document.getElementById('brainstormProgressBarFill');
-    const generateBtn = document.getElementById('generateIdeasBtn');
-
-    if (brainstormProgressInterval) {
-        clearInterval(brainstormProgressInterval);
-    }
-
-    if (progressContainer) {
-        progressContainer.style.display = 'none';
-        brainstormCurrentProgress = 0;
-        progressBarFill.style.width = '0%';
-        progressBarFill.textContent = '0%';
-        generateBtn.disabled = false;
-        generateBtn.style.opacity = '1';
-    }
-}
-
-async function generateIdeas(data) {
-    // Reset tokens at the start of new workflow
-    resetTokens();
-
-    // Get estimated duration for brainstorm API
-    const estimatedDuration = await getEstimatedDuration('brainstorm');
-    startBrainstormProgressBar(estimatedDuration);
-
-    apiRequest(`/api/projects/${projectId}/brainstorm/`, {
-        method: 'POST',
-        body: JSON.stringify(data)
-    }).then(response => {
-        showToast('Ideas generation started!', 'success');
-        pollTask(response.task_id);
-    }).catch(error => {
-        resetBrainstormProgressBar();
-        showToast('Error generating ideas: ' + error.message, 'error');
-    });
-}
-
-function pollTask(taskId) {
-    const interval = setInterval(() => {
-        apiRequest(`/api/tasks/${taskId}/`)
-            .then(task => {
-                if (task.status === 'completed') {
-                    clearInterval(interval);
-                    completeBrainstormProgressBar();
-
-                    // Extract and display token usage FIRST (before other operations)
-                    if (task.result_data && task.result_data.token_usage) {
-                        console.log('Calling showTokenUsage with:', task.result_data.token_usage);
-                        showTokenUsage(task.result_data.token_usage);
-                    }
-
-                    setTimeout(() => {
-                        resetBrainstormProgressBar();
-                        // Display ideas after token tracking with defensive check
-                        if (task.result_data && task.result_data.ideas) {
-                            displayIdeas(task.result_data.ideas);
-                        }
-                    }, 500);
-                } else if (task.status === 'failed') {
-                    clearInterval(interval);
-                    resetBrainstormProgressBar();
-                    showToast('Failed to generate ideas: ' + task.error_message, 'error');
-                }
-            })
-            .catch(error => {
-                clearInterval(interval);
-                resetBrainstormProgressBar();
-                showToast('Error checking task status', 'error');
-            });
-    }, 2000);
-}
-
-function displayIdeas(ideas) {
-    const container = document.getElementById('ideasContainer');
-    const resultsSection = document.getElementById('resultsSection');
-
-    container.innerHTML = '';
-
-    ideas.forEach((idea, index) => {
-        const card = document.createElement('div');
-        card.className = 'idea-card';
-        card.dataset.index = index;
-
-        card.innerHTML = `
-            <div class="idea-title">${idea.title || 'Idea ' + (index + 1)}</div>
-            <div class="idea-premise">${idea.premise || idea.description || ''}</div>
-        `;
-
-        card.addEventListener('click', () => selectIdea(card, idea));
-        container.appendChild(card);
-    });
-
-    // Add action buttons
-    const actionsDiv = document.createElement('div');
-    actionsDiv.className = 'action-buttons';
-    actionsDiv.innerHTML = `
-        <div style="flex: 1;">
-            <button class="btn btn-primary" id="useSelectedBtn" disabled style="width: 100%; opacity: 0.5;">Save Idea and continue</button>
-            <small id="selectReminder" style="display: block; margin-top: 0.5rem; color: #6b7280; text-align: center;">Select an idea to continue</small>
-        </div>
-        <button class="btn btn-secondary" onclick="window.location.href='{% url 'novels:project_detail' project.id %}'">Back to Project</button>
-    `;
-    container.appendChild(actionsDiv);
-
-    document.getElementById('useSelectedBtn').addEventListener('click', useSelectedIdea);
-
-    resultsSection.style.display = 'block';
-    resultsSection.scrollIntoView({ behavior: 'smooth' });
-}
-
-let selectedIdea = null;
-
-function selectIdea(card, idea) {
-    document.querySelectorAll('.idea-card').forEach(c => c.classList.remove('selected'));
-    card.classList.add('selected');
-    selectedIdea = idea;
-
-    const useBtn = document.getElementById('useSelectedBtn');
-    const reminder = document.getElementById('selectReminder');
-
-    if (useBtn) {
-        useBtn.disabled = false;
-        useBtn.style.opacity = '1';
-    }
-
-    if (reminder) {
-        reminder.style.display = 'none';
-    }
-}
-
-function useSelectedIdea() {
-    if (!selectedIdea) {
-        showToast('Please select an idea first', 'error');
-        return;
-    }
-
-    // No confirmation needed - proceed directly
-
-    // Reset tokens at the start of new workflow
-    resetTokens();
-
-    showLoading('Creating plot and characters...');
-
-    apiRequest(`/api/projects/${projectId}/create_plot/`, {
-        method: 'POST',
-        body: JSON.stringify({ idea_data: selectedIdea })
-    }).then(response => {
-        hideLoading();
-
-        // Extract and display token usage
-        console.log('Create plot response:', response);
-        if (response.token_usage) {
-            console.log('Calling showTokenUsage with:', response.token_usage);
-            showTokenUsage(response.token_usage);
-        } else {
-            console.warn('No token_usage in create plot response');
-        }
-
-        showToast('Plot and characters created successfully!', 'success');
-        setTimeout(() => {
-            window.location.href = '{% url 'novels:project_detail' project.id %}';
-        }, 1500);
-    }).catch(error => {
-        hideLoading();
-        showToast('Error creating plot and characters: ' + error.message, 'error');
     });
 }
 
