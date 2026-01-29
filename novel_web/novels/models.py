@@ -428,6 +428,14 @@ class ScoreCategoryTranslation(models.Model):
 class NovelProject(models.Model):
     """Main project model for a novel."""
 
+    CONTENT_TYPE_CHOICES = [
+        ('novel', 'Novel'),
+        ('poem', 'Poem'),
+        ('essay', 'Essay'),
+        ('sketch', 'Sketch'),
+        ('article', 'News Article'),
+    ]
+
     STATUS_CHOICES = [
         ('draft', 'Draft'),
         ('outlining', 'Outlining'),
@@ -440,6 +448,12 @@ class NovelProject(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='novel_projects')
     title = models.CharField(max_length=255)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    content_type = models.CharField(
+        max_length=20,
+        choices=CONTENT_TYPE_CHOICES,
+        default='novel',
+        help_text="Type of content this project will produce"
+    )
 
     # ChromaDB collection name (unique per project)
     chroma_collection_name = models.CharField(max_length=255, unique=True, editable=False)
@@ -920,3 +934,146 @@ class APIPerformanceMetric(models.Model):
             success=True
         ).aggregate(avg=Avg('duration_seconds'))
         return result['avg'] or 30.0  # Default to 30 seconds if no data
+
+
+class ContentStructureTemplate(models.Model):
+    """Pre-defined structure templates for different content types."""
+
+    content_type = models.CharField(
+        max_length=20,
+        choices=NovelProject.CONTENT_TYPE_CHOICES,
+        help_text="Type of content this template is for"
+    )
+    name = models.CharField(
+        max_length=100,
+        help_text="Template name (e.g., 'Five-Paragraph Essay')"
+    )
+    is_system = models.BooleanField(
+        default=False,
+        help_text="System templates cannot be modified by users"
+    )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='structure_templates',
+        help_text="User who created this template (null for system templates)"
+    )
+    structure_data = models.JSONField(
+        help_text="Template structure as JSON (e.g., {'sections': ['Introduction', 'Body', 'Conclusion']})"
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Description of this template's purpose"
+    )
+
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['content_type', 'name']
+        unique_together = [['content_type', 'name']]
+
+    def __str__(self):
+        return f"{self.get_content_type_display()}: {self.name}"
+
+
+class ContentPiece(models.Model):
+    """Single content piece (poem, essay, sketch, article).
+    For novels, use Plot/Chapter models instead."""
+
+    project = models.OneToOneField(
+        'NovelProject',
+        on_delete=models.CASCADE,
+        related_name='content_piece',
+        help_text="The project this content belongs to"
+    )
+    title = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Title of the content piece"
+    )
+    content = models.TextField(
+        help_text="The actual poem/essay/sketch/article text"
+    )
+    word_count = models.IntegerField(
+        default=0,
+        help_text="Word count of the content"
+    )
+
+    # For essays/sketches with structure
+    structure_template = models.ForeignKey(
+        'ContentStructureTemplate',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='content_pieces',
+        help_text="Structure template used (for essays/sketches)"
+    )
+    sections_data = models.JSONField(
+        default=dict,
+        help_text="Content organized by sections (e.g., {'introduction': '...', 'body1': '...'})"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f"{self.title or 'Untitled'} ({self.project.get_content_type_display()})"
+
+
+class ContentTypeScoringConfig(models.Model):
+    """Configuration linking content types to their scoring categories."""
+
+    content_type = models.CharField(
+        max_length=20,
+        choices=NovelProject.CONTENT_TYPE_CHOICES,
+        unique=True,
+        help_text="Content type this configuration is for"
+    )
+    score_categories = models.ManyToManyField(
+        'ScoreCategory',
+        through='ContentTypeCategoryWeight',
+        related_name='content_type_configs',
+        help_text="Score categories used for this content type"
+    )
+
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['content_type']
+        verbose_name = "Content Type Scoring Configuration"
+        verbose_name_plural = "Content Type Scoring Configurations"
+
+    def __str__(self):
+        return f"Scoring Config: {self.get_content_type_display()}"
+
+
+class ContentTypeCategoryWeight(models.Model):
+    """Through model for ContentTypeScoringConfig and ScoreCategory with weight."""
+
+    config = models.ForeignKey(
+        'ContentTypeScoringConfig',
+        on_delete=models.CASCADE,
+        related_name='category_weights'
+    )
+    category = models.ForeignKey(
+        'ScoreCategory',
+        on_delete=models.CASCADE,
+        related_name='content_type_weights'
+    )
+    weight = models.IntegerField(
+        help_text="Weight/importance percentage for this category (e.g., 25 for 25%)"
+    )
+
+    class Meta:
+        ordering = ['-weight', 'category__name']
+        unique_together = [['config', 'category']]
+
+    def __str__(self):
+        return f"{self.config.get_content_type_display()} - {self.category.name} ({self.weight}%)"
