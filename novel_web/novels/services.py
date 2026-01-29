@@ -348,6 +348,486 @@ Format as numbered list."""
         return acts
 
 
+class ContentGenerationService:
+    """Generic content generation service for different content types."""
+
+    @staticmethod
+    def generate_content(project, idea_data, user_language='en'):
+        """
+        Generate complete content piece based on project content type.
+
+        Args:
+            project: NovelProject instance
+            idea_data: Dictionary with idea/theme information
+            user_language: Language code for generation (default: 'en')
+
+        Returns:
+            Tuple of (content_dict, token_usage)
+            content_dict: {'content': str, 'title': str, 'word_count': int, ...}
+            token_usage: {'prompt_tokens': int, 'completion_tokens': int, 'total_tokens': int}
+        """
+        from openai import OpenAI
+        from django.conf import settings
+        from .content_registry import ContentTypeRegistry
+
+        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
+        config = ContentTypeRegistry.get_config(project.content_type)
+
+        if not config:
+            raise ValueError(f"Unknown content type: {project.content_type}")
+
+        if project.content_type == 'novel':
+            # Novels use existing workflow (plot → chapters)
+            raise ValueError("Use PlotService and WritingService for novel projects")
+
+        elif project.content_type == 'poem':
+            return ContentGenerationService._generate_poem(
+                client, project, idea_data, user_language
+            )
+
+        elif project.content_type == 'essay':
+            return ContentGenerationService._generate_essay(
+                client, project, idea_data, user_language
+            )
+
+        elif project.content_type == 'sketch':
+            return ContentGenerationService._generate_sketch(
+                client, project, idea_data, user_language
+            )
+
+        elif project.content_type == 'article':
+            return ContentGenerationService._generate_article(
+                client, project, idea_data, user_language
+            )
+
+        else:
+            raise ValueError(f"Content generation not implemented for: {project.content_type}")
+
+    @staticmethod
+    def _generate_poem(client, project, idea_data, user_language):
+        """
+        Generate complete poem from idea.
+
+        Args:
+            client: OpenAI client instance
+            project: NovelProject instance
+            idea_data: Dictionary with theme/idea information
+            user_language: Language code
+
+        Returns:
+            Tuple of (content_dict, token_usage)
+        """
+        from .prompt_assembly import PromptAssemblyService
+        import json
+
+        logger.info(f"Generating poem for project: {project.title}")
+
+        # Extract theme/idea
+        theme = idea_data.get('theme', project.title)
+        style_notes = idea_data.get('style_notes', '')
+
+        # Build user prompt
+        user_prompt = f"""Write a complete poem based on this theme: {theme}
+
+Instructions:
+- Create vivid imagery and sensory details
+- Pay attention to rhythm and musicality
+- Use appropriate poetic form and structure
+- Evoke strong emotions
+"""
+        if style_notes:
+            user_prompt += f"\nStyle notes: {style_notes}"
+
+        user_prompt += """
+
+Return the poem in JSON format:
+{
+    "title": "Poem Title",
+    "content": "The complete poem text with line breaks"
+}
+"""
+
+        # Assemble full prompt with 5-layer architecture
+        messages = PromptAssemblyService.assemble_full_prompt(
+            agent_role_key='poet',
+            user_prompt=user_prompt,
+            project=project,
+            language_code=user_language,
+            context_type='poem',
+            include_context=True
+        )
+
+        # Call OpenAI API
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.8  # Higher temperature for creativity
+        )
+
+        content_str = response.choices[0].message.content
+        token_usage = {
+            'prompt_tokens': response.usage.prompt_tokens,
+            'completion_tokens': response.usage.completion_tokens,
+            'total_tokens': response.usage.total_tokens
+        }
+
+        # Parse JSON response
+        try:
+            result = json.loads(content_str)
+            title = result.get('title', 'Untitled')
+            content = result.get('content', '')
+        except json.JSONDecodeError:
+            logger.warning("Failed to parse JSON, using raw content")
+            title = theme
+            content = content_str
+
+        # Calculate word count
+        word_count = len(content.split())
+
+        content_dict = {
+            'title': title,
+            'content': content,
+            'word_count': word_count
+        }
+
+        logger.info(f"Generated poem: {title} ({word_count} words)")
+        return content_dict, token_usage
+
+    @staticmethod
+    def _generate_essay(client, project, idea_data, user_language):
+        """
+        Generate complete essay from idea and structure.
+
+        Args:
+            client: OpenAI client instance
+            project: NovelProject instance
+            idea_data: Dictionary with thesis/topic information
+            user_language: Language code
+
+        Returns:
+            Tuple of (content_dict, token_usage)
+        """
+        from .prompt_assembly import PromptAssemblyService
+        from .models import ContentStructureTemplate
+        import json
+
+        logger.info(f"Generating essay for project: {project.title}")
+
+        # Extract essay parameters
+        thesis = idea_data.get('thesis', project.title)
+        template_name = idea_data.get('template', 'Five-Paragraph Essay')
+        key_points = idea_data.get('key_points', [])
+
+        # Get structure template
+        template = ContentStructureTemplate.objects.filter(
+            content_type='essay',
+            name=template_name
+        ).first()
+
+        if not template:
+            # Fallback to default
+            template = ContentStructureTemplate.objects.filter(
+                content_type='essay',
+                is_system=True
+            ).first()
+
+        # Build user prompt
+        user_prompt = f"""Write a complete essay on this thesis: {thesis}
+
+Structure: {template.name if template else 'Five-Paragraph Essay'}
+"""
+        if template:
+            sections = template.structure_data.get('sections', [])
+            user_prompt += f"Sections: {', '.join(sections)}\n"
+
+        if key_points:
+            user_prompt += f"\nKey points to address:\n"
+            for point in key_points:
+                user_prompt += f"- {point}\n"
+
+        user_prompt += """
+Instructions:
+- Present a clear, compelling thesis
+- Build strong arguments with evidence
+- Organize with logical flow
+- Address potential counterarguments
+- Write with clarity and precision
+
+Return the essay in JSON format:
+{
+    "title": "Essay Title",
+    "content": "The complete essay text with paragraphs separated by double newlines",
+    "sections": {
+        "introduction": "...",
+        "body1": "...",
+        "conclusion": "..."
+    }
+}
+"""
+
+        # Assemble full prompt
+        messages = PromptAssemblyService.assemble_full_prompt(
+            agent_role_key='essayist',
+            user_prompt=user_prompt,
+            project=project,
+            language_code=user_language,
+            context_type='essay',
+            include_context=True
+        )
+
+        # Call OpenAI API
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.7
+        )
+
+        content_str = response.choices[0].message.content
+        token_usage = {
+            'prompt_tokens': response.usage.prompt_tokens,
+            'completion_tokens': response.usage.completion_tokens,
+            'total_tokens': response.usage.total_tokens
+        }
+
+        # Parse JSON response
+        try:
+            result = json.loads(content_str)
+            title = result.get('title', 'Untitled')
+            content = result.get('content', '')
+            sections_data = result.get('sections', {})
+        except json.JSONDecodeError:
+            logger.warning("Failed to parse JSON, using raw content")
+            title = thesis
+            content = content_str
+            sections_data = {}
+
+        # Calculate word count
+        word_count = len(content.split())
+
+        content_dict = {
+            'title': title,
+            'content': content,
+            'word_count': word_count,
+            'sections_data': sections_data,
+            'structure_template_id': template.id if template else None
+        }
+
+        logger.info(f"Generated essay: {title} ({word_count} words)")
+        return content_dict, token_usage
+
+    @staticmethod
+    def _generate_sketch(client, project, idea_data, user_language):
+        """
+        Generate sketch using Moment → Thought → Stop structure.
+
+        Args:
+            client: OpenAI client instance
+            project: NovelProject instance
+            idea_data: Dictionary with observation/scene information
+            user_language: Language code
+
+        Returns:
+            Tuple of (content_dict, token_usage)
+        """
+        from .prompt_assembly import PromptAssemblyService
+        from .models import ContentStructureTemplate
+        import json
+
+        logger.info(f"Generating sketch for project: {project.title}")
+
+        # Extract sketch parameters
+        observation = idea_data.get('observation', project.title)
+        scene_notes = idea_data.get('scene_notes', '')
+
+        # Get sketch template
+        template = ContentStructureTemplate.objects.filter(
+            content_type='sketch',
+            name='Moment-Thought-Stop'
+        ).first()
+
+        # Build user prompt
+        user_prompt = f"""Write a literary sketch about: {observation}
+
+Structure: Moment → Thought → Stop
+- Moment: Capture a specific observation or scene with vivid detail
+- Thought: Reflect on its meaning or significance
+- Stop: End abruptly, leaving a lasting impression
+"""
+        if scene_notes:
+            user_prompt += f"\nScene notes: {scene_notes}"
+
+        user_prompt += """
+
+Instructions:
+- Observe keenly with precise, concrete details
+- Use vivid imagery to bring the moment to life
+- Reflect thoughtfully on deeper meaning
+- Know when to stop - don't over-explain
+
+Return the sketch in JSON format:
+{
+    "title": "Sketch Title",
+    "content": "The complete sketch text",
+    "sections": {
+        "moment": "The observed moment...",
+        "thought": "Reflection on the moment...",
+        "stop": "Final thought or image..."
+    }
+}
+"""
+
+        # Assemble full prompt
+        messages = PromptAssemblyService.assemble_full_prompt(
+            agent_role_key='sketch_writer',
+            user_prompt=user_prompt,
+            project=project,
+            language_code=user_language,
+            context_type='sketch',
+            include_context=True
+        )
+
+        # Call OpenAI API
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.75
+        )
+
+        content_str = response.choices[0].message.content
+        token_usage = {
+            'prompt_tokens': response.usage.prompt_tokens,
+            'completion_tokens': response.usage.completion_tokens,
+            'total_tokens': response.usage.total_tokens
+        }
+
+        # Parse JSON response
+        try:
+            result = json.loads(content_str)
+            title = result.get('title', 'Untitled')
+            content = result.get('content', '')
+            sections_data = result.get('sections', {})
+        except json.JSONDecodeError:
+            logger.warning("Failed to parse JSON, using raw content")
+            title = observation
+            content = content_str
+            sections_data = {}
+
+        # Calculate word count
+        word_count = len(content.split())
+
+        content_dict = {
+            'title': title,
+            'content': content,
+            'word_count': word_count,
+            'sections_data': sections_data,
+            'structure_template_id': template.id if template else None
+        }
+
+        logger.info(f"Generated sketch: {title} ({word_count} words)")
+        return content_dict, token_usage
+
+    @staticmethod
+    def _generate_article(client, project, idea_data, user_language):
+        """
+        Generate news article using journalistic structure.
+
+        Args:
+            client: OpenAI client instance
+            project: NovelProject instance
+            idea_data: Dictionary with story information
+            user_language: Language code
+
+        Returns:
+            Tuple of (content_dict, token_usage)
+        """
+        from .prompt_assembly import PromptAssemblyService
+        import json
+
+        logger.info(f"Generating article for project: {project.title}")
+
+        # Extract article parameters
+        headline = idea_data.get('headline', project.title)
+        facts = idea_data.get('facts', [])
+        angle = idea_data.get('angle', '')
+
+        # Build user prompt
+        user_prompt = f"""Write a news article with this headline: {headline}
+
+Structure: Inverted Pyramid
+- Lead: Most important information (who, what, when, where, why, how)
+- Body: Supporting details in descending order of importance
+- Background: Context and additional information
+"""
+        if angle:
+            user_prompt += f"\nAngle: {angle}"
+
+        if facts:
+            user_prompt += f"\n\nKey facts:\n"
+            for fact in facts:
+                user_prompt += f"- {fact}\n"
+
+        user_prompt += """
+Instructions:
+- Prioritize accuracy and factual reporting
+- Maintain objectivity and balance
+- Use clear, concise language
+- Present multiple perspectives when relevant
+- Follow AP style guidelines
+
+Return the article in JSON format:
+{
+    "title": "Article Headline",
+    "content": "The complete article text"
+}
+"""
+
+        # Assemble full prompt
+        messages = PromptAssemblyService.assemble_full_prompt(
+            agent_role_key='journalist',
+            user_prompt=user_prompt,
+            project=project,
+            language_code=user_language,
+            context_type='article',
+            include_context=True
+        )
+
+        # Call OpenAI API
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.3  # Lower temperature for factual content
+        )
+
+        content_str = response.choices[0].message.content
+        token_usage = {
+            'prompt_tokens': response.usage.prompt_tokens,
+            'completion_tokens': response.usage.completion_tokens,
+            'total_tokens': response.usage.total_tokens
+        }
+
+        # Parse JSON response
+        try:
+            result = json.loads(content_str)
+            title = result.get('title', 'Untitled')
+            content = result.get('content', '')
+        except json.JSONDecodeError:
+            logger.warning("Failed to parse JSON, using raw content")
+            title = headline
+            content = content_str
+
+        # Calculate word count
+        word_count = len(content.split())
+
+        content_dict = {
+            'title': title,
+            'content': content,
+            'word_count': word_count
+        }
+
+        logger.info(f"Generated article: {title} ({word_count} words)")
+        return content_dict, token_usage
+
+
 class CharacterService:
     """Service for character operations using 5-layer prompt architecture."""
 

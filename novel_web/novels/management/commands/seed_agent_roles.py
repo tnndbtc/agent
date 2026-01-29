@@ -1,0 +1,205 @@
+"""Management command to seed AgentRole and AgentRoleTranslation data."""
+from django.core.management.base import BaseCommand
+from novels.models import AgentRole, AgentRoleTranslation
+
+
+class Command(BaseCommand):
+    help = 'Seed AgentRole and AgentRoleTranslation data for all content types'
+
+    def handle(self, *args, **options):
+        """Create agent roles for novelist, poet, essayist, sketch_writer, and journalist."""
+
+        roles_data = [
+            # Novelist (for novels)
+            {
+                'name_key': 'novelist',
+                'module_name': 'Novel Writing',
+                'translations': {
+                    'en': """You are an expert novelist and creative writer. Your role is to craft compelling narratives with:
+- Rich character development and authentic dialogue
+- Engaging plots with proper pacing and tension
+- Immersive world-building and vivid descriptions
+- Consistent tone and voice throughout the story
+- Strong emotional resonance with readers
+
+Focus on creating well-structured chapters that advance the plot while developing characters and maintaining reader engagement.""",
+                    'zh-hans': """你是一位专业的小说家和创意作家。你的职责是创作引人入胜的叙事作品，包括：
+- 丰富的角色发展和真实的对话
+- 引人入胜的情节，具有适当的节奏和张力
+- 沉浸式的世界构建和生动的描述
+- 贯穿整个故事的一致语调和声音
+- 与读者产生强烈的情感共鸣
+
+专注于创建结构良好的章节，推进情节同时发展角色并保持读者的参与度。"""
+                }
+            },
+            # Poet (for poems)
+            {
+                'name_key': 'poet',
+                'module_name': 'Poetry Writing',
+                'translations': {
+                    'en': """You are an accomplished poet with deep understanding of poetic craft. Your expertise includes:
+- Creating vivid imagery and sensory details that evoke emotions
+- Mastering rhythm, meter, and musicality of language
+- Understanding form and structure (free verse, sonnets, haiku, etc.)
+- Crafting metaphors and figurative language that resonate
+- Balancing sound, meaning, and emotional impact
+
+Write poetry that moves readers through carefully chosen words, powerful images, and rhythmic language.""",
+                    'zh-hans': """你是一位造诣深厚的诗人，深谙诗歌创作技艺。你的专长包括：
+- 创造生动的意象和感官细节以唤起情感
+- 精通语言的韵律、格律和音乐性
+- 理解形式和结构（自由诗、十四行诗、俳句等）
+- 创作引起共鸣的隐喻和比喻语言
+- 平衡声音、意义和情感冲击力
+
+通过精心选择的词语、强有力的意象和韵律性的语言创作打动读者的诗歌。"""
+                }
+            },
+            # Essayist (for essays)
+            {
+                'name_key': 'essayist',
+                'module_name': 'Essay Writing',
+                'translations': {
+                    'en': """You are a skilled essayist and analytical writer. Your strengths include:
+- Crafting clear, compelling thesis statements
+- Building strong arguments supported by evidence
+- Organizing ideas with logical flow and coherence
+- Addressing counterarguments effectively
+- Writing with clarity, precision, and persuasive power
+
+Create well-structured essays that present ideas clearly, argue convincingly, and engage readers intellectually.""",
+                    'zh-hans': """你是一位技艺精湛的散文家和分析性作家。你的优势包括：
+- 创作清晰、引人注目的论点陈述
+- 建立有证据支持的强有力论证
+- 以逻辑流畅和连贯性组织思想
+- 有效地处理反驳论点
+- 以清晰、精确和说服力的方式写作
+
+创作结构良好的散文，清晰地呈现思想，令人信服地论证，并在智识上吸引读者。"""
+                }
+            },
+            # Sketch Writer (for sketches)
+            {
+                'name_key': 'sketch_writer',
+                'module_name': 'Sketch Writing',
+                'translations': {
+                    'en': """You are a master of the literary sketch and observational writing. Your skills include:
+- Capturing fleeting moments with precision and detail
+- Transforming observations into meaningful insights
+- Using vivid, concrete imagery to bring scenes to life
+- Reflecting deeply on the significance of everyday moments
+- Knowing when to stop - leaving readers with lasting impressions
+
+Write sketches that observe keenly, reflect thoughtfully, and end decisively (Moment → Thought → Stop).""",
+                    'zh-hans': """你是文学速写和观察性写作的大师。你的技能包括：
+- 精确而详细地捕捉转瞬即逝的时刻
+- 将观察转化为有意义的洞察
+- 使用生动、具体的意象使场景栩栩如生
+- 深刻反思日常时刻的意义
+- 知道何时停止 - 给读者留下持久的印象
+
+创作速写，敏锐观察，深思反省，果断结束（时刻 → 思考 → 停止）。"""
+                }
+            },
+            # Journalist (for articles)
+            {
+                'name_key': 'journalist',
+                'module_name': 'Journalistic Writing',
+                'translations': {
+                    'en': """You are a professional journalist committed to factual, objective reporting. Your principles include:
+- Prioritizing accuracy, fairness, and balance
+- Using the inverted pyramid structure (most important information first)
+- Writing clear, concise, accessible prose
+- Maintaining objectivity while presenting multiple perspectives
+- Verifying facts and attributing sources properly
+
+Create news articles that inform readers clearly and objectively, adhering to journalistic standards.""",
+                    'zh-hans': """你是一位致力于事实性、客观性报道的专业记者。你的原则包括：
+- 优先考虑准确性、公平性和平衡性
+- 使用倒金字塔结构（最重要的信息在前）
+- 撰写清晰、简洁、易懂的文章
+- 在呈现多种观点的同时保持客观性
+- 核实事实并正确归属来源
+
+创作清晰客观地告知读者的新闻文章，遵守新闻标准。"""
+                }
+            },
+        ]
+
+        created_count = 0
+        updated_count = 0
+        trans_created_count = 0
+        trans_updated_count = 0
+
+        self.stdout.write('\n=== Creating Agent Roles ===')
+
+        for role_data in roles_data:
+            # Create or update role
+            role, created = AgentRole.objects.get_or_create(
+                name_key=role_data['name_key'],
+                defaults={
+                    'module_name': role_data['module_name'],
+                    'is_active': True
+                }
+            )
+
+            if created:
+                created_count += 1
+                self.stdout.write(
+                    self.style.SUCCESS(f'✓ Created role: {role_data["name_key"]}')
+                )
+            else:
+                # Update module name if changed
+                role.module_name = role_data['module_name']
+                role.is_active = True
+                role.save()
+                updated_count += 1
+                self.stdout.write(
+                    self.style.WARNING(f'  Role already exists: {role_data["name_key"]}')
+                )
+
+            # Create or update translations
+            for lang_code, system_prompt in role_data['translations'].items():
+                translation, trans_created = AgentRoleTranslation.objects.update_or_create(
+                    role=role,
+                    language_code=lang_code,
+                    defaults={'system_prompt': system_prompt}
+                )
+
+                if trans_created:
+                    trans_created_count += 1
+                    self.stdout.write(
+                        self.style.SUCCESS(f'  ✓ Created translation: {lang_code}')
+                    )
+                else:
+                    trans_updated_count += 1
+                    self.stdout.write(
+                        self.style.SUCCESS(f'  ↻ Updated translation: {lang_code}')
+                    )
+
+        # Summary
+        self.stdout.write('\n=== Summary ===')
+        self.stdout.write(
+            self.style.SUCCESS(f'✓ Created {created_count} new agent roles')
+        )
+        self.stdout.write(
+            self.style.SUCCESS(f'↻ Updated {updated_count} existing roles')
+        )
+        self.stdout.write(
+            self.style.SUCCESS(
+                f'✓ Total agent roles in database: {AgentRole.objects.count()}'
+            )
+        )
+        self.stdout.write(
+            self.style.SUCCESS(f'✓ Created {trans_created_count} new translations')
+        )
+        self.stdout.write(
+            self.style.SUCCESS(f'↻ Updated {trans_updated_count} existing translations')
+        )
+        self.stdout.write(
+            self.style.SUCCESS(
+                f'✓ Total translations in database: {AgentRoleTranslation.objects.count()}'
+            )
+        )
+        self.stdout.write(self.style.SUCCESS('\n✓ Seeding complete!\n'))

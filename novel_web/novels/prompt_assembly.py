@@ -150,7 +150,7 @@ class PromptAssemblyService:
 
         Args:
             project: NovelProject instance
-            context_type: Type of context ('plot', 'character', 'chapter', 'brainstorm', 'text')
+            context_type: Type of context ('plot', 'character', 'chapter', 'brainstorm', 'text', 'poem', 'essay', 'sketch', 'article')
             **kwargs: Additional context parameters
 
         Returns:
@@ -213,6 +213,34 @@ class PromptAssemblyService:
             if primary_setting:
                 parts.append(f"**Primary Setting:** {primary_setting.location} - {primary_setting.description[:200] if primary_setting.description else 'No description yet'}")
                 logger.debug(f"Added primary setting: {primary_setting.location}")
+
+        # Context for new content types
+        if project and hasattr(project, 'content_type'):
+            if project.content_type == 'poem' and context_type == 'poem':
+                # Minimal context for poems - let creativity flow
+                parts.append(f"**Theme:** {project.title}")
+                logger.debug(f"Added poem context for {project.title}")
+
+            elif project.content_type == 'essay' and context_type == 'essay':
+                # Include essay structure template if available
+                if hasattr(project, 'content_piece') and project.content_piece and project.content_piece.structure_template:
+                    template = project.content_piece.structure_template
+                    sections = template.structure_data.get('sections', [])
+                    parts.append(f"**Essay Structure:** {template.name}")
+                    parts.append(f"**Sections:** {', '.join(sections)}")
+                    logger.debug(f"Added essay structure: {template.name}")
+
+            elif project.content_type == 'sketch' and context_type == 'sketch':
+                # Sketch format context
+                parts.append("**Sketch Format:** Moment → Thought → Stop")
+                parts.append("**Structure:**\n- Moment: Capture a specific observation with vivid detail\n- Thought: Reflect on its meaning or significance\n- Stop: End abruptly with a lasting impression")
+                logger.debug(f"Added sketch format context")
+
+            elif project.content_type == 'article' and context_type == 'article':
+                # Article structure context
+                parts.append("**Article Structure:** Inverted Pyramid")
+                parts.append("**Format:**\n- Lead: Most important information (5W1H)\n- Body: Supporting details in order of importance\n- Background: Context and additional information")
+                logger.debug(f"Added article structure context")
 
         context_prompt = "\n\n".join(parts) if parts else ""
         logger.info(f"Built context prompt for {context_type}: {len(context_prompt)} chars")
