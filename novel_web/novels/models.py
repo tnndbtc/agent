@@ -501,6 +501,34 @@ class NovelProject(models.Model):
         super().save(*args, **kwargs)
 
 
+class Idea(models.Model):
+    """Stores the original user idea for any content type."""
+
+    project = models.OneToOneField(
+        'NovelProject',
+        on_delete=models.CASCADE,
+        related_name='idea',
+        help_text="The project this idea belongs to"
+    )
+    idea_data = models.JSONField(
+        default=dict,
+        help_text="Original idea data (premise, theme, thesis, etc.)"
+    )
+    content_type = models.CharField(
+        max_length=20,
+        help_text="Type of content (novel, poem, essay, sketch, article)"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f"Idea for {self.project.title} ({self.content_type})"
+
+
 class Plot(models.Model):
     """Plot structure for a novel."""
 

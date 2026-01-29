@@ -60,7 +60,7 @@
                 <div class="form-group">
                     <label for="manual_premise">{% trans "Enter Your Idea" %}</label>
                     <textarea id="manual_premise" name="premise" class="form-control" rows="4" required
-                              placeholder="{% if project.content_type == 'novel' %}{% trans "Describe your plot idea..." %}{% elif project.content_type == 'poem' %}{% trans "Describe your poem theme..." %}{% elif project.content_type == 'essay' %}{% trans "Describe your thesis or topic..." %}{% elif project.content_type == 'sketch' %}{% trans "Describe the observation or scene..." %}{% else %}{% trans "Describe your idea..." %}{% endif %}"></textarea>
+                              placeholder="{% if project.content_type == 'novel' %}{% trans "Describe your plot idea..." %}{% elif project.content_type == 'poem' %}{% trans "Describe your poem theme..." %}{% elif project.content_type == 'essay' %}{% trans "Describe your thesis or topic..." %}{% elif project.content_type == 'sketch' %}{% trans "Describe the observation or scene..." %}{% else %}{% trans "Describe your idea..." %}{% endif %}">{% if has_idea %}{% if project.content_type == 'novel' %}{{ project.idea.idea_data.premise }}{% elif project.content_type == 'poem' %}{{ project.idea.idea_data.theme }}{% elif project.content_type == 'essay' %}{{ project.idea.idea_data.thesis }}{% elif project.content_type == 'sketch' %}{{ project.idea.idea_data.observation }}{% elif project.content_type == 'article' %}{{ project.idea.idea_data.headline }}{% endif %}{% endif %}</textarea>
                 </div>
 
                 <div id="progressContainer" class="progress-container" style="display: none;">
@@ -1681,6 +1681,13 @@ function startChapterWriteWithConfig() {
 }
 
 async function loadExamples() {
+    // Safety check: Only load examples if the chapter config modal is actually visible
+    const modal = document.getElementById('chapterConfigModal');
+    if (!modal || modal.style.display !== 'flex') {
+        console.log('Skipping loadExamples() - modal not visible');
+        return;
+    }
+
     const listElement = document.getElementById('examplesList');
     if (!listElement) {
         console.error('examplesList element not found!');
@@ -2208,10 +2215,20 @@ async function saveAct(actId) {
 }
 
 // Call renumbering on page load
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
 
     // Phase 5: Initialize writing styles and techniques
-    initWritingStylesAndTechniques(projectId);
+    // Wait for this to complete first so allTechniques global variable is available
+    await initWritingStylesAndTechniques(projectId);
+
+    // Fetch project data once to avoid duplicate API calls
+    let projectData = null;
+    try {
+        projectData = await apiRequest(`/api/projects/${projectId}/`);
+    } catch (error) {
+        console.error('Error loading project data:', error);
+        // Continue with null project data - functions will handle gracefully
+    }
 
     // Enable AI text selection on content elements
     // Plot themes
@@ -2220,11 +2237,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Act descriptions
+    {% if has_plot and project.plot.acts.exists %}
     {% for act in project.plot.acts.all %}
     if (document.getElementById('actDescriptionText-{{ act.id }}')) {
         enableTextSelection('actDescriptionText-{{ act.id }}', 'act');
     }
     {% endfor %}
+    {% endif %}
 
     // Character bios
     {% for character in characters %}
@@ -2234,26 +2253,36 @@ document.addEventListener('DOMContentLoaded', () => {
     {% endfor %}
 
     // Load project techniques and style on page load
-    loadProjectTechniques();
-    loadProjectStyle();
+    // Pass the project data to avoid duplicate API calls
+    await loadProjectTechniques(projectData);
+    await loadProjectStyle(projectData);
 });
 
 // ========================================
 // Writing Techniques Management Functions
 // ========================================
 
-async function loadProjectTechniques() {
+async function loadProjectTechniques(project = null) {
     try {
-        const response = await apiRequest(`/api/projects/${projectId}/`);
-        const project = response;
+        // If project data not provided, fetch it (for backward compatibility)
+        if (!project) {
+            const response = await apiRequest(`/api/projects/${projectId}/`);
+            project = response;
+        }
+
         const techniquesDisplay = document.getElementById('techniquesDisplay');
 
         if (project.selected_techniques && project.selected_techniques.length > 0) {
-            // Fetch technique details
-            const techniquesResponse = await apiRequest('/api/writing-techniques/');
-            const allTechniques = techniquesResponse;
+            // Use global allTechniques variable if available (loaded by initWritingStylesAndTechniques)
+            // Otherwise fetch technique details
+            let techniques = typeof allTechniques !== 'undefined' && allTechniques ? allTechniques : null;
 
-            const selectedTechniques = allTechniques.filter(t =>
+            if (!techniques) {
+                const techniquesResponse = await apiRequest('/api/writing-techniques/');
+                techniques = techniquesResponse.results || techniquesResponse;
+            }
+
+            const selectedTechniques = techniques.filter(t =>
                 project.selected_techniques.includes(t.id)
             );
 
@@ -2340,10 +2369,14 @@ async function saveProjectTechniques() {
 // Writing Style Management Functions
 // ========================================
 
-async function loadProjectStyle() {
+async function loadProjectStyle(project = null) {
     try {
-        const response = await apiRequest(`/api/projects/${projectId}/`);
-        const project = response;
+        // If project data not provided, fetch it (for backward compatibility)
+        if (!project) {
+            const response = await apiRequest(`/api/projects/${projectId}/`);
+            project = response;
+        }
+
         const styleDisplay = document.getElementById('styleDisplay');
 
         if (project.default_style_display) {

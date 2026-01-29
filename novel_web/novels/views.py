@@ -115,6 +115,16 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             total_tokens_used['total_tokens'] += plot_tokens.get('total_tokens', 0)
             logger.info(f"Plot generation tokens: {plot_tokens}")
 
+        # Save idea to Idea model
+        from .models import Idea
+        Idea.objects.update_or_create(
+            project=project,
+            defaults={
+                'idea_data': serializer.validated_data['idea_data'],
+                'content_type': 'novel'
+            }
+        )
+
         # Save to database
         # Note: genre is now a ForeignKey to Genre model, not a text field
         # If project has a genre, copy it to the plot; otherwise leave as None
@@ -412,6 +422,16 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             logger.info(f"Generated Content: title={content_dict.get('title')}, words={content_dict.get('word_count')}")
             logger.info(f"Token Usage: {token_usage}")
             logger.info("-" * 80)
+
+            # Save idea to Idea model
+            from .models import Idea
+            Idea.objects.update_or_create(
+                project=project,
+                defaults={
+                    'idea_data': idea_data,
+                    'content_type': project.content_type
+                }
+            )
 
             # Save to ContentPiece model
             from .models import ContentPiece

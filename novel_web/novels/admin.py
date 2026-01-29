@@ -1,7 +1,7 @@
 """Admin configuration for novels app."""
 from django.contrib import admin
 from .models import (
-    NovelProject, Plot, Character, Setting,
+    NovelProject, Idea, Plot, Character, Setting,
     Chapter, Example, GenerationTask,
     ScoreCategory, ScoreCategoryTranslation, ExampleScore,
     SystemPolicy, SystemPolicyTranslation,
@@ -20,6 +20,15 @@ class NovelProjectAdmin(admin.ModelAdmin):
     list_filter = ['content_type', 'status', 'created_at']
     search_fields = ['title', 'user__username']
     readonly_fields = ['chroma_collection_name', 'created_at', 'updated_at']
+
+
+@admin.register(Idea)
+class IdeaAdmin(admin.ModelAdmin):
+    """Admin for Idea."""
+    list_display = ['project', 'content_type', 'updated_at']
+    list_filter = ['content_type', 'created_at']
+    search_fields = ['project__title']
+    readonly_fields = ['created_at', 'updated_at']
 
 
 @admin.register(Plot)

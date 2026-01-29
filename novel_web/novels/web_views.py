@@ -38,6 +38,7 @@ def project_detail(request, pk):
     context = {
         'project': project,
         'has_plot': hasattr(project, 'plot'),
+        'has_idea': hasattr(project, 'idea'),
         'characters': project.characters.all(),
         'settings': project.settings.all(),
         'chapters': project.chapters.select_related('act').all()
