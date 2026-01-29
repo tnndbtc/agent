@@ -9,7 +9,8 @@ from .models import (
     SystemPolicy, SystemPolicyTranslation,
     AgentRole, AgentRoleTranslation,
     WritingStyle, WritingStyleTranslation,
-    WritingTechnique, WritingTechniqueTranslation
+    WritingTechnique, WritingTechniqueTranslation,
+    ContentPiece
 )
 
 
@@ -78,6 +79,25 @@ class ChapterListSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class ContentPieceSerializer(serializers.ModelSerializer):
+    """Serializer for ContentPiece model (poems, essays, sketches, articles)."""
+
+    structure_template_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ContentPiece
+        fields = ['id', 'project', 'title', 'content', 'word_count',
+                  'structure_template', 'structure_template_name', 'sections_data',
+                  'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_structure_template_name(self, obj):
+        """Return structure template name if available."""
+        if obj.structure_template:
+            return obj.structure_template.name
+        return None
+
+
 class NovelProjectSerializer(serializers.ModelSerializer):
     """Serializer for NovelProject model."""
 
@@ -87,13 +107,14 @@ class NovelProjectSerializer(serializers.ModelSerializer):
     settings = SettingSerializer(many=True, read_only=True)
     chapters = ChapterListSerializer(many=True, read_only=True)
     default_style_display = serializers.SerializerMethodField()
+    content_piece = serializers.SerializerMethodField()
 
     class Meta:
         model = NovelProject
         fields = [
-            'id', 'user', 'title', 'status',
+            'id', 'user', 'title', 'status', 'content_type',
             'total_word_count', 'created_at', 'updated_at',
-            'plot', 'characters', 'settings', 'chapters',
+            'plot', 'characters', 'settings', 'chapters', 'content_piece',
             'selected_techniques', 'default_style', 'default_style_display'
         ]
         read_only_fields = ['id', 'user', 'chroma_collection_name', 'total_word_count', 'created_at', 'updated_at']
@@ -109,6 +130,13 @@ class NovelProjectSerializer(serializers.ModelSerializer):
                 'name_key': obj.default_style.name_key,
                 'display_name': translation.name if translation else obj.default_style.name_key
             }
+        return None
+
+    def get_content_piece(self, obj):
+        """Return content piece data for poem/essay/sketch/article projects."""
+        if hasattr(obj, 'content_piece') and obj.content_piece:
+            from .serializers import ContentPieceSerializer
+            return ContentPieceSerializer(obj.content_piece).data
         return None
 
     def validate(self, data):
@@ -132,7 +160,7 @@ class NovelProjectListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = NovelProject
-        fields = ['id', 'title', 'status', 'total_word_count', 'chapter_count', 'updated_at', 'user', 'default_style_name']
+        fields = ['id', 'title', 'status', 'content_type', 'total_word_count', 'chapter_count', 'updated_at', 'user', 'default_style_name']
         read_only_fields = fields
 
     def get_chapter_count(self, obj):

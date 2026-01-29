@@ -7,15 +7,17 @@ from .models import (
     SystemPolicy, SystemPolicyTranslation,
     AgentRole, AgentRoleTranslation,
     WritingStyle, WritingStyleTranslation,
-    WritingTechnique, WritingTechniqueTranslation
+    WritingTechnique, WritingTechniqueTranslation,
+    ContentStructureTemplate, ContentPiece,
+    ContentTypeScoringConfig, ContentTypeCategoryWeight
 )
 
 
 @admin.register(NovelProject)
 class NovelProjectAdmin(admin.ModelAdmin):
     """Admin for NovelProject."""
-    list_display = ['title', 'user', 'status', 'total_word_count', 'updated_at']
-    list_filter = ['status', 'created_at']
+    list_display = ['title', 'user', 'content_type', 'status', 'total_word_count', 'updated_at']
+    list_filter = ['content_type', 'status', 'created_at']
     search_fields = ['title', 'user__username']
     readonly_fields = ['chroma_collection_name', 'created_at', 'updated_at']
 
@@ -205,6 +207,76 @@ class WritingTechniqueAdmin(admin.ModelAdmin):
     fieldsets = (
         ('Basic Info', {
             'fields': ('name_key', 'is_system', 'created_by', 'public', 'category')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+
+
+# ========================================
+# Multi-Content-Type Support Admin
+# ========================================
+
+@admin.register(ContentStructureTemplate)
+class ContentStructureTemplateAdmin(admin.ModelAdmin):
+    """Admin for ContentStructureTemplate."""
+    list_display = ['name', 'content_type', 'is_system', 'created_by', 'created_at']
+    list_filter = ['content_type', 'is_system']
+    search_fields = ['name', 'description']
+    readonly_fields = ['created_at', 'updated_at']
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('content_type', 'name', 'is_system', 'created_by')
+        }),
+        ('Structure', {
+            'fields': ('structure_data', 'description')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+
+
+@admin.register(ContentPiece)
+class ContentPieceAdmin(admin.ModelAdmin):
+    """Admin for ContentPiece."""
+    list_display = ['title', 'project', 'word_count', 'updated_at']
+    search_fields = ['title', 'project__title', 'content']
+    readonly_fields = ['created_at', 'updated_at']
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('project', 'title', 'word_count')
+        }),
+        ('Content', {
+            'fields': ('content',)
+        }),
+        ('Structure', {
+            'fields': ('structure_template', 'sections_data')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+
+
+class ContentTypeCategoryWeightInline(admin.TabularInline):
+    """Inline admin for ContentTypeCategoryWeight."""
+    model = ContentTypeCategoryWeight
+    extra = 0
+    fields = ['category', 'weight']
+
+
+@admin.register(ContentTypeScoringConfig)
+class ContentTypeScoringConfigAdmin(admin.ModelAdmin):
+    """Admin for ContentTypeScoringConfig."""
+    list_display = ['content_type', 'created_at']
+    list_filter = ['content_type']
+    readonly_fields = ['created_at', 'updated_at']
+    inlines = [ContentTypeCategoryWeightInline]
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('content_type',)
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at')

@@ -370,6 +370,118 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
 
         return Response(response_data, status=status.HTTP_201_CREATED)
 
+    @action(detail=True, methods=['post'], url_path='generate_content')
+    def generate_content(self, request, pk=None):
+        """Generate complete content for poem/essay/sketch/article (one-shot generation)."""
+        project = self.get_object()
+
+        # Only allow for non-novel content types
+        if project.content_type == 'novel':
+            return Response(
+                {'error': 'Use create_plot and write_chapter for novel projects'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get user's language preference
+        user_language = getattr(request, 'LANGUAGE_CODE', 'en')
+
+        logger.info("=" * 80)
+        logger.info("GENERATE CONTENT API - INPUT")
+        logger.info(f"User: {request.user.username}, Project: {project.id}")
+        logger.info(f"Content Type: {project.content_type}, Language: {user_language}")
+        logger.info(f"Input Data: {request.data}")
+        logger.info("=" * 80)
+
+        # Get idea data from request
+        idea_data = request.data.get('idea_data', {})
+
+        # Track API performance
+        start_time = timezone.now()
+
+        try:
+            # Generate content using ContentGenerationService
+            from .services import ContentGenerationService
+            content_dict, token_usage = ContentGenerationService.generate_content(
+                project=project,
+                idea_data=idea_data,
+                user_language=user_language
+            )
+
+            logger.info("-" * 80)
+            logger.info("GENERATE CONTENT API - RESPONSE")
+            logger.info(f"Generated Content: title={content_dict.get('title')}, words={content_dict.get('word_count')}")
+            logger.info(f"Token Usage: {token_usage}")
+            logger.info("-" * 80)
+
+            # Save to ContentPiece model
+            from .models import ContentPiece
+            content_piece, created = ContentPiece.objects.update_or_create(
+                project=project,
+                defaults={
+                    'title': content_dict.get('title', ''),
+                    'content': content_dict.get('content', ''),
+                    'word_count': content_dict.get('word_count', 0),
+                    'structure_template_id': content_dict.get('structure_template_id'),
+                    'sections_data': content_dict.get('sections_data', {})
+                }
+            )
+
+            # Update project word count
+            project.total_word_count = content_dict.get('word_count', 0)
+            project.save()
+
+            # Track tokens for user
+            if token_usage and request.user:
+                from .models import UserProfile
+                profile, _ = UserProfile.objects.get_or_create(user=request.user)
+                profile.add_tokens(**token_usage)
+
+            # Record API performance
+            end_time = timezone.now()
+            duration = (end_time - start_time).total_seconds()
+            from .models import APIPerformanceMetric
+            APIPerformanceMetric.objects.create(
+                api_type='content_generation',
+                duration_seconds=duration,
+                success=True
+            )
+
+            logger.info(f"Content generation completed in {duration:.2f}s")
+
+            # Serialize response
+            from .serializers import ContentPieceSerializer
+            response_data = {
+                'content_piece': ContentPieceSerializer(content_piece).data,
+                'message': f'{project.get_content_type_display()} created successfully',
+                'token_usage': token_usage
+            }
+
+            return Response(response_data, status=status.HTTP_201_CREATED)
+
+        except ValueError as e:
+            logger.error(f"Content generation error: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error in content generation: {str(e)}", exc_info=True)
+
+            # Record failed API call
+            end_time = timezone.now()
+            duration = (end_time - start_time).total_seconds()
+            from .models import APIPerformanceMetric
+            APIPerformanceMetric.objects.create(
+                api_type='content_generation',
+                duration_seconds=duration,
+                success=False
+            )
+
+            return Response(
+                {'error': 'An error occurred while generating content'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     @action(detail=True, methods=['post'])
     def create_characters(self, request, pk=None):
         """Create characters."""
