@@ -212,6 +212,77 @@ class MockOpenAIResponses:
 }
 """
 
+    @staticmethod
+    def poem_response():
+        """Mock response for poem generation."""
+        return """The autumn leaves fall gently down,
+Like whispers from the trees,
+A golden carpet on the ground,
+Dancing in the breeze.
+
+The seasons turn, the world moves on,
+Yet memories remain,
+Of summer days now long since gone,
+And sun through falling rain."""
+
+    @staticmethod
+    def essay_response():
+        """Mock response for essay generation."""
+        return """The Impact of Technology on Modern Society
+
+Introduction
+
+Technology has fundamentally transformed the way we live, work, and interact with one another. From the invention of the printing press to the rise of artificial intelligence, each technological advancement has reshaped society in profound ways. This essay examines the multifaceted impact of technology on modern society, exploring both its benefits and challenges.
+
+The Digital Revolution
+
+The digital revolution has connected billions of people across the globe, enabling instant communication and unprecedented access to information. Social media platforms, video conferencing tools, and messaging apps have made it possible to maintain relationships across vast distances. However, this connectivity comes with concerns about privacy, mental health, and the quality of human interaction.
+
+Education and Learning
+
+Technology has democratized access to education, with online courses and digital libraries making knowledge available to anyone with an internet connection. Students can now learn at their own pace, access resources from world-class institutions, and collaborate with peers globally. Yet, the digital divide persists, leaving many without access to these opportunities.
+
+Conclusion
+
+While technology has brought remarkable benefits to modern society, it also presents significant challenges that we must address thoughtfully. As we continue to innovate and integrate new technologies into our lives, we must remain mindful of their impact on human connection, equality, and well-being. The future depends on our ability to harness technology's potential while mitigating its risks."""
+
+    @staticmethod
+    def sketch_response():
+        """Mock response for sketch generation."""
+        return """The Coffee Shop at Dawn
+
+I push open the heavy glass door at 6:47 AM, and the smell hits me immediately—that rich, dark aroma of coffee beans being ground, mixed with something sweeter, maybe cinnamon rolls warming in the oven. The barista looks up and nods, recognizing me without really seeing me. She's already reaching for the medium cup.
+
+There's only one other person here, an older man in the corner reading a newspaper—actual paper, not a screen. His hands are weathered, spotted with age, and they tremble slightly as he turns the pages. Every few minutes, he reaches for his coffee cup, takes a small sip, and returns to his reading without ever looking up.
+
+The morning light is just starting to filter through the front windows, golden and tentative, illuminating dust motes that dance in the air. Outside, the street is empty except for a jogger passing by in bright yellow sneakers. Inside, the espresso machine hisses and steams, a familiar soundtrack to this quiet moment before the world fully wakes.
+
+I find myself wondering about the man in the corner—does he come here every morning? Does he live alone? Is this newspaper his ritual, his anchor to routine? But I don't ask. We share this space in comfortable silence, two early risers seeking something in the aroma of coffee and the soft glow of dawn."""
+
+    @staticmethod
+    def article_response():
+        """Mock response for article generation."""
+        return """Local Community Garden Transforms Neighborhood
+
+By Staff Writer
+Published: Today
+
+A once-vacant lot on Maple Street has been transformed into a thriving community garden, bringing together neighbors and revitalizing the local area.
+
+The Garden Project, which broke ground six months ago, now boasts over 50 individual plots where residents grow vegetables, herbs, and flowers. The initiative, spearheaded by local resident Maria Chen, has become more than just a place to grow food—it's become a hub for community connection.
+
+"I wanted to create a space where neighbors could come together," Chen explained during a recent visit to the garden. "In today's world, we often don't know the people living right next door. This garden changes that."
+
+The project has attracted participants of all ages, from young families teaching their children about where food comes from to retirees sharing decades of gardening wisdom. Regular workshops on sustainable gardening practices and seasonal potlucks have further strengthened community bonds.
+
+Local businesses have also gotten involved, with Harrison Hardware donating tools and supplies, and Riverside Nursery providing seedlings at reduced prices. The city council has taken notice, with Councilmember James Rodriguez calling it "a model for community-led urban improvement."
+
+The garden has already yielded impressive results, with participants reporting hundreds of pounds of fresh produce harvested and shared among neighbors. Chen hopes to expand the project next spring, adding more plots and a community composting area.
+
+"This started as an idea to make our neighborhood more beautiful," Chen said. "But it's become so much more—it's brought our community back to life."
+
+For information about plot availability or volunteer opportunities, residents can visit the garden's community bulletin board or attend the monthly meetings held on the first Saturday of each month."""
+
 
 def get_mock_response_for_prompt(prompt_text):
     """
@@ -227,8 +298,18 @@ def get_mock_response_for_prompt(prompt_text):
 
     prompt_lower = prompt_text.lower()
 
+    # Content type generation (check these first before other patterns)
+    if 'poem' in prompt_lower and ('write' in prompt_lower or 'create' in prompt_lower or 'generate' in prompt_lower):
+        return MockOpenAIResponses.poem_response()
+    elif 'essay' in prompt_lower and ('write' in prompt_lower or 'create' in prompt_lower or 'generate' in prompt_lower):
+        return MockOpenAIResponses.essay_response()
+    elif 'sketch' in prompt_lower and ('write' in prompt_lower or 'create' in prompt_lower or 'generate' in prompt_lower):
+        return MockOpenAIResponses.sketch_response()
+    elif ('article' in prompt_lower or 'news' in prompt_lower) and ('write' in prompt_lower or 'create' in prompt_lower or 'generate' in prompt_lower):
+        return MockOpenAIResponses.article_response()
+
     # Brainstorm/Ideas
-    if 'brainstorm' in prompt_lower or 'plot idea' in prompt_lower:
+    elif 'brainstorm' in prompt_lower or 'plot idea' in prompt_lower:
         return MockOpenAIResponses.brainstorm_response()
 
     # Plot creation
