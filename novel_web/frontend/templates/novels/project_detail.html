@@ -10,7 +10,9 @@
     <!-- Tabs -->
     <div class="tabs">
         <button class="tab active" data-tab="overview">{% trans "Overview" %}</button>
+        {% if project.content_type == 'novel' %}
         <button class="tab" data-tab="chapters">{% trans "Chapters" %}</button>
+        {% endif %}
         <button class="tab" data-tab="tools">{% trans "Tools" %}</button>
     </div>
 
@@ -20,6 +22,10 @@
             <h3>{% trans "Project Info" %}</h3>
             <div class="info-grid">
                 <div class="info-item">
+                    <label style="font-weight: bold;">{% trans "Content Type" %}</label>
+                    <span>{{ project.get_content_type_display }}</span>
+                </div>
+                <div class="info-item">
                     <label style="font-weight: bold;">{% trans "Status" %}</label>
                     <span class="status-badge status-{{ project.status }}">{{ project.get_status_display }}</span>
                 </div>
@@ -27,6 +33,12 @@
                     <label style="font-weight: bold;">{% trans "Total Words" %}</label>
                     <span>{{ project.total_word_count|default:0 }}</span>
                 </div>
+                {% if project.content_type == 'novel' %}
+                <div class="info-item">
+                    <label style="font-weight: bold;">{% trans "Chapters" %}</label>
+                    <span>{{ chapters|length }}</span>
+                </div>
+                {% endif %}
                 <div class="info-item">
                     <label style="font-weight: bold;">{% trans "Writing Style" %}</label>
                     <div id="styleDisplay" style="color: #6B7280;">{% trans "Loading..." %}</div>
@@ -36,10 +48,6 @@
                     <label style="font-weight: bold;">{% trans "Writing Techniques" %}</label>
                     <div id="techniquesDisplay" style="color: #6B7280;">{% trans "Loading..." %}</div>
                     <button onclick="openEditTechniquesModal()" class="btn btn-sm" style="margin-top: 0.5rem;">{% trans "Edit Techniques" %}</button>
-                </div>
-                <div class="info-item">
-                    <label style="font-weight: bold;">{% trans "Chapters" %}</label>
-                    <span>{{ chapters|length }}</span>
                 </div>
             </div>
         </div>
@@ -52,14 +60,16 @@
                 <div class="form-group">
                     <label for="manual_premise">{% trans "Enter Your Idea" %}</label>
                     <textarea id="manual_premise" name="premise" class="form-control" rows="4" required
-                              placeholder="{% trans "Describe your plot idea..." %}"></textarea>
+                              placeholder="{% if project.content_type == 'novel' %}{% trans "Describe your plot idea..." %}{% elif project.content_type == 'poem' %}{% trans "Describe your poem theme..." %}{% elif project.content_type == 'essay' %}{% trans "Describe your thesis or topic..." %}{% elif project.content_type == 'sketch' %}{% trans "Describe the observation or scene..." %}{% else %}{% trans "Describe your idea..." %}{% endif %}"></textarea>
                 </div>
 
                 <div id="progressContainer" class="progress-container" style="display: none;">
                     <div class="progress-bar">
                         <div id="progressBarFill" class="progress-bar-fill">0%</div>
                     </div>
-                    <div id="progressText" class="progress-text">{% trans "Creating plot & characters..." %}</div>
+                    <div id="progressText" class="progress-text">
+                        {% if project.content_type == 'novel' %}{% trans "Creating plot & characters..." %}{% else %}{% trans "Generating content..." %}{% endif %}
+                    </div>
                 </div>
 
                 <button type="submit" class="btn btn-primary btn-block" id="saveIdeaBtn">
@@ -68,7 +78,46 @@
             </form>
         </div>
 
-        <!-- Plot Section -->
+        <!-- Content Display for Poems/Essays/Sketches/Articles -->
+        {% if project.content_type != 'novel' %}
+        <div class="section" id="contentPieceSection">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3>{{ project.get_content_type_display }}</h3>
+                {% if project.content_piece %}
+                <div>
+                    <button class="btn btn-sm btn-primary" onclick="regenerateContent()">
+                        🔄 {% trans "Regenerate" %}
+                    </button>
+                    <button class="btn btn-sm" onclick="scoreContent()">
+                        ⭐ {% trans "Score" %}
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if project.content_piece %}
+            <div class="content-display" style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.5rem;">
+                <h4 style="margin-top: 0; margin-bottom: 1rem; color: #374151;">{{ project.content_piece.title }}</h4>
+                <div class="content-text" style="white-space: pre-wrap; line-height: 1.8; font-size: 1rem; color: #1f2937;">
+                    {{ project.content_piece.content }}
+                </div>
+                <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 0.875rem;">
+                    <span>{% trans "Word count" %}: {{ project.content_piece.word_count }}</span>
+                    {% if project.content_piece.structure_template %}
+                    <span style="margin-left: 1.5rem;">{% trans "Structure" %}: {{ project.content_piece.structure_template.name }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% else %}
+            <div class="empty-state" style="text-align: center; padding: 2rem; color: #6b7280;">
+                <p>{% trans "No content generated yet. Enter your idea above and click 'Save Idea and continue' to generate content." %}</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Plot Section (Novels Only) -->
+        {% if project.content_type == 'novel' %}
         <div class="section">
             <h3>{% trans "Plot Structure" %}</h3>
             {% if has_plot %}
@@ -194,6 +243,8 @@
             </div>
             {% endif %}
         </div>
+        {% endif %}
+        {# End of novel-only sections #}
     </div>
 
     <!-- Chapters Tab -->
@@ -1054,6 +1105,7 @@
 <script src="/static/js/ai-modification.js"></script>
 <script>
 const projectId = '{{ project.id }}';
+const projectContentType = '{{ project.content_type }}';
 
 // Create Plot progress bar management
 let createPlotProgressInterval = null;
@@ -1230,44 +1282,136 @@ if (manualForm) {
     manualForm.addEventListener('submit', async function(e) {
         e.preventDefault();
 
-        const manualIdea = {
-            premise: document.getElementById('manual_premise').value
-        };
+        const premise = document.getElementById('manual_premise').value;
 
         try {
             // Reset tokens at the start of new workflow
             resetTokens();
 
-            // Get estimated duration for plot API
-            const estimatedDuration = await getEstimatedDuration('plot');
-            startProgressBar(estimatedDuration);
+            if (projectContentType === 'novel') {
+                // Novel workflow: create plot and characters
+                const manualIdea = { premise: premise };
 
-            // Directly create plot and characters from idea
-            const plotResponse = await apiRequest(`/api/projects/${projectId}/create_plot/`, {
-                method: 'POST',
-                body: JSON.stringify({ idea_data: manualIdea })
-            });
+                // Get estimated duration for plot API
+                const estimatedDuration = await getEstimatedDuration('plot');
+                startProgressBar(estimatedDuration);
 
-            // Check for token usage in plot response
-            if (plotResponse && plotResponse.token_usage) {
-                console.log('Create plot - calling showTokenUsage with:', plotResponse.token_usage);
-                showTokenUsage(plotResponse.token_usage);
+                // Directly create plot and characters from idea
+                const plotResponse = await apiRequest(`/api/projects/${projectId}/create_plot/`, {
+                    method: 'POST',
+                    body: JSON.stringify({ idea_data: manualIdea })
+                });
+
+                // Check for token usage in plot response
+                if (plotResponse && plotResponse.token_usage) {
+                    console.log('Create plot - calling showTokenUsage with:', plotResponse.token_usage);
+                    showTokenUsage(plotResponse.token_usage);
+                }
+
+                completeProgressBar();
+                showToast('Plot and characters created successfully!', 'success');
+
+                // Reload page so server-rendered plot and characters sections appear
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+
+                resetProgressBar();
+            } else {
+                // Non-novel workflow: generate content (poem, essay, sketch, article)
+                const ideaData = buildIdeaDataForContentType(projectContentType, premise);
+
+                // Get estimated duration for content generation
+                const estimatedDuration = await getEstimatedDuration('content_generation');
+                startProgressBar(estimatedDuration);
+
+                // Generate content
+                const response = await apiRequest(`/api/projects/${projectId}/generate_content/`, {
+                    method: 'POST',
+                    body: JSON.stringify({ idea_data: ideaData })
+                });
+
+                // Check for token usage
+                if (response && response.token_usage) {
+                    console.log('Generate content - calling showTokenUsage with:', response.token_usage);
+                    showTokenUsage(response.token_usage);
+                }
+
+                completeProgressBar();
+                showToast(response.message || 'Content generated successfully!', 'success');
+
+                // Reload page to show generated content
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+
+                resetProgressBar();
             }
-
-            completeProgressBar();
-            showToast('Plot and characters created successfully!', 'success');
-
-            // Reload page so server-rendered plot and characters sections appear
-            setTimeout(() => {
-                window.location.reload();
-            }, 1500);
-
-            resetProgressBar();
         } catch (error) {
             resetProgressBar();
             showToast('Error: ' + error.message, 'error');
         }
     });
+}
+
+// Build idea_data object based on content type
+function buildIdeaDataForContentType(contentType, premise) {
+    switch (contentType) {
+        case 'poem':
+            return { theme: premise, style_notes: '' };
+        case 'essay':
+            return { thesis: premise, template: 'Five-Paragraph Essay', key_points: [] };
+        case 'sketch':
+            return { observation: premise, scene_notes: '' };
+        case 'article':
+            return { headline: premise, facts: [], angle: '' };
+        default:
+            return { premise: premise };
+    }
+}
+
+// Regenerate content for poems/essays/sketches/articles
+async function regenerateContent() {
+    if (!confirm('This will regenerate the content. Are you sure?')) {
+        return;
+    }
+
+    const premise = document.getElementById('manual_premise').value;
+    if (!premise) {
+        showToast('Please enter your idea in the text area above', 'error');
+        return;
+    }
+
+    try {
+        showLoading('Regenerating content...');
+        resetTokens();
+
+        const ideaData = buildIdeaDataForContentType(projectContentType, premise);
+        const response = await apiRequest(`/api/projects/${projectId}/generate_content/`, {
+            method: 'POST',
+            body: JSON.stringify({ idea_data: ideaData })
+        });
+
+        if (response && response.token_usage) {
+            showTokenUsage(response.token_usage);
+        }
+
+        hideLoading();
+        showToast(response.message || 'Content regenerated successfully!', 'success');
+
+        setTimeout(() => {
+            window.location.reload();
+        }, 1500);
+    } catch (error) {
+        hideLoading();
+        showToast('Error: ' + error.message, 'error');
+    }
+}
+
+// Score content for poems/essays/sketches
+async function scoreContent() {
+    showToast('Content scoring will be implemented in the next phase', 'info');
+    // TODO: Implement content scoring using the appropriate scoring categories
 }
 
 // Tab switching

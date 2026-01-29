@@ -7,7 +7,7 @@
 {% block content %}
 <div class="dashboard">
     <div class="dashboard-header">
-        <h2>{% trans "My Novel Projects" %}</h2>
+        <h2>{% trans "My Projects" %}</h2>
         <button class="btn btn-primary" onclick="createNewProject()">
             ➕ {% trans "New Project" %}
         </button>
@@ -28,7 +28,10 @@
             </div>
             <div class="project-meta">
                 <div class="project-stats">
+                    <span style="font-weight: 500;">{{ project.get_content_type_display }}</span>
+                    {% if project.content_type == 'novel' %}
                     <span>📝 {{ project.chapters.count }} {% trans "chapters" %}</span>
+                    {% endif %}
                     <span>📊 {{ project.total_word_count|default:0 }} {% trans "words" %}</span>
                     {% if project.default_style %}
                     <span>🎨 {% for trans in project.default_style.translations.all %}{% if trans.language_code == LANGUAGE_CODE %}{{ trans.name }}{% endif %}{% endfor %}</span>
@@ -45,7 +48,7 @@
     <div class="empty-state">
         <div class="empty-icon">📚</div>
         <h3>{% trans "No projects yet" %}</h3>
-        <p>{% trans "Start your first novel project by clicking the button above" %}</p>
+        <p>{% trans "Start your first project by clicking the button above" %}</p>
     </div>
     {% endif %}
 </div>
@@ -61,6 +64,18 @@
             <div class="form-group">
                 <label for="title">{% trans "Project Title" %}</label>
                 <input type="text" id="title" name="title" required>
+            </div>
+
+            <!-- Content Type Selector -->
+            <div class="form-group">
+                <label for="contentType">{% trans "Content Type" %}</label>
+                <select id="contentType" name="contentType" required>
+                    <option value="novel">📚 {% trans "Novel" %} - {% trans "Multi-chapter long-form narrative" %}</option>
+                    <option value="poem">✍️ {% trans "Poem" %} - {% trans "Single poetic piece" %}</option>
+                    <option value="essay">📝 {% trans "Essay" %} - {% trans "Structured analytical writing" %}</option>
+                    <option value="sketch">🎨 {% trans "Sketch" %} - {% trans "Observational writing piece" %}</option>
+                    <option value="article">📰 {% trans "Article" %} - {% trans "News or journalistic piece" %}</option>
+                </select>
             </div>
 
             <!-- Writing Style Selector (Phase 5) -->
@@ -130,6 +145,7 @@ document.getElementById('createProjectForm').addEventListener('submit', async (e
 
     const data = {
         title: formData.get('title'),
+        content_type: formData.get('contentType') || 'novel',
     };
 
     // Add style if selected (Phase 5)
