@@ -63,6 +63,12 @@
                               placeholder="{% if project.content_type == 'novel' %}{% trans "Describe your plot idea..." %}{% elif project.content_type == 'poem' %}{% trans "Describe your poem theme..." %}{% elif project.content_type == 'essay' %}{% trans "Describe your thesis or topic..." %}{% elif project.content_type == 'sketch' %}{% trans "Describe the observation or scene..." %}{% else %}{% trans "Describe your idea..." %}{% endif %}">{% if has_idea %}{% if project.content_type == 'novel' %}{{ project.idea.idea_data.premise }}{% elif project.content_type == 'poem' %}{{ project.idea.idea_data.theme }}{% elif project.content_type == 'essay' %}{{ project.idea.idea_data.thesis }}{% elif project.content_type == 'sketch' %}{{ project.idea.idea_data.observation }}{% elif project.content_type == 'article' %}{{ project.idea.idea_data.headline }}{% endif %}{% endif %}</textarea>
                 </div>
 
+                <div class="form-group" id="contentWordCountGroup">
+                    <label for="contentWordCount">{% trans "How many words?" %} <small style="color: #9CA3AF;">({% trans "suggested" %})</small></label>
+                    <input type="number" id="contentWordCount" class="form-control"
+                           min="10" max="10000" placeholder="{% trans 'Word count will be suggested based on content type' %}">
+                </div>
+
                 <div id="progressContainer" class="progress-container" style="display: none;">
                     <div class="progress-bar">
                         <div id="progressBarFill" class="progress-bar-fill">0%</div>
@@ -1322,7 +1328,12 @@ if (manualForm) {
                 resetProgressBar();
             } else {
                 // Non-novel workflow: generate content (poem, essay, sketch, article)
-                const ideaData = buildIdeaDataForContentType(projectContentType, premise);
+                const wordCountInput = document.getElementById('contentWordCount');
+                const wordCount = wordCountInput && wordCountInput.value
+                    ? parseInt(wordCountInput.value)
+                    : suggestWordCountForContentType(projectContentType);
+
+                const ideaData = buildIdeaDataForContentType(projectContentType, premise, wordCount);
 
                 // Get estimated duration for content generation
                 const estimatedDuration = await getEstimatedDuration('content_generation');
@@ -1357,17 +1368,29 @@ if (manualForm) {
     });
 }
 
+// Suggest word count based on content type
+function suggestWordCountForContentType(contentType) {
+    const suggestions = {
+        'poem': 200,      // Poems are typically shorter
+        'essay': 500,     // Standard essay length
+        'sketch': 300,    // Brief literary sketches
+        'article': 400,   // Standard news article
+        'novel': 3000     // Novel chapters (already has separate field)
+    };
+    return suggestions[contentType] || 300;
+}
+
 // Build idea_data object based on content type
-function buildIdeaDataForContentType(contentType, premise) {
+function buildIdeaDataForContentType(contentType, premise, wordCount) {
     switch (contentType) {
         case 'poem':
-            return { theme: premise, style_notes: '' };
+            return { theme: premise, style_notes: '', word_count: wordCount };
         case 'essay':
-            return { thesis: premise, template: 'Five-Paragraph Essay', key_points: [] };
+            return { thesis: premise, template: 'Five-Paragraph Essay', key_points: [], word_count: wordCount };
         case 'sketch':
-            return { observation: premise, scene_notes: '' };
+            return { observation: premise, scene_notes: '', word_count: wordCount };
         case 'article':
-            return { headline: premise, facts: [], angle: '' };
+            return { headline: premise, facts: [], angle: '', word_count: wordCount };
         default:
             return { premise: premise };
     }
@@ -1389,7 +1412,12 @@ async function regenerateContent() {
         showLoading('Regenerating content...');
         resetTokens();
 
-        const ideaData = buildIdeaDataForContentType(projectContentType, premise);
+        const wordCountInput = document.getElementById('contentWordCount');
+        const wordCount = wordCountInput && wordCountInput.value
+            ? parseInt(wordCountInput.value)
+            : suggestWordCountForContentType(projectContentType);
+
+        const ideaData = buildIdeaDataForContentType(projectContentType, premise, wordCount);
         const response = await apiRequest(`/api/projects/${projectId}/generate_content/`, {
             method: 'POST',
             body: JSON.stringify({ idea_data: ideaData })
@@ -2271,6 +2299,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Phase 5: Initialize writing styles and techniques
     // Wait for this to complete first so allTechniques global variable is available
     await initWritingStylesAndTechniques(projectId);
+
+    // Initialize word count suggestion based on content type
+    const contentType = '{{ project.content_type }}';
+    const wordCountInput = document.getElementById('contentWordCount');
+    if (wordCountInput && contentType !== 'novel') {
+        const suggested = suggestWordCountForContentType(contentType);
+        wordCountInput.value = suggested;
+        wordCountInput.placeholder = `Suggested: ${suggested} words`;
+    }
 
     // Fetch project data once to avoid duplicate API calls
     let projectData = null;

@@ -407,9 +407,10 @@ class ContentGenerationService:
 
         logger.info(f"Generating poem for project: {project.title}")
 
-        # Extract theme/idea
+        # Extract theme/idea and word count
         theme = idea_data.get('theme', project.title)
         style_notes = idea_data.get('style_notes', '')
+        word_count = idea_data.get('word_count', 200)  # Poems are typically shorter
 
         # Build user prompt
         user_prompt = f"""Write a complete poem based on this theme: {theme}
@@ -419,6 +420,7 @@ Instructions:
 - Pay attention to rhythm and musicality
 - Use appropriate poetic form and structure
 - Evoke strong emotions
+- Target length: approximately {word_count} words
 """
         if style_notes:
             user_prompt += f"\nStyle notes: {style_notes}"
@@ -498,6 +500,7 @@ Return the poem in JSON format:
         thesis = idea_data.get('thesis', project.title)
         template_name = idea_data.get('template', 'Five-Paragraph Essay')
         key_points = idea_data.get('key_points', [])
+        word_count = idea_data.get('word_count', 500)  # Standard essay length
 
         # Get structure template
         template = ContentStructureTemplate.objects.filter(
@@ -526,14 +529,17 @@ Structure: {template.name if template else 'Five-Paragraph Essay'}
             for point in key_points:
                 user_prompt += f"- {point}\n"
 
-        user_prompt += """
+        user_prompt += f"""
 Instructions:
 - Present a clear, compelling thesis
 - Build strong arguments with evidence
 - Organize with logical flow
 - Address potential counterarguments
 - Write with clarity and precision
+- Target length: approximately {word_count} words
+"""
 
+        user_prompt += """
 Return the essay in JSON format:
 {
     "title": "Essay Title",
@@ -615,6 +621,7 @@ Return the essay in JSON format:
         # Extract sketch parameters
         observation = idea_data.get('observation', project.title)
         scene_notes = idea_data.get('scene_notes', '')
+        word_count = idea_data.get('word_count', 300)  # Brief literary sketches
 
         # Get sketch template
         template = ContentStructureTemplate.objects.filter(
@@ -633,14 +640,17 @@ Structure: Moment → Thought → Stop
         if scene_notes:
             user_prompt += f"\nScene notes: {scene_notes}"
 
-        user_prompt += """
+        user_prompt += f"""
 
 Instructions:
 - Observe keenly with precise, concrete details
 - Use vivid imagery to bring the moment to life
 - Reflect thoughtfully on deeper meaning
 - Know when to stop - don't over-explain
+- Target length: approximately {word_count} words
+"""
 
+        user_prompt += """
 Return the sketch in JSON format:
 {
     "title": "Sketch Title",
@@ -722,6 +732,7 @@ Return the sketch in JSON format:
         headline = idea_data.get('headline', project.title)
         facts = idea_data.get('facts', [])
         angle = idea_data.get('angle', '')
+        word_count = idea_data.get('word_count', 400)  # Standard news article
 
         # Build user prompt
         user_prompt = f"""Write a news article with this headline: {headline}
@@ -739,14 +750,17 @@ Structure: Inverted Pyramid
             for fact in facts:
                 user_prompt += f"- {fact}\n"
 
-        user_prompt += """
+        user_prompt += f"""
 Instructions:
 - Prioritize accuracy and factual reporting
 - Maintain objectivity and balance
 - Use clear, concise language
 - Present multiple perspectives when relevant
 - Follow AP style guidelines
+- Target length: approximately {word_count} words
+"""
 
+        user_prompt += """
 Return the article in JSON format:
 {
     "title": "Article Headline",
