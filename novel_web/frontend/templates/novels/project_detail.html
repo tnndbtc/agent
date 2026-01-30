@@ -85,13 +85,13 @@
                 <h3>{{ project.get_content_type_display }}</h3>
                 {% if project.content_piece %}
                 <div>
-                    <button class="btn btn-sm btn-primary" onclick="regenerateContent()">
+                    <button class="btn btn-sm btn-primary" onclick="regenerateContent()" style="display: none;">
                         🔄 {% trans "Regenerate" %}
                     </button>
                     <button class="btn btn-sm" onclick="scoreContent()">
                         ⭐ {% trans "Score" %}
                     </button>
-                    <button class="btn btn-sm btn-success" onclick="saveContentPiece()">
+                    <button id="saveContentBtn" class="btn btn-sm btn-primary" onclick="saveContentPiece()">
                         💾 {% trans "Save" %}
                     </button>
                 </div>
@@ -1449,6 +1449,16 @@ async function saveContentPiece() {
                 wordCountElement.textContent = `Word count: ${response.word_count}`;
             }
         }
+
+        // Disable save button after successful save (no changes now)
+        const saveContentBtn = document.getElementById('saveContentBtn');
+        if (saveContentBtn) {
+            saveContentBtn.disabled = true;
+        }
+
+        // Update the tracked initial value to current content
+        // This will be checked by the input event listener
+        window.initialContentValue = newContent.trim();
     } catch (error) {
         hideLoading();
         showToast('Error: ' + error.message, 'error');
@@ -2307,6 +2317,54 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Pass the project data to avoid duplicate API calls
     await loadProjectTechniques(projectData);
     await loadProjectStyle(projectData);
+
+    // Track idea changes and enable/disable "Save Idea and continue" button
+    let initialIdeaValue = '';
+    const ideaTextarea = document.getElementById('manual_premise');
+    const saveIdeaBtn = document.getElementById('saveIdeaBtn');
+
+    if (ideaTextarea && saveIdeaBtn) {
+        // Store initial value
+        initialIdeaValue = ideaTextarea.value.trim();
+
+        // Always disable button initially (grayed out until user makes changes)
+        saveIdeaBtn.disabled = true;
+
+        // Enable/disable button based on whether idea has been modified
+        ideaTextarea.addEventListener('input', function() {
+            const currentValue = this.value.trim();
+            const hasChanged = currentValue !== initialIdeaValue;
+            const hasContent = currentValue.length > 0;
+            // Enable if changed AND has content, disable otherwise
+            saveIdeaBtn.disabled = !(hasChanged && hasContent);
+        });
+    }
+
+    // Track content piece changes and enable/disable "Save" button
+    window.initialContentValue = '';
+    const contentPieceText = document.getElementById('contentPieceText');
+    const saveContentBtn = document.getElementById('saveContentBtn');
+
+    if (contentPieceText && saveContentBtn) {
+        // Store initial value (use textContent for contenteditable divs)
+        window.initialContentValue = (contentPieceText.textContent || contentPieceText.innerText).trim();
+
+        // Always disable button initially (grayed out until user makes changes)
+        saveContentBtn.disabled = true;
+
+        // Enable/disable button based on whether content has been modified
+        // Use both 'input' and 'DOMSubtreeModified' events for contenteditable divs
+        const checkContentChange = function() {
+            const currentValue = (contentPieceText.textContent || contentPieceText.innerText).trim();
+            const hasChanged = currentValue !== window.initialContentValue;
+            const hasContent = currentValue.length > 0;
+            // Enable if changed AND has content, disable otherwise
+            saveContentBtn.disabled = !(hasChanged && hasContent);
+        };
+
+        contentPieceText.addEventListener('input', checkContentChange);
+        contentPieceText.addEventListener('blur', checkContentChange);
+    }
 });
 
 // ========================================
