@@ -439,8 +439,7 @@ Return the poem in JSON format:
             project=project,
             language_code=user_language,
             context_type='poem',
-            include_context=True,
-            use_5_message_format=True
+            include_context=True
         )
 
         # Call OpenAI API using LoggingOpenAIClient
@@ -554,8 +553,7 @@ Return the essay in JSON format:
             project=project,
             language_code=user_language,
             context_type='essay',
-            include_context=True,
-            use_5_message_format=True
+            include_context=True
         )
 
         # Call OpenAI API using LoggingOpenAIClient
@@ -662,8 +660,7 @@ Return the sketch in JSON format:
             project=project,
             language_code=user_language,
             context_type='sketch',
-            include_context=True,
-            use_5_message_format=True
+            include_context=True
         )
 
         # Call OpenAI API using LoggingOpenAIClient
@@ -764,8 +761,7 @@ Return the article in JSON format:
             project=project,
             language_code=user_language,
             context_type='article',
-            include_context=True,
-            use_5_message_format=True
+            include_context=True
         )
 
         # Call OpenAI API using LoggingOpenAIClient
@@ -1348,8 +1344,7 @@ class WritingService:
             language_code='en',  # UI language, actual output language is in user_prompt
             context_type='chapter',
             include_context=True,
-            act=act,  # Pass act for context
-            use_5_message_format=True
+            act=act  # Pass act for context
         )
 
         logger.info(f"Built act-based chapter prompt with {len(messages)} messages")

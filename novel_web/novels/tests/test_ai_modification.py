@@ -468,12 +468,13 @@ class TestAIModificationService:
             content_type="character"
         )
 
-        # Verify the system message includes text editing role instructions
+        # Verify the messages include text editing role instructions
         call_args = mock_client.chat.completions.create.call_args
         messages = call_args[1]['messages']  # Get messages from kwargs
-        system_msg = messages[0]['content']  # First message is system message
-        assert "text editing" in system_msg.lower() or "modify" in system_msg.lower()
-        assert len(system_msg) > 0  # System message should not be empty
+        # Combine all message content (5-layer format spreads across multiple messages)
+        all_content = ' '.join([msg['content'] for msg in messages if msg.get('content')])
+        assert "text editing" in all_content.lower() or "modify" in all_content.lower()
+        assert len(messages) > 0  # Messages should not be empty
 
     @patch('novels.ai_client.OpenAI')
     def test_all_content_types(self, mock_openai, user):
