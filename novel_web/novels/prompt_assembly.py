@@ -60,18 +60,20 @@ class PromptAssemblyService:
 
         parts = []
 
-        # Layer 1: System Policies (in priority order)
-        policies = SystemPolicy.objects.filter(is_active=True).order_by('priority')
-        for policy in policies:
-            trans = policy.translations.filter(language_code=language_code).first()
+        # Layer 1: System Policy (consolidated)
+        system_policy = SystemPolicy.objects.filter(name_key='system_policy', is_active=True).first()
+        if system_policy:
+            trans = system_policy.translations.filter(language_code=language_code).first()
 
             # Fallback to English if translation not found
             if not trans and language_code != 'en':
-                trans = policy.translations.filter(language_code='en').first()
+                trans = system_policy.translations.filter(language_code='en').first()
 
             if trans:
                 parts.append(trans.content)
-                logger.debug(f"Added policy {policy.name_key} ({language_code})")
+                logger.debug(f"Added consolidated system policy ({language_code})")
+        else:
+            logger.warning("Consolidated system policy not found")
 
         # Layer 2: Agent Role
         role = AgentRole.objects.filter(name_key=agent_role_key, is_active=True).first()
@@ -318,9 +320,9 @@ class PromptAssemblyService:
         if system_policy:
             messages.append({"role": "system", "content": system_policy})
 
-        # Layer 2: Role Definition (system role)
+        # Layer 2: Role Definition (developer role)
         if role_definition:
-            messages.append({"role": "system", "content": role_definition})
+            messages.append({"role": "developer", "content": role_definition})
 
         # Layer 3: Writing Style (developer role)
         if style_instructions:
