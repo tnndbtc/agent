@@ -2,12 +2,8 @@
 import logging
 from django.conf import settings
 from openai import OpenAI
-import functools
 
 logger = logging.getLogger(__name__)
-
-# Flag to track if patching has been applied
-_patched = False
 
 
 class LoggingOpenAIClient:
@@ -42,15 +38,12 @@ class LoggingOpenAIClient:
         temperature = temperature if temperature is not None else self.temperature
 
         # Log the prompt
+        import json
         logger.info("=" * 80)
         logger.info("OpenAI API Call - Chat Completion")
         logger.info(f"Model: {model}, Temperature: {temperature}, Max Tokens: {max_tokens}")
         logger.info("Messages:")
-        for idx, msg in enumerate(messages):
-            role = msg.get('role', 'unknown')
-            content = msg.get('content', '')
-            logger.info(f"  [{idx}] Role: {role}")
-            logger.info(f"      Content: {content}")
+        logger.info(json.dumps({"messages": messages}, indent=2))
         logger.info("-" * 80)
 
         try:
@@ -221,75 +214,3 @@ Return ONLY the JSON object, no additional text or explanation."""
         logger.error(f"Failed to generate theme: {str(e)}")
         # Return a default theme if generation fails
         return "A story of personal growth and discovery.", {}
-
-
-def patch_openai_for_logging():
-    """
-    Monkey-patch the OpenAI client to add logging to all chat completion calls.
-    This ensures that all OpenAI API calls made by the novel_agent package are logged.
-    """
-    global _patched
-
-    if _patched:
-        logger.info("OpenAI logging patch already applied, skipping")
-        return
-
-    try:
-        from openai.resources.chat import completions
-
-        # Save the original create method
-        original_create = completions.Completions.create
-
-        @functools.wraps(original_create)
-        def logged_create(self, *args, **kwargs):
-            """Wrapper for chat.completions.create that adds logging."""
-            # Extract parameters for logging
-            messages = kwargs.get('messages', args[0] if args else [])
-            model = kwargs.get('model', 'unknown')
-            temperature = kwargs.get('temperature', 'default')
-            max_tokens = kwargs.get('max_tokens', 'default')
-
-            # Log the request
-            logger.info("=" * 80)
-            logger.info("OPENAI API CALL - INPUT")
-            logger.info("=" * 80)
-            logger.info(f"Model: {model}, Temperature: {temperature}, Max Tokens: {max_tokens}")
-            logger.info("INPUT MESSAGES:")
-            for idx, msg in enumerate(messages):
-                if isinstance(msg, dict):
-                    role = msg.get('role', 'unknown')
-                    content = msg.get('content', '')
-                    logger.info(f"  [{idx}] Role: {role}")
-                    logger.info(f"      Content: {content}")
-            logger.info("-" * 80)
-
-            try:
-                # Call the original method
-                response = original_create(self, *args, **kwargs)
-
-                # Log the response
-                if hasattr(response, 'choices') and response.choices:
-                    response_text = response.choices[0].message.content if response.choices else ""
-                    logger.info("-" * 80)
-                    logger.info("OPENAI API CALL - OUTPUT/RESPONSE")
-                    logger.info("-" * 80)
-                    logger.info(f"RESPONSE CONTENT: {response_text}")
-                    if hasattr(response, 'usage') and response.usage:
-                        logger.info(f"TOKEN USAGE: {response.usage.total_tokens} tokens")
-                logger.info("=" * 80)
-
-                return response
-
-            except Exception as e:
-                logger.error(f"OpenAI API Error: {str(e)}")
-                logger.info("=" * 80)
-                raise
-
-        # Apply the patch
-        completions.Completions.create = logged_create
-        _patched = True
-        logger.info("Successfully patched OpenAI client for comprehensive logging")
-
-    except Exception as e:
-        logger.error(f"Failed to patch OpenAI client: {str(e)}")
-        logger.warning("OpenAI API calls may not be logged")

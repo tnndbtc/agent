@@ -19,13 +19,9 @@ from novels.tests.mocks.openai_responses import get_mock_response_for_prompt
 def pytest_configure(config):
     """
     Pytest hook that runs before Django is set up.
-    Patch the OpenAI logging function and client to prevent real API calls during tests.
+    Patch the OpenAI client to prevent real API calls during tests.
     """
     from novels.tests.mocks.openai_responses import get_mock_response_for_prompt
-
-    # Patch patch_openai_for_logging to do nothing during tests
-    patcher1 = patch('novels.ai_client.patch_openai_for_logging', lambda: None)
-    patcher1.start()
 
     # Create a mock OpenAI client that will be used everywhere
     def create_mock_response(prompt_text):
@@ -76,7 +72,7 @@ def pytest_configure(config):
     patcher3.start()
 
     # Store patchers so we can stop them later
-    config._openai_patches = [patcher1, patcher2, patcher3]
+    config._openai_patches = [patcher2, patcher3]
 
 
 def pytest_unconfigure(config):

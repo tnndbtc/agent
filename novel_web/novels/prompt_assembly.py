@@ -318,9 +318,9 @@ class PromptAssemblyService:
             if system_policy:
                 messages.append({"role": "system", "content": system_policy})
 
-            # Layer 2: Role Definition (developer role)
+            # Layer 2: Role Definition (system role)
             if role_definition:
-                messages.append({"role": "developer", "content": role_definition})
+                messages.append({"role": "system", "content": role_definition})
 
             # Layer 3: Writing Style (developer role)
             if style_instructions:

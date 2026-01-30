@@ -68,34 +68,34 @@ class TestChapterPromptActEmphasis:
                 language='English'
             )
 
-        # Extract user message from captured messages (OpenAI format is list of dicts)
-        user_message = None
+        # Extract ALL messages and combine content (5-message format spreads across roles)
+        all_content = []
         for messages_list in captured_messages:
             for msg in messages_list:
-                if msg.get('role') == 'user':
-                    user_message = msg['content']
-                    break
-            if user_message:
-                break
+                if msg.get('content'):
+                    all_content.append(msg['content'])
 
-        assert user_message is not None, "No user message found in captured messages"
+        assert all_content, "No messages found in captured messages"
+
+        # Combine all message content for searching
+        combined_content = "\n".join(all_content)
 
         print("\n" + "="*80)
-        print("CAPTURED CHAPTER GENERATION PROMPT:")
+        print("CAPTURED CHAPTER GENERATION PROMPT (ALL MESSAGES):")
         print("="*80)
-        print(user_message)
+        print(combined_content)
         print("="*80 + "\n")
 
         # Critical assertions - verify act emphasis exists
-        assert "**Current Act (for this chapter):**" in user_message, \
+        assert "**Current Act (for this chapter):**" in combined_content, \
             "FAIL: Prompt must include '**Current Act (for this chapter):**' header"
 
-        assert "Act 1 (SETUP)" in user_message, \
+        assert "Act 1 (SETUP)" in combined_content, \
             "FAIL: Prompt must include 'Act 1 (SETUP)'"
 
         # percentage field removed in migration 0023
 
-        assert "Introduction to the protagonist and their ordinary world" in user_message, \
+        assert "Introduction to the protagonist and their ordinary world" in combined_content, \
             "FAIL: Prompt must include full act description"
 
     def test_chapter_prompt_includes_all_act_details(self, test_project):
@@ -143,31 +143,31 @@ class TestChapterPromptActEmphasis:
                 language='English'
             )
 
-        # Extract user message from captured messages (OpenAI format is list of dicts)
-        user_message = None
+        # Extract ALL messages and combine content (5-message format spreads across roles)
+        all_content = []
         for messages_list in captured_messages:
             for msg in messages_list:
-                if msg.get('role') == 'user':
-                    user_message = msg['content']
-                    break
-            if user_message:
-                break
+                if msg.get('content'):
+                    all_content.append(msg['content'])
 
-        assert user_message is not None
+        assert all_content, "No messages found in captured messages"
+
+        # Combine all message content for searching
+        combined_content = "\n".join(all_content)
 
         # Verify each detail individually for clear error messages
-        assert "Act 2" in user_message, \
+        assert "Act 2" in combined_content, \
             "FAIL: Prompt must include 'Act 2' (act number)"
 
-        assert "CONFRONTATION" in user_message, \
+        assert "CONFRONTATION" in combined_content, \
             "FAIL: Prompt must include 'CONFRONTATION' (act subject)"
 
         # percentage field removed in migration 0023
 
-        assert "Rising action and complications" in user_message, \
+        assert "Rising action and complications" in combined_content, \
             "FAIL: Prompt must include act description text"
 
-        assert "challenges that test their resolve" in user_message, \
+        assert "challenges that test their resolve" in combined_content, \
             "FAIL: Prompt must include complete act description"
 
     def test_chapter_prompt_with_multiple_acts_shows_current_act(self, test_project):
@@ -230,31 +230,31 @@ class TestChapterPromptActEmphasis:
                 language='English'
             )
 
-        # Extract user message from captured messages (OpenAI format is list of dicts)
-        user_message = None
+        # Extract ALL messages and combine content (5-message format spreads across roles)
+        all_content = []
         for messages_list in captured_messages:
             for msg in messages_list:
-                if msg.get('role') == 'user':
-                    user_message = msg['content']
-                    break
-            if user_message:
-                break
+                if msg.get('content'):
+                    all_content.append(msg['content'])
 
-        assert user_message is not None
+        assert all_content, "No messages found in captured messages"
+
+        # Combine all message content for searching
+        combined_content = "\n".join(all_content)
 
         # Should emphasize Act 3 (CURRENT act), not Act 1 or Act 2
-        assert "Act 3 (RESOLUTION)" in user_message, \
+        assert "Act 3 (RESOLUTION)" in combined_content, \
             "FAIL: Prompt must emphasize Act 3 (current act for this chapter)"
 
-        assert "Climax and return home" in user_message, \
+        assert "Climax and return home" in combined_content, \
             "FAIL: Prompt must include Act 3 description"
 
         # Should NOT emphasize other acts in the main act emphasis section
         # (They may appear in story structure context, but not in the emphasis header)
-        user_message_lines = user_message.split('\n')
+        combined_lines = combined_content.split('\n')
         act_emphasis_section = []
         in_emphasis = False
-        for line in user_message_lines:
+        for line in combined_lines:
             if "**Current Act (for this chapter):**" in line:
                 in_emphasis = True
             if in_emphasis:

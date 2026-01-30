@@ -354,11 +354,8 @@ class ContentGenerationService:
             content_dict: {'content': str, 'title': str, 'word_count': int, ...}
             token_usage: {'prompt_tokens': int, 'completion_tokens': int, 'total_tokens': int}
         """
-        from openai import OpenAI
-        from django.conf import settings
         from .content_registry import ContentTypeRegistry
 
-        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
         config = ContentTypeRegistry.get_config(project.content_type)
 
         if not config:
@@ -370,34 +367,33 @@ class ContentGenerationService:
 
         elif project.content_type == 'poem':
             return ContentGenerationService._generate_poem(
-                client, project, idea_data, user_language
+                project, idea_data, user_language
             )
 
         elif project.content_type == 'essay':
             return ContentGenerationService._generate_essay(
-                client, project, idea_data, user_language
+                project, idea_data, user_language
             )
 
         elif project.content_type == 'sketch':
             return ContentGenerationService._generate_sketch(
-                client, project, idea_data, user_language
+                project, idea_data, user_language
             )
 
         elif project.content_type == 'article':
             return ContentGenerationService._generate_article(
-                client, project, idea_data, user_language
+                project, idea_data, user_language
             )
 
         else:
             raise ValueError(f"Content generation not implemented for: {project.content_type}")
 
     @staticmethod
-    def _generate_poem(client, project, idea_data, user_language):
+    def _generate_poem(project, idea_data, user_language):
         """
         Generate complete poem from idea.
 
         Args:
-            client: OpenAI client instance (unused, using LoggingOpenAIClient)
             project: NovelProject instance
             idea_data: Dictionary with theme/idea information
             user_language: Language code
@@ -443,7 +439,8 @@ Return the poem in JSON format:
             project=project,
             language_code=user_language,
             context_type='poem',
-            include_context=True
+            include_context=True,
+            use_5_message_format=True
         )
 
         # Call OpenAI API using LoggingOpenAIClient
@@ -479,12 +476,11 @@ Return the poem in JSON format:
         return content_dict, token_usage
 
     @staticmethod
-    def _generate_essay(client, project, idea_data, user_language):
+    def _generate_essay(project, idea_data, user_language):
         """
         Generate complete essay from idea and structure.
 
         Args:
-            client: OpenAI client instance (unused, using LoggingOpenAIClient)
             project: NovelProject instance
             idea_data: Dictionary with thesis/topic information
             user_language: Language code
@@ -558,7 +554,8 @@ Return the essay in JSON format:
             project=project,
             language_code=user_language,
             context_type='essay',
-            include_context=True
+            include_context=True,
+            use_5_message_format=True
         )
 
         # Call OpenAI API using LoggingOpenAIClient
@@ -598,12 +595,11 @@ Return the essay in JSON format:
         return content_dict, token_usage
 
     @staticmethod
-    def _generate_sketch(client, project, idea_data, user_language):
+    def _generate_sketch(project, idea_data, user_language):
         """
         Generate sketch using Moment → Thought → Stop structure.
 
         Args:
-            client: OpenAI client instance (unused, using LoggingOpenAIClient)
             project: NovelProject instance
             idea_data: Dictionary with observation/scene information
             user_language: Language code
@@ -666,7 +662,8 @@ Return the sketch in JSON format:
             project=project,
             language_code=user_language,
             context_type='sketch',
-            include_context=True
+            include_context=True,
+            use_5_message_format=True
         )
 
         # Call OpenAI API using LoggingOpenAIClient
@@ -706,12 +703,11 @@ Return the sketch in JSON format:
         return content_dict, token_usage
 
     @staticmethod
-    def _generate_article(client, project, idea_data, user_language):
+    def _generate_article(project, idea_data, user_language):
         """
         Generate news article using journalistic structure.
 
         Args:
-            client: OpenAI client instance (unused, using LoggingOpenAIClient)
             project: NovelProject instance
             idea_data: Dictionary with story information
             user_language: Language code
@@ -768,7 +764,8 @@ Return the article in JSON format:
             project=project,
             language_code=user_language,
             context_type='article',
-            include_context=True
+            include_context=True,
+            use_5_message_format=True
         )
 
         # Call OpenAI API using LoggingOpenAIClient
@@ -1351,7 +1348,8 @@ class WritingService:
             language_code='en',  # UI language, actual output language is in user_prompt
             context_type='chapter',
             include_context=True,
-            act=act  # Pass act for context
+            act=act,  # Pass act for context
+            use_5_message_format=True
         )
 
         logger.info(f"Built act-based chapter prompt with {len(messages)} messages")

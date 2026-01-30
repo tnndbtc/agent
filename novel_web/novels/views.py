@@ -1055,7 +1055,8 @@ class ExampleViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], url_path='suggest-metadata')
     def suggest_metadata(self, request):
         """Suggest title, category, and locale for example content using OpenAI."""
-        from langchain_openai import ChatOpenAI
+        from .ai_client import LoggingOpenAIClient
+        import json
 
         content = request.data.get('content', '')
         if not content:
@@ -1069,7 +1070,7 @@ class ExampleViewSet(viewsets.ModelViewSet):
         locale_choices = [choice[0] for choice in Example.LOCALE_CHOICES]
 
         try:
-            llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
+            ai_client = LoggingOpenAIClient()
 
             prompt = f"""Analyze the following writing example and suggest appropriate metadata.
 
@@ -1089,24 +1090,17 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact format, 
 }}
 """
 
-            response = llm.invoke(prompt)
-            import json
+            messages = [
+                {"role": "system", "content": "You are a metadata suggestion assistant for writing examples."},
+                {"role": "user", "content": prompt}
+            ]
 
-            # Extract token usage information
-            token_usage = {}
-            if hasattr(response, 'response_metadata') and 'token_usage' in response.response_metadata:
-                usage = response.response_metadata['token_usage']
-                token_usage = {
-                    'prompt_tokens': usage.get('prompt_tokens', 0),
-                    'completion_tokens': usage.get('completion_tokens', 0),
-                    'total_tokens': usage.get('total_tokens', 0)
-                }
-            elif hasattr(response, 'usage_metadata'):
-                token_usage = {
-                    'prompt_tokens': getattr(response.usage_metadata, 'input_tokens', 0),
-                    'completion_tokens': getattr(response.usage_metadata, 'output_tokens', 0),
-                    'total_tokens': getattr(response.usage_metadata, 'total_tokens', 0)
-                }
+            # Use chat_completion_with_json for automatic JSON parsing and token extraction
+            suggestions, token_usage = ai_client.chat_completion_with_json(
+                messages=messages,
+                model="gpt-4o-mini",
+                temperature=0.3
+            )
 
             # Log token usage in web container
             logger.info(f"suggest_metadata - Token usage: {token_usage}")
@@ -1123,23 +1117,6 @@ IMPORTANT: You must respond with ONLY a valid JSON object in this exact format, 
                     logger.info(f"suggest_metadata - Saved tokens to user {request.user.username}: {token_usage}")
                 except Exception as e:
                     logger.error(f"suggest_metadata - Failed to save tokens to user profile: {e}")
-
-            # Extract JSON from response
-            content_text = response.content if hasattr(response, 'content') else str(response)
-
-            # Try to extract JSON from the response
-            import re
-            # Strip markdown code blocks if present
-            content_text = re.sub(r'```json\s*|\s*```', '', content_text)
-            content_text = content_text.strip()
-
-            # Try to find JSON object
-            json_match = re.search(r'\{[^{}]*\}', content_text, re.DOTALL)
-            if json_match:
-                suggestions = json.loads(json_match.group())
-            else:
-                # Fallback: try to parse the entire response
-                suggestions = json.loads(content_text)
 
             # Validate and clean suggestions with case-insensitive matching
             suggested_category = suggestions.get('category', '')
