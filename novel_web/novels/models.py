@@ -197,6 +197,12 @@ class WritingStyle(models.Model):
         help_text="User who created this style (NULL for system styles)"
     )
     public = models.BooleanField(default=False, help_text="Whether this style is publicly available")
+    content_type = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        help_text="Content type this style is designed for (blank for generic styles)"
+    )
 
     # Style parameters
     pacing = models.CharField(max_length=20, choices=PACING_CHOICES, default='medium')
@@ -213,6 +219,7 @@ class WritingStyle(models.Model):
         indexes = [
             models.Index(fields=['is_system', 'public']),
             models.Index(fields=['created_by']),
+            models.Index(fields=['content_type']),
         ]
         unique_together = [['name_key', 'created_by']]
 

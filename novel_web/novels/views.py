@@ -58,6 +58,22 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         return NovelProjectSerializer
 
     def perform_create(self, serializer):
+        # Auto-assign matching writing style based on content_type
+        content_type = serializer.validated_data.get('content_type')
+        default_style = serializer.validated_data.get('default_style')
+
+        # Only auto-assign if no style was explicitly provided
+        if not default_style and content_type:
+            from .models import WritingStyle
+            # Find the system style matching this content_type
+            matching_style = WritingStyle.objects.filter(
+                is_system=True,
+                content_type=content_type
+            ).first()
+
+            if matching_style:
+                serializer.validated_data['default_style'] = matching_style
+
         serializer.save(user=self.request.user)
 
     @action(detail=True, methods=['post'])
@@ -1416,10 +1432,24 @@ class WritingStyleViewSet(viewsets.ModelViewSet):
     pagination_class = None
 
     def get_queryset(self):
-        """Return accessible styles (system styles + public styles + user's private styles)."""
-        return WritingStyle.objects.filter(
+        """Return accessible styles (system styles + public styles + user's private styles).
+
+        Can be filtered by content_type query parameter to show only styles
+        for that content type + generic styles (content_type=null).
+        """
+        queryset = WritingStyle.objects.filter(
             Q(is_system=True) | Q(public=True) | Q(created_by=self.request.user)
-        ).prefetch_related('translations').distinct()
+        )
+
+        # Filter by content_type if provided
+        content_type = self.request.query_params.get('content_type', None)
+        if content_type:
+            # Show styles matching this content_type OR generic styles (null)
+            queryset = queryset.filter(
+                Q(content_type=content_type) | Q(content_type__isnull=True)
+            )
+
+        return queryset.prefetch_related('translations').distinct()
 
     def perform_create(self, serializer):
         """Create style with current user as creator."""

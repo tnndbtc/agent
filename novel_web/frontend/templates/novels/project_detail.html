@@ -2540,8 +2540,9 @@ async function loadProjectStyle(project = null) {
 
 async function openEditStyleModal() {
     try {
-        // Fetch all available styles
-        const stylesResponse = await apiRequest('/api/writing-styles/');
+        // Fetch styles filtered by content type (only show matching content_type styles)
+        const contentType = '{{ project.content_type }}';
+        const stylesResponse = await apiRequest(`/api/writing-styles/?content_type=${contentType}`);
         const allStyles = stylesResponse;
 
         // Fetch current project style
