@@ -91,6 +91,9 @@
                     <button class="btn btn-sm" onclick="scoreContent()">
                         ⭐ {% trans "Score" %}
                     </button>
+                    <button class="btn btn-sm btn-success" onclick="saveContentPiece()">
+                        💾 {% trans "Save" %}
+                    </button>
                 </div>
                 {% endif %}
             </div>
@@ -98,7 +101,7 @@
             {% if project.content_piece %}
             <div class="content-display" style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.5rem;">
                 <h4 style="margin-top: 0; margin-bottom: 1rem; color: #374151;">{{ project.content_piece.title }}</h4>
-                <div class="content-text" style="white-space: pre-wrap; line-height: 1.8; font-size: 1rem; color: #1f2937;">
+                <div id="contentPieceText" class="content-text" contenteditable="true" style="white-space: pre-wrap; line-height: 1.8; font-size: 1rem; color: #1f2937;">
                     {{ project.content_piece.content }}
                 </div>
                 <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 0.875rem;">
@@ -1414,6 +1417,44 @@ async function scoreContent() {
     // TODO: Implement content scoring using the appropriate scoring categories
 }
 
+// Save content piece (after AI modification or manual editing)
+async function saveContentPiece() {
+    const contentElement = document.getElementById('contentPieceText');
+    if (!contentElement) {
+        showToast('Content not found', 'error');
+        return;
+    }
+
+    const newContent = contentElement.textContent || contentElement.innerText;
+    if (!newContent.trim()) {
+        showToast('Content cannot be empty', 'error');
+        return;
+    }
+
+    try {
+        showLoading('Saving content...');
+
+        const response = await apiRequest(`/api/projects/${projectId}/content_piece/`, {
+            method: 'PATCH',
+            body: JSON.stringify({ content: newContent })
+        });
+
+        hideLoading();
+        showToast('Content saved successfully!', 'success');
+
+        // Optionally update word count display if returned from API
+        if (response && response.word_count) {
+            const wordCountElement = document.querySelector('#contentPieceSection .content-display span');
+            if (wordCountElement) {
+                wordCountElement.textContent = `Word count: ${response.word_count}`;
+            }
+        }
+    } catch (error) {
+        hideLoading();
+        showToast('Error: ' + error.message, 'error');
+    }
+}
+
 // Tab switching
 document.querySelectorAll('.tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -2251,6 +2292,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         enableTextSelection('characterBio-{{ character.id }}', 'character');
     }
     {% endfor %}
+
+    // Idea textarea
+    if (document.getElementById('manual_premise')) {
+        enableTextSelection('manual_premise', 'idea');
+    }
+
+    // Content piece text (for poems/essays/sketches/articles)
+    if (document.getElementById('contentPieceText')) {
+        enableTextSelection('contentPieceText', 'content_piece');
+    }
 
     // Load project techniques and style on page load
     // Pass the project data to avoid duplicate API calls

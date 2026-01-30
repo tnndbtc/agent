@@ -502,6 +502,49 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @action(detail=True, methods=['patch'], url_path='content_piece')
+    def update_content_piece(self, request, pk=None):
+        """Update content piece (poem/essay/sketch/article) after AI modification or manual editing."""
+        project = self.get_object()
+
+        # Ensure project is not a novel (novels use chapters, not content pieces)
+        if project.content_type == 'novel':
+            return Response(
+                {'error': 'Novels use chapters, not content pieces'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get content from request
+        new_content = request.data.get('content')
+        if not new_content:
+            return Response(
+                {'error': 'Content is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if content piece exists
+        if not hasattr(project, 'content_piece'):
+            return Response(
+                {'error': 'No content piece exists for this project'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Update content piece
+        content_piece = project.content_piece
+        content_piece.content = new_content
+
+        # Recalculate word count
+        content_piece.word_count = len(new_content.split())
+        content_piece.save()
+
+        # Return updated content piece
+        from .serializers import ContentPieceSerializer
+        return Response({
+            'message': 'Content updated successfully',
+            'content_piece': ContentPieceSerializer(content_piece).data,
+            'word_count': content_piece.word_count
+        })
+
     @action(detail=True, methods=['post'])
     def create_characters(self, request, pk=None):
         """Create characters."""
