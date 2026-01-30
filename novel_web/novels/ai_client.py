@@ -77,6 +77,92 @@ class LoggingOpenAIClient:
             logger.info("=" * 80)
             raise
 
+    def _extract_tokens(self, response):
+        """
+        Extract token usage from OpenAI API response.
+
+        Args:
+            response: OpenAI API response object
+
+        Returns:
+            dict: Token usage with prompt_tokens, completion_tokens, total_tokens
+        """
+        if hasattr(response, 'usage') and response.usage:
+            return {
+                'prompt_tokens': response.usage.prompt_tokens,
+                'completion_tokens': response.usage.completion_tokens,
+                'total_tokens': response.usage.total_tokens
+            }
+        return {
+            'prompt_tokens': 0,
+            'completion_tokens': 0,
+            'total_tokens': 0
+        }
+
+    def _parse_json(self, content):
+        """
+        Parse JSON from response content, handling markdown code blocks.
+
+        Args:
+            content: Response content string
+
+        Returns:
+            dict or list: Parsed JSON object or array
+
+        Raises:
+            json.JSONDecodeError: If content is not valid JSON
+        """
+        import json
+        import re
+
+        content = content.strip()
+
+        # Try to parse as JSON directly
+        if content.startswith('{') or content.startswith('['):
+            return json.loads(content)
+
+        # Extract from markdown code block (handles both objects and arrays)
+        json_match = re.search(r'```(?:json)?\s*([\{\[].*?[\}\]])\s*```', content, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group(1))
+
+        # If no JSON found, raise error
+        raise json.JSONDecodeError(f"No valid JSON found in content", content, 0)
+
+    def chat_completion_with_json(self, messages, model=None, temperature=None, max_tokens=None, **kwargs):
+        """
+        Create a chat completion and parse JSON response with token tracking.
+
+        Args:
+            messages: List of message dictionaries
+            model: Model name (optional, uses default if not provided)
+            temperature: Temperature setting (optional, uses default if not provided)
+            max_tokens: Maximum tokens to generate
+            **kwargs: Additional arguments to pass to the API
+
+        Returns:
+            tuple: (parsed_json_dict, token_usage_dict)
+
+        Raises:
+            json.JSONDecodeError: If response is not valid JSON
+        """
+        response = self.chat_completion(
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            **kwargs
+        )
+
+        # Extract content and tokens
+        content = response.choices[0].message.content if response.choices else ""
+        token_usage = self._extract_tokens(response)
+
+        # Parse JSON
+        parsed_json = self._parse_json(content)
+
+        return parsed_json, token_usage
+
 
 def generate_theme_from_idea(idea_data, language='English'):
     """
@@ -121,45 +207,13 @@ Return ONLY the JSON object, no additional text or explanation."""
 
     try:
         client = LoggingOpenAIClient()
-        response = client.chat_completion(
+        data, token_usage = client.chat_completion_with_json(
             messages=messages,
             temperature=0.7,
             max_tokens=150
         )
 
-        content = response.choices[0].message.content.strip()
-
-        # Extract token usage
-        token_usage = {}
-        if hasattr(response, 'usage') and response.usage:
-            token_usage = {
-                'prompt_tokens': response.usage.prompt_tokens,
-                'completion_tokens': response.usage.completion_tokens,
-                'total_tokens': response.usage.total_tokens
-            }
-
-        # Parse JSON response
-        import json
-        import re
-
-        try:
-            # Try to parse as JSON directly
-            if content.startswith('{'):
-                data = json.loads(content)
-                theme = data.get('theme', content)
-            else:
-                # Extract from markdown code block
-                json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
-                if json_match:
-                    data = json.loads(json_match.group(1))
-                    theme = data.get('theme', content)
-                else:
-                    # Fallback: use raw content if not JSON
-                    theme = content
-        except (json.JSONDecodeError, AttributeError) as e:
-            logger.warning(f"Failed to parse theme JSON: {e}, using raw content")
-            theme = content
-
+        theme = data.get('theme', "A story of personal growth and discovery.")
         logger.info(f"Generated theme: {theme}, tokens: {token_usage}")
         return theme, token_usage
 

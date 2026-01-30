@@ -530,8 +530,11 @@ def mock_openai_client():
     mock_client = Mock()
     mock_client.chat = mock_chat
 
-    # Patch the OpenAI client class
-    with patch('openai.OpenAI', return_value=mock_client):
+    # Patch the OpenAI client class in both locations
+    # - openai.OpenAI: for any code that imports directly from openai module
+    # - novels.ai_client.OpenAI: for LoggingOpenAIClient which imports OpenAI
+    with patch('openai.OpenAI', return_value=mock_client), \
+         patch('novels.ai_client.OpenAI', return_value=mock_client):
         yield mock_client
 
 

@@ -78,7 +78,7 @@ def seed_prompt_architecture(db):
 class TestAIModificationAPI:
     """Test AI text modification endpoints."""
 
-    @patch('openai.OpenAI')
+    @patch('novels.ai_client.OpenAI')
     def test_modify_text_success(self, mock_openai, auth_client):
         """Test successful text modification."""
         # Mock OpenAI response
@@ -133,7 +133,7 @@ class TestAIModificationAPI:
 
         assert response.status_code == 400
 
-    @patch('openai.OpenAI')
+    @patch('novels.ai_client.OpenAI')
     def test_modify_text_with_save_prompt(self, mock_openai, auth_client, user):
         """Test saving custom prompt during modification."""
         mock_response = MagicMock()
@@ -162,7 +162,7 @@ class TestAIModificationAPI:
         assert prompt.prompt_text == 'Custom modification'
         assert prompt.usage_count == 0
 
-    @patch('openai.OpenAI')
+    @patch('novels.ai_client.OpenAI')
     def test_modify_text_update_existing_prompt(self, mock_openai, auth_client, user):
         """Test updating an existing saved prompt."""
         # Create existing prompt
@@ -195,7 +195,7 @@ class TestAIModificationAPI:
         prompt = UserPrompt.objects.get(user=user, name='Existing Prompt')
         assert prompt.prompt_text == 'New text'
 
-    @patch('openai.OpenAI')
+    @patch('novels.ai_client.OpenAI')
     def test_modify_text_with_saved_prompt_id(self, mock_openai, auth_client, user):
         """Test using a saved prompt by ID."""
         # Create saved prompt
@@ -417,7 +417,7 @@ class TestUserPromptAPI:
 class TestAIModificationService:
     """Test the service layer directly."""
 
-    @patch('openai.OpenAI')
+    @patch('novels.ai_client.OpenAI')
     def test_modify_text_selection_service(self, mock_openai, user):
         """Test the service method directly."""
         from novels.services import AIModificationService
@@ -445,7 +445,7 @@ class TestAIModificationService:
         assert result['token_usage']['prompt_tokens'] == 30
         assert result['token_usage']['completion_tokens'] == 10
 
-    @patch('openai.OpenAI')
+    @patch('novels.ai_client.OpenAI')
     def test_content_type_specific_instructions(self, mock_openai, user):
         """Test that prompt architecture assembles system messages correctly."""
         from novels.services import AIModificationService
@@ -475,7 +475,7 @@ class TestAIModificationService:
         assert "text editing" in system_msg.lower() or "modify" in system_msg.lower()
         assert len(system_msg) > 0  # System message should not be empty
 
-    @patch('openai.OpenAI')
+    @patch('novels.ai_client.OpenAI')
     def test_all_content_types(self, mock_openai, user):
         """Test all content types have instructions."""
         from novels.services import AIModificationService

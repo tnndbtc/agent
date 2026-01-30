@@ -56,7 +56,7 @@ class TestChapterPromptActEmphasis:
             mock_response.usage.total_tokens = 700
             return mock_response
 
-        with patch('openai.OpenAI') as mock_openai_class:
+        with patch('novels.ai_client.OpenAI') as mock_openai_class:
             mock_client = Mock()
             mock_client.chat.completions.create = Mock(side_effect=mock_create)
             mock_openai_class.return_value = mock_client
@@ -132,7 +132,7 @@ class TestChapterPromptActEmphasis:
             mock_response.usage.total_tokens = 700
             return mock_response
 
-        with patch('openai.OpenAI') as mock_openai_class:
+        with patch('novels.ai_client.OpenAI') as mock_openai_class:
             mock_client = Mock()
             mock_client.chat.completions.create = Mock(side_effect=mock_create)
             mock_openai_class.return_value = mock_client
@@ -218,7 +218,7 @@ class TestChapterPromptActEmphasis:
             mock_response.usage.total_tokens = 1100
             return mock_response
 
-        with patch('openai.OpenAI') as mock_openai_class:
+        with patch('novels.ai_client.OpenAI') as mock_openai_class:
             mock_client = Mock()
             mock_client.chat.completions.create = Mock(side_effect=mock_create)
             mock_openai_class.return_value = mock_client

@@ -102,10 +102,9 @@ class PlotService:
         Returns:
             tuple: (plot_dict, token_usage)
         """
-        from openai import OpenAI
-        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
         import json
+        import re
 
         logger.info(f"PlotService.create_full_plot - language: {user_language}")
 
@@ -159,36 +158,26 @@ Return ONLY the JSON object, no additional text or explanation."""
             include_context=False
         )
 
-        # Call OpenAI directly
-        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
+        # Use LoggingOpenAIClient for consistent API calls with logging and token tracking
+        from .ai_client import LoggingOpenAIClient
+        client = LoggingOpenAIClient()
 
         try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
+            # Get response from OpenAI
+            response = client.chat_completion(
                 messages=messages,
                 temperature=0.7
             )
 
-            # Extract token usage
-            token_usage = {
-                'prompt_tokens': response.usage.prompt_tokens,
-                'completion_tokens': response.usage.completion_tokens,
-                'total_tokens': response.usage.total_tokens
-            }
+            # Extract token usage using client helper
+            token_usage = client._extract_tokens(response)
 
+            # Get content
             content = response.choices[0].message.content.strip()
 
-            # Parse JSON response
-            # Try to extract JSON if there's surrounding text
-            import re
-            json_match = re.search(r'\{[\s\S]*\}', content)
-            if json_match:
-                json_str = json_match.group(0)
-            else:
-                json_str = content
-
+            # Try to parse as JSON
             try:
-                plot_json = json.loads(json_str)
+                plot_json = client._parse_json(content)
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse JSON response: {e}")
                 logger.error(f"Response content: {content}")
@@ -258,9 +247,8 @@ Return ONLY the JSON object, no additional text or explanation."""
     @staticmethod
     def generate_subplots(project, main_plot, num_subplots=2, user_language='en'):
         """Generate subplots using 5-layer prompt architecture."""
-        from openai import OpenAI
-        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
+        from .ai_client import LoggingOpenAIClient
 
         logger.info(f"PlotService.generate_subplots - language: {user_language}, num: {num_subplots}")
 
@@ -285,18 +273,18 @@ Format as numbered list."""
             include_context=True
         )
 
-        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
+        client = LoggingOpenAIClient()
 
         try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
+            response = client.chat_completion(
                 messages=messages,
                 temperature=0.7
             )
 
+            token_usage = client._extract_tokens(response)
             subplots = response.choices[0].message.content.strip()
-            logger.info("PlotService.generate_subplots - Successfully generated subplots")
-            return subplots
+            logger.info(f"PlotService.generate_subplots - Successfully generated subplots, tokens: {token_usage}")
+            return subplots, token_usage
 
         except Exception as e:
             logger.error(f"Error generating subplots: {e}", exc_info=True)
@@ -409,7 +397,7 @@ class ContentGenerationService:
         Generate complete poem from idea.
 
         Args:
-            client: OpenAI client instance
+            client: OpenAI client instance (unused, using LoggingOpenAIClient)
             project: NovelProject instance
             idea_data: Dictionary with theme/idea information
             user_language: Language code
@@ -418,6 +406,7 @@ class ContentGenerationService:
             Tuple of (content_dict, token_usage)
         """
         from .prompt_assembly import PromptAssemblyService
+        from .ai_client import LoggingOpenAIClient
         import json
 
         logger.info(f"Generating poem for project: {project.title}")
@@ -457,23 +446,19 @@ Return the poem in JSON format:
             include_context=True
         )
 
-        # Call OpenAI API
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        # Call OpenAI API using LoggingOpenAIClient
+        ai_client = LoggingOpenAIClient()
+        response = ai_client.chat_completion(
             messages=messages,
             temperature=0.8  # Higher temperature for creativity
         )
 
+        token_usage = ai_client._extract_tokens(response)
         content_str = response.choices[0].message.content
-        token_usage = {
-            'prompt_tokens': response.usage.prompt_tokens,
-            'completion_tokens': response.usage.completion_tokens,
-            'total_tokens': response.usage.total_tokens
-        }
 
         # Parse JSON response
         try:
-            result = json.loads(content_str)
+            result = ai_client._parse_json(content_str)
             title = result.get('title', 'Untitled')
             content = result.get('content', '')
         except json.JSONDecodeError:
@@ -499,7 +484,7 @@ Return the poem in JSON format:
         Generate complete essay from idea and structure.
 
         Args:
-            client: OpenAI client instance
+            client: OpenAI client instance (unused, using LoggingOpenAIClient)
             project: NovelProject instance
             idea_data: Dictionary with thesis/topic information
             user_language: Language code
@@ -509,6 +494,7 @@ Return the poem in JSON format:
         """
         from .prompt_assembly import PromptAssemblyService
         from .models import ContentStructureTemplate
+        from .ai_client import LoggingOpenAIClient
         import json
 
         logger.info(f"Generating essay for project: {project.title}")
@@ -575,23 +561,19 @@ Return the essay in JSON format:
             include_context=True
         )
 
-        # Call OpenAI API
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        # Call OpenAI API using LoggingOpenAIClient
+        ai_client = LoggingOpenAIClient()
+        response = ai_client.chat_completion(
             messages=messages,
             temperature=0.7
         )
 
+        token_usage = ai_client._extract_tokens(response)
         content_str = response.choices[0].message.content
-        token_usage = {
-            'prompt_tokens': response.usage.prompt_tokens,
-            'completion_tokens': response.usage.completion_tokens,
-            'total_tokens': response.usage.total_tokens
-        }
 
         # Parse JSON response
         try:
-            result = json.loads(content_str)
+            result = ai_client._parse_json(content_str)
             title = result.get('title', 'Untitled')
             content = result.get('content', '')
             sections_data = result.get('sections', {})
@@ -621,7 +603,7 @@ Return the essay in JSON format:
         Generate sketch using Moment → Thought → Stop structure.
 
         Args:
-            client: OpenAI client instance
+            client: OpenAI client instance (unused, using LoggingOpenAIClient)
             project: NovelProject instance
             idea_data: Dictionary with observation/scene information
             user_language: Language code
@@ -631,6 +613,7 @@ Return the essay in JSON format:
         """
         from .prompt_assembly import PromptAssemblyService
         from .models import ContentStructureTemplate
+        from .ai_client import LoggingOpenAIClient
         import json
 
         logger.info(f"Generating sketch for project: {project.title}")
@@ -686,23 +669,19 @@ Return the sketch in JSON format:
             include_context=True
         )
 
-        # Call OpenAI API
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        # Call OpenAI API using LoggingOpenAIClient
+        ai_client = LoggingOpenAIClient()
+        response = ai_client.chat_completion(
             messages=messages,
             temperature=0.75
         )
 
+        token_usage = ai_client._extract_tokens(response)
         content_str = response.choices[0].message.content
-        token_usage = {
-            'prompt_tokens': response.usage.prompt_tokens,
-            'completion_tokens': response.usage.completion_tokens,
-            'total_tokens': response.usage.total_tokens
-        }
 
         # Parse JSON response
         try:
-            result = json.loads(content_str)
+            result = ai_client._parse_json(content_str)
             title = result.get('title', 'Untitled')
             content = result.get('content', '')
             sections_data = result.get('sections', {})
@@ -732,7 +711,7 @@ Return the sketch in JSON format:
         Generate news article using journalistic structure.
 
         Args:
-            client: OpenAI client instance
+            client: OpenAI client instance (unused, using LoggingOpenAIClient)
             project: NovelProject instance
             idea_data: Dictionary with story information
             user_language: Language code
@@ -741,6 +720,7 @@ Return the sketch in JSON format:
             Tuple of (content_dict, token_usage)
         """
         from .prompt_assembly import PromptAssemblyService
+        from .ai_client import LoggingOpenAIClient
         import json
 
         logger.info(f"Generating article for project: {project.title}")
@@ -791,23 +771,19 @@ Return the article in JSON format:
             include_context=True
         )
 
-        # Call OpenAI API
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        # Call OpenAI API using LoggingOpenAIClient
+        ai_client = LoggingOpenAIClient()
+        response = ai_client.chat_completion(
             messages=messages,
             temperature=0.3  # Lower temperature for factual content
         )
 
+        token_usage = ai_client._extract_tokens(response)
         content_str = response.choices[0].message.content
-        token_usage = {
-            'prompt_tokens': response.usage.prompt_tokens,
-            'completion_tokens': response.usage.completion_tokens,
-            'total_tokens': response.usage.total_tokens
-        }
 
         # Parse JSON response
         try:
-            result = json.loads(content_str)
+            result = ai_client._parse_json(content_str)
             title = result.get('title', 'Untitled')
             content = result.get('content', '')
         except json.JSONDecodeError:
@@ -838,11 +814,9 @@ class CharacterService:
         Returns:
             tuple: (protagonists, token_usage) where token_usage contains prompt_tokens, completion_tokens, total_tokens
         """
-        from openai import OpenAI
-        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
+        from .ai_client import LoggingOpenAIClient
         import json
-        import re
 
         logger.info(f"CharacterService.create_protagonists - project: {project.id}, num_options: {num_options}, user_language: {user_language}")
 
@@ -890,39 +864,20 @@ Return ONLY the JSON array, no additional text or explanation."""
 
         logger.info(f"Built character creation prompt with {len(messages)} messages")
 
-        # Call OpenAI directly
-        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        # Call OpenAI using LoggingOpenAIClient
+        client = LoggingOpenAIClient()
+        response = client.chat_completion(
             messages=messages,
             temperature=0.7
         )
 
-        # Extract token usage
-        token_usage = {
-            'prompt_tokens': response.usage.prompt_tokens,
-            'completion_tokens': response.usage.completion_tokens,
-            'total_tokens': response.usage.total_tokens
-        }
-
+        token_usage = client._extract_tokens(response)
         content = response.choices[0].message.content.strip()
         logger.info(f"OpenAI response received: {len(content)} chars, tokens: {token_usage}")
 
         # Parse JSON response
-
-        # Try to extract JSON if wrapped in markdown code blocks
-        if '```json' in content:
-            json_match = re.search(r'```json\s*(.*?)\s*```', content, re.DOTALL)
-            if json_match:
-                content = json_match.group(1).strip()
-        elif '```' in content:
-            json_match = re.search(r'```\s*(.*?)\s*```', content, re.DOTALL)
-            if json_match:
-                content = json_match.group(1).strip()
-
-        # Try direct JSON parsing
         try:
-            protagonists = json.loads(content)
+            protagonists = client._parse_json(content)
             if not isinstance(protagonists, list):
                 logger.warning("Response is not a list, wrapping in list")
                 protagonists = [protagonists]
@@ -942,11 +897,9 @@ Return ONLY the JSON array, no additional text or explanation."""
         Returns:
             tuple: (antagonist, token_usage) where token_usage contains prompt_tokens, completion_tokens, total_tokens
         """
-        from openai import OpenAI
-        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
+        from .ai_client import LoggingOpenAIClient
         import json
-        import re
 
         logger.info(f"CharacterService.create_antagonist - project: {project.id}, user_language: {user_language}")
 
@@ -997,37 +950,19 @@ Return ONLY the JSON object, no additional text or explanation."""
             include_context=True
         )
 
-        # Call OpenAI directly
-        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        # Call OpenAI using LoggingOpenAIClient
+        client = LoggingOpenAIClient()
+        response = client.chat_completion(
             messages=messages,
             temperature=0.7
         )
 
-        # Extract token usage
-        token_usage = {
-            'prompt_tokens': response.usage.prompt_tokens,
-            'completion_tokens': response.usage.completion_tokens,
-            'total_tokens': response.usage.total_tokens
-        }
-
-        # Parse JSON response
+        token_usage = client._extract_tokens(response)
         content = response.choices[0].message.content.strip()
 
-        # Try to extract JSON if wrapped in markdown code blocks
-        if '```json' in content:
-            json_match = re.search(r'```json\s*(.*?)\s*```', content, re.DOTALL)
-            if json_match:
-                content = json_match.group(1).strip()
-        elif '```' in content:
-            json_match = re.search(r'```\s*(.*?)\s*```', content, re.DOTALL)
-            if json_match:
-                content = json_match.group(1).strip()
-
-        # Try direct JSON parsing
+        # Parse JSON response
         try:
-            antagonist = json.loads(content)
+            antagonist = client._parse_json(content)
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON response: {e}")
             logger.error(f"Content was: {content}")
@@ -1043,11 +978,9 @@ Return ONLY the JSON object, no additional text or explanation."""
         Returns:
             list: List of supporting characters (without token usage for backward compatibility)
         """
-        from openai import OpenAI
-        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
+        from .ai_client import LoggingOpenAIClient
         import json
-        import re
 
         logger.info(f"CharacterService.create_supporting - project: {project.id}, roles: {roles}, user_language: {user_language}")
 
@@ -1094,30 +1027,19 @@ Return ONLY the JSON array, no additional text or explanation."""
             include_context=True
         )
 
-        # Call OpenAI directly
-        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        # Call OpenAI using LoggingOpenAIClient
+        client = LoggingOpenAIClient()
+        response = client.chat_completion(
             messages=messages,
             temperature=0.7
         )
 
-        # Parse JSON response
+        token_usage = client._extract_tokens(response)
         content = response.choices[0].message.content.strip()
 
-        # Try to extract JSON if wrapped in markdown code blocks
-        if '```json' in content:
-            json_match = re.search(r'```json\s*(.*?)\s*```', content, re.DOTALL)
-            if json_match:
-                content = json_match.group(1).strip()
-        elif '```' in content:
-            json_match = re.search(r'```\s*(.*?)\s*```', content, re.DOTALL)
-            if json_match:
-                content = json_match.group(1).strip()
-
-        # Try direct JSON parsing
+        # Parse JSON response
         try:
-            supporting = json.loads(content)
+            supporting = client._parse_json(content)
             if not isinstance(supporting, list):
                 logger.warning("Response is not a list, wrapping in list")
                 supporting = [supporting]
@@ -1126,7 +1048,7 @@ Return ONLY the JSON array, no additional text or explanation."""
             logger.error(f"Content was: {content}")
             supporting = []
 
-        logger.info(f"CharacterService.create_supporting - Successfully generated {len(supporting)} supporting characters")
+        logger.info(f"CharacterService.create_supporting - Successfully generated {len(supporting)} supporting characters with token usage: {token_usage}")
         return supporting
 
 
@@ -1140,11 +1062,9 @@ class SettingService:
         Returns:
             dict: Primary setting data
         """
-        from openai import OpenAI
-        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
+        from .ai_client import LoggingOpenAIClient
         import json
-        import re
 
         logger.info(f"SettingService.create_primary_setting - project: {project.id}, user_language: {user_language}")
 
@@ -1182,39 +1102,26 @@ Format as JSON object."""
 
         logger.info(f"Built setting creation prompt with {len(messages)} messages")
 
-        # Call OpenAI directly
-        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        # Call OpenAI using LoggingOpenAIClient
+        client = LoggingOpenAIClient()
+        response = client.chat_completion(
             messages=messages,
             temperature=0.7
         )
 
-        content = response.choices[0].message.content
-        logger.info(f"OpenAI response received: {len(content)} chars")
+        token_usage = client._extract_tokens(response)
+        content = response.choices[0].message.content.strip()
+        logger.info(f"OpenAI response received: {len(content)} chars, tokens: {token_usage}")
 
         # Parse JSON response
-        content = content.strip()
-
-        # Try to extract JSON if wrapped in markdown code blocks
-        if '```json' in content:
-            json_match = re.search(r'```json\s*(.*?)\s*```', content, re.DOTALL)
-            if json_match:
-                content = json_match.group(1).strip()
-        elif '```' in content:
-            json_match = re.search(r'```\s*(.*?)\s*```', content, re.DOTALL)
-            if json_match:
-                content = json_match.group(1).strip()
-
-        # Try direct JSON parsing
         try:
-            setting = json.loads(content)
+            setting = client._parse_json(content)
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON response: {e}")
             logger.error(f"Content was: {content}")
             setting = {}
 
-        logger.info(f"SettingService.create_primary_setting - Successfully generated primary setting")
+        logger.info(f"SettingService.create_primary_setting - Successfully generated primary setting with token usage: {token_usage}")
         return setting
 
     @staticmethod
@@ -1224,11 +1131,9 @@ Format as JSON object."""
         Returns:
             list: List of secondary locations
         """
-        from openai import OpenAI
-        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
+        from .ai_client import LoggingOpenAIClient
         import json
-        import re
 
         logger.info(f"SettingService.create_secondary_locations - project: {project.id}, num_locations: {num_locations}, user_language: {user_language}")
 
@@ -1265,30 +1170,19 @@ Format as JSON array of location objects."""
             include_context=True
         )
 
-        # Call OpenAI directly
-        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        # Call OpenAI using LoggingOpenAIClient
+        client = LoggingOpenAIClient()
+        response = client.chat_completion(
             messages=messages,
             temperature=0.7
         )
 
-        # Parse JSON response
+        token_usage = client._extract_tokens(response)
         content = response.choices[0].message.content.strip()
 
-        # Try to extract JSON if wrapped in markdown code blocks
-        if '```json' in content:
-            json_match = re.search(r'```json\s*(.*?)\s*```', content, re.DOTALL)
-            if json_match:
-                content = json_match.group(1).strip()
-        elif '```' in content:
-            json_match = re.search(r'```\s*(.*?)\s*```', content, re.DOTALL)
-            if json_match:
-                content = json_match.group(1).strip()
-
-        # Try direct JSON parsing
+        # Parse JSON response
         try:
-            locations = json.loads(content)
+            locations = client._parse_json(content)
             if not isinstance(locations, list):
                 logger.warning("Response is not a list, wrapping in list")
                 locations = [locations]
@@ -1297,7 +1191,7 @@ Format as JSON array of location objects."""
             logger.error(f"Content was: {content}")
             locations = []
 
-        logger.info(f"SettingService.create_secondary_locations - Successfully generated {len(locations)} secondary locations")
+        logger.info(f"SettingService.create_secondary_locations - Successfully generated {len(locations)} secondary locations with token usage: {token_usage}")
         return locations
 
 
@@ -1404,10 +1298,10 @@ class WritingService:
         Returns:
             Tuple of (chapter_data, token_usage)
         """
-        from openai import OpenAI
-        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
+        from .ai_client import LoggingOpenAIClient
         from .models import Chapter
+        import json
 
         logger.info(f"WritingService.write_chapter_from_act - project: {project.id}, act: {act.id}, "
                    f"iteration: {iteration}, target_words: {target_word_count}, has_example_metadata: {example_metadata is not None}")
@@ -1462,31 +1356,22 @@ class WritingService:
 
         logger.info(f"Built act-based chapter prompt with {len(messages)} messages")
 
-        # Call OpenAI directly
-        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        # Call OpenAI using LoggingOpenAIClient
+        client = LoggingOpenAIClient()
+        response = client.chat_completion(
             messages=messages,
             temperature=0.7
         )
 
-        # Extract token usage
-        token_usage = {
-            'prompt_tokens': response.usage.prompt_tokens,
-            'completion_tokens': response.usage.completion_tokens,
-            'total_tokens': response.usage.total_tokens
-        }
-
-        # Extract content and title from JSON response
+        token_usage = client._extract_tokens(response)
         raw_response = response.choices[0].message.content
 
         # Log the raw response for debugging
-        logger.info(f"=======OpenAI raw RESPONSE (first 500 chars)=======: {raw_response}\n================================================================================")
+        logger.info(f"=======OpenAI raw RESPONSE (first 500 chars)=======: {raw_response[:500]}\n================================================================================")
 
         # Try to parse as JSON
         try:
-            import json
-            response_data = json.loads(raw_response)
+            response_data = client._parse_json(raw_response)
             # Check if the parsed data is a dictionary (expected format)
             if isinstance(response_data, dict):
                 content = response_data.get('content', raw_response)
@@ -1545,9 +1430,8 @@ class EditingService:
         Returns:
             str: Edited content
         """
-        from openai import OpenAI
-        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
+        from .ai_client import LoggingOpenAIClient
 
         logger.info(f"EditingService.edit_for_style - project: {project.id}, target_style: {target_style}, content_length: {len(content)}")
 
@@ -1573,16 +1457,16 @@ class EditingService:
 
         logger.info(f"Built editing prompt with {len(messages)} messages")
 
-        # Call OpenAI directly
-        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        # Call OpenAI using LoggingOpenAIClient
+        client = LoggingOpenAIClient()
+        response = client.chat_completion(
             messages=messages,
             temperature=0.7
         )
 
+        token_usage = client._extract_tokens(response)
         result = response.choices[0].message.content.strip()
-        logger.info(f"EditingService.edit_for_style - Successfully edited content, result_length: {len(result)}")
+        logger.info(f"EditingService.edit_for_style - Successfully edited content, result_length: {len(result)}, tokens: {token_usage}")
         return result
 
     @staticmethod
@@ -1592,9 +1476,8 @@ class EditingService:
         Returns:
             str: Grammar-corrected content
         """
-        from openai import OpenAI
-        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
+        from .ai_client import LoggingOpenAIClient
 
         logger.info(f"EditingService.edit_for_grammar - project: {project.id}, content_length: {len(content)}")
 
@@ -1619,16 +1502,16 @@ class EditingService:
             include_context=False  # Grammar editing doesn't need full context
         )
 
-        # Call OpenAI directly
-        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        # Call OpenAI using LoggingOpenAIClient
+        client = LoggingOpenAIClient()
+        response = client.chat_completion(
             messages=messages,
             temperature=0.3  # Lower temperature for grammar
         )
 
+        token_usage = client._extract_tokens(response)
         result = response.choices[0].message.content.strip()
-        logger.info(f"EditingService.edit_for_grammar - Successfully corrected grammar, result_length: {len(result)}")
+        logger.info(f"EditingService.edit_for_grammar - Successfully corrected grammar, result_length: {len(result)}, tokens: {token_usage}")
         return result
 
     @staticmethod
@@ -1638,9 +1521,8 @@ class EditingService:
         Returns:
             str: Improved dialogue
         """
-        from openai import OpenAI
-        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
+        from .ai_client import LoggingOpenAIClient
 
         logger.info(f"EditingService.improve_dialogue - project: {project.id}, characters: {character_names}, dialogue_length: {len(dialogue)}")
 
@@ -1665,16 +1547,16 @@ class EditingService:
             include_context=True  # Context helps maintain character voices
         )
 
-        # Call OpenAI directly
-        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        # Call OpenAI using LoggingOpenAIClient
+        client = LoggingOpenAIClient()
+        response = client.chat_completion(
             messages=messages,
             temperature=0.7
         )
 
+        token_usage = client._extract_tokens(response)
         result = response.choices[0].message.content.strip()
-        logger.info(f"EditingService.improve_dialogue - Successfully improved dialogue, result_length: {len(result)}")
+        logger.info(f"EditingService.improve_dialogue - Successfully improved dialogue, result_length: {len(result)}, tokens: {token_usage}")
         return result
 
 
@@ -1688,11 +1570,9 @@ class ConsistencyService:
         Returns:
             dict: Consistency report with identified issues
         """
-        from openai import OpenAI
-        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
+        from .ai_client import LoggingOpenAIClient
         import json
-        import re
 
         logger.info(f"ConsistencyService.check_chapter_consistency - project: {project.id}, content_length: {len(chapter_content)}")
 
@@ -1725,30 +1605,19 @@ class ConsistencyService:
 
         logger.info(f"Built consistency check prompt with {len(messages)} messages")
 
-        # Call OpenAI directly
-        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        # Call OpenAI using LoggingOpenAIClient
+        client = LoggingOpenAIClient()
+        response = client.chat_completion(
             messages=messages,
             temperature=0.3  # Lower temperature for analytical task
         )
 
-        # Parse JSON response
+        token_usage = client._extract_tokens(response)
         content = response.choices[0].message.content.strip()
 
-        # Try to extract JSON if wrapped in markdown code blocks
-        if '```json' in content:
-            json_match = re.search(r'```json\s*(.*?)\s*```', content, re.DOTALL)
-            if json_match:
-                content = json_match.group(1).strip()
-        elif '```' in content:
-            json_match = re.search(r'```\s*(.*?)\s*```', content, re.DOTALL)
-            if json_match:
-                content = json_match.group(1).strip()
-
-        # Try direct JSON parsing
+        # Parse JSON response
         try:
-            character_check = json.loads(content)
+            character_check = client._parse_json(content)
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON response: {e}")
             logger.error(f"Content was: {content}")
@@ -1758,7 +1627,7 @@ class ConsistencyService:
                 'score': 5
             }
 
-        logger.info(f"ConsistencyService.check_chapter_consistency - Found {len(character_check.get('issues', []))} issues")
+        logger.info(f"ConsistencyService.check_chapter_consistency - Found {len(character_check.get('issues', []))} issues, tokens: {token_usage}")
         return character_check
 
     @staticmethod
@@ -1768,11 +1637,9 @@ class ConsistencyService:
         Returns:
             dict: Full consistency report for the entire novel
         """
-        from openai import OpenAI
-        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
+        from .ai_client import LoggingOpenAIClient
         import json
-        import re
 
         logger.info(f"ConsistencyService.generate_full_report - project: {project.id}")
 
@@ -1815,30 +1682,19 @@ Format as JSON object."""
             include_context=True
         )
 
-        # Call OpenAI directly
-        client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        # Call OpenAI using LoggingOpenAIClient
+        client = LoggingOpenAIClient()
+        response = client.chat_completion(
             messages=messages,
             temperature=0.3
         )
 
-        # Parse JSON response
+        token_usage = client._extract_tokens(response)
         content = response.choices[0].message.content.strip()
 
-        # Try to extract JSON if wrapped in markdown code blocks
-        if '```json' in content:
-            json_match = re.search(r'```json\s*(.*?)\s*```', content, re.DOTALL)
-            if json_match:
-                content = json_match.group(1).strip()
-        elif '```' in content:
-            json_match = re.search(r'```\s*(.*?)\s*```', content, re.DOTALL)
-            if json_match:
-                content = json_match.group(1).strip()
-
-        # Try direct JSON parsing
+        # Parse JSON response
         try:
-            report = json.loads(content)
+            report = client._parse_json(content)
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON response: {e}")
             logger.error(f"Content was: {content}")
@@ -1850,7 +1706,7 @@ Format as JSON object."""
                 'recommendations': []
             }
 
-        logger.info(f"ConsistencyService.generate_full_report - Generated full report with score: {report.get('overall_score', 'N/A')}")
+        logger.info(f"ConsistencyService.generate_full_report - Generated full report with score: {report.get('overall_score', 'N/A')}, tokens: {token_usage}")
         return report
 
 
@@ -1997,9 +1853,8 @@ class AIModificationService:
                 'token_usage': dict
             }
         """
-        from openai import OpenAI
-        from django.conf import settings
         from .prompt_assembly import PromptAssemblyService
+        from .ai_client import LoggingOpenAIClient
 
         logger.info(f"Modifying {content_type} text (length: {len(original_text)}) with prompt: {user_prompt[:100]}...")
 
@@ -2027,23 +1882,16 @@ class AIModificationService:
         # Replace the last message content with the final version
         messages[-1]['content'] = final_user_message
 
-        # Call OpenAI directly
+        # Call OpenAI using LoggingOpenAIClient
         try:
-            client = OpenAI(api_key=settings.NOVEL_AGENT['OPENAI_API_KEY'])
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
+            client = LoggingOpenAIClient()
+            response = client.chat_completion(
                 messages=messages,
                 temperature=0.7
             )
 
             modified_text = response.choices[0].message.content.strip()
-
-            # Extract token usage
-            token_usage = {
-                'prompt_tokens': response.usage.prompt_tokens,
-                'completion_tokens': response.usage.completion_tokens,
-                'total_tokens': response.usage.total_tokens
-            }
+            token_usage = client._extract_tokens(response)
 
             logger.info(f"Successfully modified text. Original length: {len(original_text)}, "
                        f"Modified length: {len(modified_text)}, Tokens: {token_usage}")
