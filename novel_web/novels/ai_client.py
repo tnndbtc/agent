@@ -20,7 +20,7 @@ class LoggingOpenAIClient:
         self.model = settings.NOVEL_AGENT.get('MODEL_NAME', 'gpt-4o-mini')
         self.temperature = settings.NOVEL_AGENT.get('TEMPERATURE', 0.7)
 
-    def chat_completion(self, messages, model=None, temperature=None, max_tokens=None, **kwargs):
+    def chat_completion(self, messages, model=None, temperature=None, top_p=None, max_tokens=None, **kwargs):
         """
         Create a chat completion with logging.
 
@@ -28,6 +28,7 @@ class LoggingOpenAIClient:
             messages: List of message dictionaries
             model: Model name (optional, uses default if not provided)
             temperature: Temperature setting (optional, uses default if not provided)
+            top_p: Top_p setting for nucleus sampling (optional, defaults to 1.0)
             max_tokens: Maximum tokens to generate
             **kwargs: Additional arguments to pass to the API
 
@@ -36,12 +37,13 @@ class LoggingOpenAIClient:
         """
         model = model or self.model
         temperature = temperature if temperature is not None else self.temperature
+        top_p = top_p if top_p is not None else 1.0
 
         # Log the prompt
         import json
         logger.info("=" * 80)
         logger.info("OpenAI API Call - Chat Completion")
-        logger.info(f"Model: {model}, Temperature: {temperature}, Max Tokens: {max_tokens}")
+        logger.info(f"Model: {model}, Temperature: {temperature}, Top_p: {top_p}, Max Tokens: {max_tokens}")
         logger.info("Messages:")
         logger.info(json.dumps({"messages": messages}, indent=2, ensure_ascii=False))
         logger.info("-" * 80)
@@ -52,6 +54,7 @@ class LoggingOpenAIClient:
                 model=model,
                 messages=messages,
                 temperature=temperature,
+                top_p=top_p,
                 max_tokens=max_tokens,
                 **kwargs
             )

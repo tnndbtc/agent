@@ -78,6 +78,49 @@
                     </div>
                 </div>
 
+                <!-- Generation Parameters -->
+                <div class="generation-params" style="margin: 1rem 0; padding: 1rem; background-color: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
+                    <div class="param-group" style="margin-bottom: 1rem;">
+                        <label for="temperatureSlider" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-weight: 500; color: #374151;">
+                            <span>{% trans "Temperature" %}</span>
+                            <span id="temperatureValue" style="color: #6b7280; font-family: monospace;">0.7</span>
+                        </label>
+                        <input
+                            type="range"
+                            id="temperatureSlider"
+                            name="temperature"
+                            min="0.0"
+                            max="1.2"
+                            step="0.1"
+                            value="0.7"
+                            style="width: 100%;"
+                        />
+                        <div style="margin-top: 0.25rem; font-size: 0.75rem; color: #6b7280;">
+                            {% trans "Lower = more focused, Higher = more creative" %}
+                        </div>
+                    </div>
+
+                    <div class="param-group">
+                        <label for="topPSlider" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-weight: 500; color: #374151;">
+                            <span>{% trans "Top P" %}</span>
+                            <span id="topPValue" style="color: #6b7280; font-family: monospace;">1.0</span>
+                        </label>
+                        <input
+                            type="range"
+                            id="topPSlider"
+                            name="top_p"
+                            min="0.3"
+                            max="1.0"
+                            step="0.1"
+                            value="1.0"
+                            style="width: 100%;"
+                        />
+                        <div style="margin-top: 0.25rem; font-size: 0.75rem; color: #6b7280;">
+                            {% trans "Controls diversity via nucleus sampling" %}
+                        </div>
+                    </div>
+                </div>
+
                 <button type="submit" class="btn btn-primary btn-block" id="saveIdeaBtn">
                     💾 {% trans "Save Idea and continue" %}
                 </button>
@@ -1285,6 +1328,53 @@ function resetProgressBar() {
     }
 }
 
+// Temperature and Top_p Slider Handling
+const temperatureSlider = document.getElementById('temperatureSlider');
+const temperatureValue = document.getElementById('temperatureValue');
+const topPSlider = document.getElementById('topPSlider');
+const topPValue = document.getElementById('topPValue');
+
+// Update displayed values when sliders move
+if (temperatureSlider && temperatureValue) {
+    temperatureSlider.addEventListener('input', function() {
+        temperatureValue.textContent = parseFloat(this.value).toFixed(1);
+    });
+}
+
+if (topPSlider && topPValue) {
+    topPSlider.addEventListener('input', function() {
+        topPValue.textContent = parseFloat(this.value).toFixed(1);
+    });
+}
+
+// Load default temperature and top_p from backend based on content type
+async function loadContentTypeDefaults() {
+    try {
+        const response = await apiRequest(`/api/content-type-config/${projectContentType}/`);
+        if (response && response.default_temperature !== undefined && response.default_top_p !== undefined) {
+            const temp = parseFloat(response.default_temperature);
+            const topP = parseFloat(response.default_top_p);
+
+            if (temperatureSlider) {
+                temperatureSlider.value = temp;
+                if (temperatureValue) temperatureValue.textContent = temp.toFixed(1);
+            }
+            if (topPSlider) {
+                topPSlider.value = topP;
+                if (topPValue) topPValue.textContent = topP.toFixed(1);
+            }
+        }
+    } catch (error) {
+        // Silently fail and use default values already set in HTML
+        console.log('Could not load content type defaults, using defaults');
+    }
+}
+
+// Load defaults on page load
+if (temperatureSlider && topPSlider) {
+    loadContentTypeDefaults();
+}
+
 // Manual form submission - simplified to directly create plot
 const manualForm = document.getElementById('manualForm');
 if (manualForm) {
@@ -1292,6 +1382,10 @@ if (manualForm) {
         e.preventDefault();
 
         const premise = document.getElementById('manual_premise').value;
+
+        // Get temperature and top_p values from sliders
+        const temperature = temperatureSlider ? parseFloat(temperatureSlider.value) : null;
+        const topP = topPSlider ? parseFloat(topPSlider.value) : null;
 
         try {
             // Reset tokens at the start of new workflow
@@ -1305,10 +1399,14 @@ if (manualForm) {
                 const estimatedDuration = await getEstimatedDuration('plot');
                 startProgressBar(estimatedDuration);
 
-                // Directly create plot and characters from idea
+                // Directly create plot and characters from idea (include temperature and top_p)
+                const requestBody = { idea_data: manualIdea };
+                if (temperature !== null) requestBody.temperature = temperature;
+                if (topP !== null) requestBody.top_p = topP;
+
                 const plotResponse = await apiRequest(`/api/projects/${projectId}/create_plot/`, {
                     method: 'POST',
-                    body: JSON.stringify({ idea_data: manualIdea })
+                    body: JSON.stringify(requestBody)
                 });
 
                 // Check for token usage in plot response
@@ -1339,10 +1437,14 @@ if (manualForm) {
                 const estimatedDuration = await getEstimatedDuration('content_generation');
                 startProgressBar(estimatedDuration);
 
-                // Generate content
+                // Generate content (include temperature and top_p)
+                const requestBody = { idea_data: ideaData };
+                if (temperature !== null) requestBody.temperature = temperature;
+                if (topP !== null) requestBody.top_p = topP;
+
                 const response = await apiRequest(`/api/projects/${projectId}/generate_content/`, {
                     method: 'POST',
-                    body: JSON.stringify({ idea_data: ideaData })
+                    body: JSON.stringify(requestBody)
                 });
 
                 // Check for token usage

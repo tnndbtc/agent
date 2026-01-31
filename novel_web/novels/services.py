@@ -90,7 +90,7 @@ class PlotService:
     """Service for plot operations."""
 
     @staticmethod
-    def create_full_plot(project, idea_data, user_language='en'):
+    def create_full_plot(project, idea_data, user_language='en', temperature=None, top_p=None):
         """
         Create a complete plot structure using 5-layer prompt architecture.
 
@@ -98,15 +98,31 @@ class PlotService:
             project: NovelProject instance
             idea_data: Dict with plot idea (title, premise, etc.)
             user_language: Language code (e.g., 'en', 'zh-hans')
+            temperature: OpenAI temperature (optional, uses content type default if not provided)
+            top_p: OpenAI top_p (optional, uses content type default if not provided)
 
         Returns:
             tuple: (plot_dict, token_usage)
         """
         from .prompt_assembly import PromptAssemblyService
+        from .models import ContentTypeScoringConfig
         import json
         import re
 
         logger.info(f"PlotService.create_full_plot - language: {user_language}")
+
+        # Fetch default temperature and top_p from content type config if not provided
+        if temperature is None or top_p is None:
+            config = ContentTypeScoringConfig.objects.filter(content_type=project.content_type).first()
+            if config:
+                if temperature is None:
+                    temperature = float(config.default_temperature)
+                if top_p is None:
+                    top_p = float(config.default_top_p)
+            else:
+                # Fallback defaults
+                temperature = temperature or 0.7
+                top_p = top_p or 1.0
 
         # Build user prompt requesting JSON format for reliable parsing
         user_prompt = f"""Create a detailed three-act plot structure based on this idea:
@@ -166,7 +182,8 @@ Return ONLY the JSON object, no additional text or explanation."""
             # Get response from OpenAI
             response = client.chat_completion(
                 messages=messages,
-                temperature=0.7
+                temperature=temperature,
+                top_p=top_p
             )
 
             # Extract token usage using client helper
@@ -340,7 +357,7 @@ class ContentGenerationService:
     """Generic content generation service for different content types."""
 
     @staticmethod
-    def generate_content(project, idea_data, user_language='en'):
+    def generate_content(project, idea_data, user_language='en', temperature=None, top_p=None):
         """
         Generate complete content piece based on project content type.
 
@@ -348,6 +365,8 @@ class ContentGenerationService:
             project: NovelProject instance
             idea_data: Dictionary with idea/theme information
             user_language: Language code for generation (default: 'en')
+            temperature: OpenAI temperature (optional, uses content type default if not provided)
+            top_p: OpenAI top_p (optional, uses content type default if not provided)
 
         Returns:
             Tuple of (content_dict, token_usage)
@@ -367,29 +386,29 @@ class ContentGenerationService:
 
         elif project.content_type == 'poem':
             return ContentGenerationService._generate_poem(
-                project, idea_data, user_language
+                project, idea_data, user_language, temperature, top_p
             )
 
         elif project.content_type == 'essay':
             return ContentGenerationService._generate_essay(
-                project, idea_data, user_language
+                project, idea_data, user_language, temperature, top_p
             )
 
         elif project.content_type == 'sketch':
             return ContentGenerationService._generate_sketch(
-                project, idea_data, user_language
+                project, idea_data, user_language, temperature, top_p
             )
 
         elif project.content_type == 'article':
             return ContentGenerationService._generate_article(
-                project, idea_data, user_language
+                project, idea_data, user_language, temperature, top_p
             )
 
         else:
             raise ValueError(f"Content generation not implemented for: {project.content_type}")
 
     @staticmethod
-    def _generate_poem(project, idea_data, user_language):
+    def _generate_poem(project, idea_data, user_language, temperature=None, top_p=None):
         """
         Generate complete poem from idea.
 
@@ -397,15 +416,31 @@ class ContentGenerationService:
             project: NovelProject instance
             idea_data: Dictionary with theme/idea information
             user_language: Language code
+            temperature: OpenAI temperature (optional, uses content type default if not provided)
+            top_p: OpenAI top_p (optional, uses content type default if not provided)
 
         Returns:
             Tuple of (content_dict, token_usage)
         """
         from .prompt_assembly import PromptAssemblyService
         from .ai_client import LoggingOpenAIClient
+        from .models import ContentTypeScoringConfig
         import json
 
         logger.info(f"Generating poem for project: {project.title}")
+
+        # Fetch default temperature and top_p from content type config if not provided
+        if temperature is None or top_p is None:
+            config = ContentTypeScoringConfig.objects.filter(content_type='poem').first()
+            if config:
+                if temperature is None:
+                    temperature = float(config.default_temperature)
+                if top_p is None:
+                    top_p = float(config.default_top_p)
+            else:
+                # Fallback defaults
+                temperature = temperature or 0.8
+                top_p = top_p or 1.0
 
         # Extract theme/idea and word count
         theme = idea_data.get('theme', project.title)
@@ -484,7 +519,8 @@ class ContentGenerationService:
         ai_client = LoggingOpenAIClient()
         response = ai_client.chat_completion(
             messages=messages,
-            temperature=0.8  # Higher temperature for creativity
+            temperature=temperature,
+            top_p=top_p
         )
 
         token_usage = ai_client._extract_tokens(response)
@@ -513,7 +549,7 @@ class ContentGenerationService:
         return content_dict, token_usage
 
     @staticmethod
-    def _generate_essay(project, idea_data, user_language):
+    def _generate_essay(project, idea_data, user_language, temperature=None, top_p=None):
         """
         Generate complete essay from idea and structure.
 
@@ -521,16 +557,31 @@ class ContentGenerationService:
             project: NovelProject instance
             idea_data: Dictionary with thesis/topic information
             user_language: Language code
+            temperature: OpenAI temperature (optional, uses content type default if not provided)
+            top_p: OpenAI top_p (optional, uses content type default if not provided)
 
         Returns:
             Tuple of (content_dict, token_usage)
         """
         from .prompt_assembly import PromptAssemblyService
-        from .models import ContentStructureTemplate
+        from .models import ContentStructureTemplate, ContentTypeScoringConfig
         from .ai_client import LoggingOpenAIClient
         import json
 
         logger.info(f"Generating essay for project: {project.title}")
+
+        # Fetch default temperature and top_p from content type config if not provided
+        if temperature is None or top_p is None:
+            config = ContentTypeScoringConfig.objects.filter(content_type='essay').first()
+            if config:
+                if temperature is None:
+                    temperature = float(config.default_temperature)
+                if top_p is None:
+                    top_p = float(config.default_top_p)
+            else:
+                # Fallback defaults
+                temperature = temperature or 0.7
+                top_p = top_p or 1.0
 
         # Extract essay parameters
         thesis = idea_data.get('thesis', project.title)
@@ -645,7 +696,8 @@ Structure: {template.name if template else 'Five-Paragraph Essay'}
         ai_client = LoggingOpenAIClient()
         response = ai_client.chat_completion(
             messages=messages,
-            temperature=0.7
+            temperature=temperature,
+            top_p=top_p
         )
 
         token_usage = ai_client._extract_tokens(response)
@@ -678,7 +730,7 @@ Structure: {template.name if template else 'Five-Paragraph Essay'}
         return content_dict, token_usage
 
     @staticmethod
-    def _generate_sketch(project, idea_data, user_language):
+    def _generate_sketch(project, idea_data, user_language, temperature=None, top_p=None):
         """
         Generate sketch using Moment → Thought → Stop structure.
 
@@ -686,16 +738,31 @@ Structure: {template.name if template else 'Five-Paragraph Essay'}
             project: NovelProject instance
             idea_data: Dictionary with observation/scene information
             user_language: Language code
+            temperature: OpenAI temperature (optional, uses content type default if not provided)
+            top_p: OpenAI top_p (optional, uses content type default if not provided)
 
         Returns:
             Tuple of (content_dict, token_usage)
         """
         from .prompt_assembly import PromptAssemblyService
-        from .models import ContentStructureTemplate
+        from .models import ContentStructureTemplate, ContentTypeScoringConfig
         from .ai_client import LoggingOpenAIClient
         import json
 
         logger.info(f"Generating sketch for project: {project.title}")
+
+        # Fetch default temperature and top_p from content type config if not provided
+        if temperature is None or top_p is None:
+            config = ContentTypeScoringConfig.objects.filter(content_type='sketch').first()
+            if config:
+                if temperature is None:
+                    temperature = float(config.default_temperature)
+                if top_p is None:
+                    top_p = float(config.default_top_p)
+            else:
+                # Fallback defaults
+                temperature = temperature or 0.75
+                top_p = top_p or 1.0
 
         # Extract sketch parameters
         observation = idea_data.get('observation', project.title)
@@ -796,7 +863,8 @@ Structure: Moment → Thought → Stop
         ai_client = LoggingOpenAIClient()
         response = ai_client.chat_completion(
             messages=messages,
-            temperature=0.75
+            temperature=temperature,
+            top_p=top_p
         )
 
         token_usage = ai_client._extract_tokens(response)
@@ -829,7 +897,7 @@ Structure: Moment → Thought → Stop
         return content_dict, token_usage
 
     @staticmethod
-    def _generate_article(project, idea_data, user_language):
+    def _generate_article(project, idea_data, user_language, temperature=None, top_p=None):
         """
         Generate news article using journalistic structure.
 
@@ -837,15 +905,31 @@ Structure: Moment → Thought → Stop
             project: NovelProject instance
             idea_data: Dictionary with story information
             user_language: Language code
+            temperature: OpenAI temperature (optional, uses content type default if not provided)
+            top_p: OpenAI top_p (optional, uses content type default if not provided)
 
         Returns:
             Tuple of (content_dict, token_usage)
         """
         from .prompt_assembly import PromptAssemblyService
         from .ai_client import LoggingOpenAIClient
+        from .models import ContentTypeScoringConfig
         import json
 
         logger.info(f"Generating article for project: {project.title}")
+
+        # Fetch default temperature and top_p from content type config if not provided
+        if temperature is None or top_p is None:
+            config = ContentTypeScoringConfig.objects.filter(content_type='article').first()
+            if config:
+                if temperature is None:
+                    temperature = float(config.default_temperature)
+                if top_p is None:
+                    top_p = float(config.default_top_p)
+            else:
+                # Fallback defaults
+                temperature = temperature or 0.3
+                top_p = top_p or 1.0
 
         # Extract article parameters
         headline = idea_data.get('headline', project.title)
@@ -935,7 +1019,8 @@ Structure: Moment → Thought → Stop
         ai_client = LoggingOpenAIClient()
         response = ai_client.chat_completion(
             messages=messages,
-            temperature=0.3  # Lower temperature for factual content
+            temperature=temperature,
+            top_p=top_p
         )
 
         token_usage = ai_client._extract_tokens(response)

@@ -106,6 +106,23 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         if deleted_count > 0:
             logger.info(f"Deleted {deleted_count} old characters for project {project.id}")
 
+        # Get optional temperature and top_p from request
+        temperature = request.data.get('temperature')
+        top_p = request.data.get('top_p')
+
+        # Convert to float if provided
+        if temperature is not None:
+            try:
+                temperature = float(temperature)
+            except (ValueError, TypeError):
+                temperature = None
+
+        if top_p is not None:
+            try:
+                top_p = float(top_p)
+            except (ValueError, TypeError):
+                top_p = None
+
         # Track API performance
         start_time = timezone.now()
 
@@ -118,7 +135,13 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
 
         logger.info("-" * 80)
         logger.info("Calling PlotService.create_full_plot...")
-        plot_data, plot_tokens = PlotService.create_full_plot(project, serializer.validated_data['idea_data'], user_language=user_language)
+        plot_data, plot_tokens = PlotService.create_full_plot(
+            project,
+            serializer.validated_data['idea_data'],
+            user_language=user_language,
+            temperature=temperature,
+            top_p=top_p
+        )
         logger.info("-" * 80)
         logger.info("CREATE PLOT API - RESPONSE")
         logger.info(f"Generated Plot Data: {plot_data}")
@@ -421,6 +444,23 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         # Get idea data from request
         idea_data = request.data.get('idea_data', {})
 
+        # Get optional temperature and top_p from request
+        temperature = request.data.get('temperature')
+        top_p = request.data.get('top_p')
+
+        # Convert to float if provided
+        if temperature is not None:
+            try:
+                temperature = float(temperature)
+            except (ValueError, TypeError):
+                temperature = None
+
+        if top_p is not None:
+            try:
+                top_p = float(top_p)
+            except (ValueError, TypeError):
+                top_p = None
+
         # Track API performance
         start_time = timezone.now()
 
@@ -430,7 +470,9 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             content_dict, token_usage = ContentGenerationService.generate_content(
                 project=project,
                 idea_data=idea_data,
-                user_language=user_language
+                user_language=user_language,
+                temperature=temperature,
+                top_p=top_p
             )
 
             logger.info("-" * 80)

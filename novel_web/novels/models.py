@@ -1138,6 +1138,22 @@ class ContentTypeScoringConfig(models.Model):
         help_text="Score categories used for this content type"
     )
 
+    default_temperature = models.DecimalField(
+        max_digits=2,
+        decimal_places=1,
+        default=0.7,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.2)],
+        help_text="Default temperature for OpenAI API calls (0.0-1.2). Higher values = more creative/random."
+    )
+
+    default_top_p = models.DecimalField(
+        max_digits=2,
+        decimal_places=1,
+        default=1.0,
+        validators=[MinValueValidator(0.3), MaxValueValidator(1.0)],
+        help_text="Default top_p for OpenAI API calls (0.3-1.0). Controls diversity via nucleus sampling."
+    )
+
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 

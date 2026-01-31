@@ -305,13 +305,17 @@ class ContentTypeCategoryWeightInline(admin.TabularInline):
 @admin.register(ContentTypeScoringConfig)
 class ContentTypeScoringConfigAdmin(admin.ModelAdmin):
     """Admin for ContentTypeScoringConfig."""
-    list_display = ['content_type', 'created_at']
+    list_display = ['content_type', 'default_temperature', 'default_top_p', 'created_at']
     list_filter = ['content_type']
     readonly_fields = ['created_at', 'updated_at']
     inlines = [ContentTypeCategoryWeightInline]
     fieldsets = (
         ('Basic Info', {
             'fields': ('content_type',)
+        }),
+        ('Generation Parameters', {
+            'fields': ('default_temperature', 'default_top_p'),
+            'description': 'Default parameters for OpenAI API calls for this content type'
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at')
