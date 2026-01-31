@@ -88,6 +88,7 @@ class ContentPieceSerializer(serializers.ModelSerializer):
         model = ContentPiece
         fields = ['id', 'project', 'title', 'content', 'word_count',
                   'structure_template', 'structure_template_name', 'sections_data',
+                  'generation_temperature', 'generation_top_p',
                   'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 

@@ -500,7 +500,9 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
                     'content': content_dict.get('content', ''),
                     'word_count': content_dict.get('word_count', 0),
                     'structure_template_id': content_dict.get('structure_template_id'),
-                    'sections_data': content_dict.get('sections_data', {})
+                    'sections_data': content_dict.get('sections_data', {}),
+                    'generation_temperature': temperature,
+                    'generation_top_p': top_p
                 }
             )
 
@@ -601,6 +603,25 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             'message': 'Content updated successfully',
             'content_piece': ContentPieceSerializer(content_piece).data,
             'word_count': content_piece.word_count
+        })
+
+    @action(detail=True, methods=['get'], url_path='generation_params')
+    def get_generation_params(self, request, pk=None):
+        """Get generation parameters (temperature, top_p) from the last content generation."""
+        project = self.get_object()
+
+        # For non-novel projects, check ContentPiece
+        if project.content_type != 'novel' and hasattr(project, 'content_piece'):
+            content_piece = project.content_piece
+            return Response({
+                'generation_temperature': content_piece.generation_temperature,
+                'generation_top_p': content_piece.generation_top_p
+            })
+
+        # Return None if no data available
+        return Response({
+            'generation_temperature': None,
+            'generation_top_p': None
         })
 
     @action(detail=True, methods=['post'])

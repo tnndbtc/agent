@@ -1112,6 +1112,24 @@ class ContentPiece(models.Model):
         help_text="Content organized by sections (e.g., {'introduction': '...', 'body1': '...'})"
     )
 
+    # Generation parameters (historical record)
+    generation_temperature = models.DecimalField(
+        max_digits=2,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.2)],
+        help_text="Temperature used when generating this content (0.0-1.2)"
+    )
+    generation_top_p = models.DecimalField(
+        max_digits=2,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0.3), MaxValueValidator(1.0)],
+        help_text="Top_p used when generating this content (0.3-1.0)"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

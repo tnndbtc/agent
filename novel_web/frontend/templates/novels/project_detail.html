@@ -1185,6 +1185,7 @@
     </div>
 </div>
 
+<script src="/static/js/api.js"></script>
 <script src="/static/js/project.js"></script>
 <script src="/static/js/ai-modification.js"></script>
 <script>
@@ -1382,10 +1383,15 @@ if (topPSlider && topPValue) {
 // Load default temperature and top_p from backend based on content type
 async function loadContentTypeDefaults() {
     try {
-        const response = await apiRequest(`/api/content-type-config/${projectContentType}/`);
-        if (response && response.default_temperature !== undefined && response.default_top_p !== undefined) {
-            const temp = parseFloat(response.default_temperature);
-            const topP = parseFloat(response.default_top_p);
+        // First, try to load last-used values from ContentPiece
+        console.log('[DEBUG] Fetching generation params from:', `/api/projects/${projectId}/generation_params/`);
+        const response = await apiRequest(`/api/projects/${projectId}/generation_params/`);
+        console.log('[DEBUG] Generation params response:', response);
+
+        if (response && response.generation_temperature !== null && response.generation_top_p !== null) {
+            const temp = parseFloat(response.generation_temperature);
+            const topP = parseFloat(response.generation_top_p);
+            console.log('[DEBUG] Parsed values - temp:', temp, 'topP:', topP);
 
             if (temperatureSlider) {
                 temperatureSlider.value = temp;
@@ -1395,10 +1401,34 @@ async function loadContentTypeDefaults() {
                 topPSlider.value = topP;
                 if (topPValue) topPValue.textContent = topP.toFixed(1);
             }
+            console.log('[SUCCESS] Loaded last-used generation parameters from ContentPiece:', {temp, topP});
+            return;
+        } else {
+            console.log('[DEBUG] No ContentPiece data found, trying config defaults');
+        }
+
+        // If no ContentPiece data, try to load defaults from ContentTypeScoringConfig
+        const configResponse = await apiRequest(`/api/content-type-config/${projectContentType}/`);
+        console.log('[DEBUG] Config response:', configResponse);
+
+        if (configResponse && configResponse.default_temperature !== undefined && configResponse.default_top_p !== undefined) {
+            const temp = parseFloat(configResponse.default_temperature);
+            const topP = parseFloat(configResponse.default_top_p);
+
+            if (temperatureSlider) {
+                temperatureSlider.value = temp;
+                if (temperatureValue) temperatureValue.textContent = temp.toFixed(1);
+            }
+            if (topPSlider) {
+                topPSlider.value = topP;
+                if (topPValue) topPValue.textContent = topP.toFixed(1);
+            }
+            console.log('[SUCCESS] Loaded content type defaults from config:', {temp, topP});
         }
     } catch (error) {
         // Silently fail and use default values already set in HTML
-        console.log('Could not load content type defaults, using defaults');
+        console.error('[ERROR] Could not load generation parameters:', error);
+        console.log('[FALLBACK] Using HTML defaults');
     }
 }
 
