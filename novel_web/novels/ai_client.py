@@ -43,7 +43,7 @@ class LoggingOpenAIClient:
         logger.info("OpenAI API Call - Chat Completion")
         logger.info(f"Model: {model}, Temperature: {temperature}, Max Tokens: {max_tokens}")
         logger.info("Messages:")
-        logger.info(json.dumps({"messages": messages}, indent=2))
+        logger.info(json.dumps({"messages": messages}, indent=2, ensure_ascii=False))
         logger.info("-" * 80)
 
         try:

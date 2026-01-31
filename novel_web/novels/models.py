@@ -261,6 +261,67 @@ class WritingStyleTranslation(models.Model):
         return f"{self.style.name_key} - {self.language_code}: {self.name}"
 
 
+class InstructionTemplate(models.Model):
+    """Translatable instruction templates for user task prompts (Layer 5)."""
+
+    name_key = models.CharField(
+        max_length=100,
+        unique=True,
+        help_text="Unique identifier for this template (e.g., 'poem_instructions')"
+    )
+    content_type = models.CharField(
+        max_length=20,
+        help_text="Content type this template is for (poem, essay, sketch, article)"
+    )
+    is_active = models.BooleanField(default=True, help_text="Whether this template is active")
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['content_type', 'name_key']
+        indexes = [
+            models.Index(fields=['content_type']),
+            models.Index(fields=['is_active']),
+        ]
+
+    def __str__(self):
+        return f"{self.name_key} ({self.content_type})"
+
+
+class InstructionTemplateTranslation(models.Model):
+    """Translations for instruction templates."""
+
+    LANGUAGE_CHOICES = [
+        ('en', 'English'),
+        ('zh-hans', 'Simplified Chinese'),
+    ]
+
+    template = models.ForeignKey(
+        InstructionTemplate,
+        on_delete=models.CASCADE,
+        related_name='translations'
+    )
+    language_code = models.CharField(max_length=10, choices=LANGUAGE_CHOICES)
+    task_description = models.TextField(
+        help_text="Main task description (e.g., 'Write a complete poem based on this theme: {theme}')"
+    )
+    instructions = models.TextField(
+        help_text="Bulleted instructions for the task"
+    )
+    json_format = models.TextField(
+        help_text="JSON format specification with example structure"
+    )
+
+    class Meta:
+        unique_together = [['template', 'language_code']]
+        indexes = [
+            models.Index(fields=['language_code']),
+        ]
+
+    def __str__(self):
+        return f"{self.template.name_key} - {self.language_code}"
+
+
 class WritingTechnique(models.Model):
     """Composable writing techniques (e.g., 'show don't tell', 'foreshadowing')."""
 

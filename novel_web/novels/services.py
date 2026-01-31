@@ -412,26 +412,62 @@ class ContentGenerationService:
         style_notes = idea_data.get('style_notes', '')
         word_count = idea_data.get('word_count', 200)  # Poems are typically shorter
 
-        # Build user prompt
-        user_prompt = f"""Write a complete poem based on this theme: {theme}
+        # Get translated instructions from database
+        from .models import InstructionTemplate
+        template = InstructionTemplate.objects.filter(
+            name_key='poem_instructions',
+            is_active=True
+        ).first()
 
-Instructions:
+        if template:
+            trans = template.translations.filter(language_code=user_language).first()
+            # Fallback to English if translation not found
+            if not trans and user_language != 'en':
+                trans = template.translations.filter(language_code='en').first()
+
+            if trans:
+                task_desc = trans.task_description.format(theme=theme)
+                instructions = trans.instructions.format(word_count=word_count)
+                json_format = trans.json_format
+            else:
+                # Fallback to hardcoded English if no translation found
+                task_desc = f"Write a complete poem based on this theme: {theme}"
+                instructions = f"""Instructions:
 - Create vivid imagery and sensory details
 - Pay attention to rhythm and musicality
 - Use appropriate poetic form and structure
 - Evoke strong emotions
-- Target length: approximately {word_count} words
-"""
-        if style_notes:
-            user_prompt += f"\nStyle notes: {style_notes}"
-
-        user_prompt += """
-
-Return the poem in JSON format:
+- Target length: approximately {word_count} words"""
+                json_format = """Return the poem in JSON format:
 {
     "title": "Poem Title",
     "content": "The complete poem text with line breaks"
-}
+}"""
+        else:
+            # Fallback to hardcoded English if template not found
+            task_desc = f"Write a complete poem based on this theme: {theme}"
+            instructions = f"""Instructions:
+- Create vivid imagery and sensory details
+- Pay attention to rhythm and musicality
+- Use appropriate poetic form and structure
+- Evoke strong emotions
+- Target length: approximately {word_count} words"""
+            json_format = """Return the poem in JSON format:
+{
+    "title": "Poem Title",
+    "content": "The complete poem text with line breaks"
+}"""
+
+        # Build user prompt
+        user_prompt = f"""{task_desc}
+
+{instructions}"""
+        if style_notes:
+            user_prompt += f"\nStyle notes: {style_notes}"
+
+        user_prompt += f"""
+
+{json_format}
 """
 
         # Assemble full prompt with 5-layer architecture
@@ -516,7 +552,66 @@ Return the poem in JSON format:
             ).first()
 
         # Build user prompt
-        user_prompt = f"""Write a complete essay on this thesis: {thesis}
+        # Get translated instructions from database
+        from .models import InstructionTemplate
+        instr_template = InstructionTemplate.objects.filter(
+            name_key='essay_instructions',
+            is_active=True
+        ).first()
+
+        if instr_template:
+            trans = instr_template.translations.filter(language_code=user_language).first()
+            # Fallback to English if translation not found
+            if not trans and user_language != 'en':
+                trans = instr_template.translations.filter(language_code='en').first()
+
+            if trans:
+                task_desc = trans.task_description.format(thesis=thesis)
+                instructions = trans.instructions.format(word_count=word_count)
+                json_format = trans.json_format
+            else:
+                # Fallback to hardcoded English
+                task_desc = f"Write a complete essay with the following thesis: {thesis}"
+                instructions = f"""Instructions:
+- Present a clear, compelling thesis
+- Build strong arguments with evidence
+- Organize with logical flow
+- Address potential counterarguments
+- Write with clarity and precision
+- Target length: approximately {word_count} words"""
+                json_format = """Return the essay in JSON format:
+{
+    "title": "Essay Title",
+    "content": "The complete essay text with paragraphs separated by double newlines",
+    "sections": {
+        "introduction": "...",
+        "body1": "...",
+        "conclusion": "..."
+    }
+}"""
+        else:
+            # Fallback to hardcoded English
+            task_desc = f"Write a complete essay with the following thesis: {thesis}"
+            instructions = f"""Instructions:
+- Present a clear, compelling thesis
+- Build strong arguments with evidence
+- Organize with logical flow
+- Address potential counterarguments
+- Write with clarity and precision
+- Target length: approximately {word_count} words"""
+            json_format = """Return the essay in JSON format:
+{
+    "title": "Essay Title",
+    "content": "The complete essay text with paragraphs separated by double newlines",
+    "sections": {
+        "introduction": "...",
+        "body1": "...",
+        "conclusion": "..."
+    }
+}"""
+
+        # Build user prompt
+        user_prompt = f"""{task_desc}
 
 Structure: {template.name if template else 'Five-Paragraph Essay'}
 """
@@ -530,26 +625,10 @@ Structure: {template.name if template else 'Five-Paragraph Essay'}
                 user_prompt += f"- {point}\n"
 
         user_prompt += f"""
-Instructions:
-- Present a clear, compelling thesis
-- Build strong arguments with evidence
-- Organize with logical flow
-- Address potential counterarguments
-- Write with clarity and precision
-- Target length: approximately {word_count} words
-"""
 
-        user_prompt += """
-Return the essay in JSON format:
-{
-    "title": "Essay Title",
-    "content": "The complete essay text with paragraphs separated by double newlines",
-    "sections": {
-        "introduction": "...",
-        "body1": "...",
-        "conclusion": "..."
-    }
-}
+{instructions}
+
+{json_format}
 """
 
         # Assemble full prompt
@@ -629,8 +708,64 @@ Return the essay in JSON format:
             name='Moment-Thought-Stop'
         ).first()
 
+        # Get translated instructions from database
+        from .models import InstructionTemplate
+        instr_template = InstructionTemplate.objects.filter(
+            name_key='sketch_instructions',
+            is_active=True
+        ).first()
+
+        if instr_template:
+            trans = instr_template.translations.filter(language_code=user_language).first()
+            # Fallback to English if translation not found
+            if not trans and user_language != 'en':
+                trans = instr_template.translations.filter(language_code='en').first()
+
+            if trans:
+                task_desc = trans.task_description.format(observation=observation)
+                instructions = trans.instructions.format(word_count=word_count)
+                json_format = trans.json_format
+            else:
+                # Fallback to hardcoded English
+                task_desc = f"Write a literary sketch capturing this observation: {observation}"
+                instructions = f"""Instructions:
+- Observe keenly with precise, concrete details
+- Use vivid imagery to bring the moment to life
+- Reflect thoughtfully on deeper meaning
+- Know when to stop - don't over-explain
+- Target length: approximately {word_count} words"""
+                json_format = """Return the sketch in JSON format:
+{
+    "title": "Sketch Title",
+    "content": "The complete sketch text",
+    "sections": {
+        "moment": "The observed moment...",
+        "thought": "Reflection on the moment...",
+        "stop": "Final thought or image..."
+    }
+}"""
+        else:
+            # Fallback to hardcoded English
+            task_desc = f"Write a literary sketch capturing this observation: {observation}"
+            instructions = f"""Instructions:
+- Observe keenly with precise, concrete details
+- Use vivid imagery to bring the moment to life
+- Reflect thoughtfully on deeper meaning
+- Know when to stop - don't over-explain
+- Target length: approximately {word_count} words"""
+            json_format = """Return the sketch in JSON format:
+{
+    "title": "Sketch Title",
+    "content": "The complete sketch text",
+    "sections": {
+        "moment": "The observed moment...",
+        "thought": "Reflection on the moment...",
+        "stop": "Final thought or image..."
+    }
+}"""
+
         # Build user prompt
-        user_prompt = f"""Write a literary sketch about: {observation}
+        user_prompt = f"""{task_desc}
 
 Structure: Moment → Thought → Stop
 - Moment: Capture a specific observation or scene with vivid detail
@@ -642,25 +777,9 @@ Structure: Moment → Thought → Stop
 
         user_prompt += f"""
 
-Instructions:
-- Observe keenly with precise, concrete details
-- Use vivid imagery to bring the moment to life
-- Reflect thoughtfully on deeper meaning
-- Know when to stop - don't over-explain
-- Target length: approximately {word_count} words
-"""
+{instructions}
 
-        user_prompt += """
-Return the sketch in JSON format:
-{
-    "title": "Sketch Title",
-    "content": "The complete sketch text",
-    "sections": {
-        "moment": "The observed moment...",
-        "thought": "Reflection on the moment...",
-        "stop": "Final thought or image..."
-    }
-}
+{json_format}
 """
 
         # Assemble full prompt
@@ -734,38 +853,72 @@ Return the sketch in JSON format:
         angle = idea_data.get('angle', '')
         word_count = idea_data.get('word_count', 400)  # Standard news article
 
-        # Build user prompt
-        user_prompt = f"""Write a news article with this headline: {headline}
+        # Get translated instructions from database
+        from .models import InstructionTemplate
+        instr_template = InstructionTemplate.objects.filter(
+            name_key='article_instructions',
+            is_active=True
+        ).first()
 
-Structure: Inverted Pyramid
-- Lead: Most important information (who, what, when, where, why, how)
-- Body: Supporting details in descending order of importance
-- Background: Context and additional information
-"""
+        if instr_template:
+            trans = instr_template.translations.filter(language_code=user_language).first()
+            # Fallback to English if translation not found
+            if not trans and user_language != 'en':
+                trans = instr_template.translations.filter(language_code='en').first()
+
+            if trans:
+                task_desc = trans.task_description.format(headline=headline)
+                instructions = trans.instructions.format(word_count=word_count)
+                json_format = trans.json_format
+            else:
+                # Fallback to hardcoded English if no translation found
+                task_desc = f"Write a news article with the following headline: {headline}"
+                instructions = f"""Instructions:
+- Prioritize accuracy and factual reporting
+- Maintain objectivity and balance
+- Use clear, concise language
+- Present multiple perspectives when relevant
+- Follow AP style guidelines
+- Target length: approximately {word_count} words"""
+                json_format = """Return the article in JSON format:
+{
+    "title": "Article Headline",
+    "content": "The complete article text"
+}"""
+        else:
+            # Fallback to hardcoded English if template not found
+            task_desc = f"Write a news article with the following headline: {headline}"
+            instructions = f"""Instructions:
+- Prioritize accuracy and factual reporting
+- Maintain objectivity and balance
+- Use clear, concise language
+- Present multiple perspectives when relevant
+- Follow AP style guidelines
+- Target length: approximately {word_count} words"""
+            json_format = """Return the article in JSON format:
+{
+    "title": "Article Headline",
+    "content": "The complete article text"
+}"""
+
+        # Build user prompt with translated instructions
+        user_prompt = task_desc
+
+        # Add optional angle and facts (user-provided data)
         if angle:
-            user_prompt += f"\nAngle: {angle}"
+            user_prompt += f"\n\nAngle: {angle}"
 
         if facts:
             user_prompt += f"\n\nKey facts:\n"
             for fact in facts:
                 user_prompt += f"- {fact}\n"
 
+        # Add translated instructions and JSON format
         user_prompt += f"""
-Instructions:
-- Prioritize accuracy and factual reporting
-- Maintain objectivity and balance
-- Use clear, concise language
-- Present multiple perspectives when relevant
-- Follow AP style guidelines
-- Target length: approximately {word_count} words
-"""
 
-        user_prompt += """
-Return the article in JSON format:
-{
-    "title": "Article Headline",
-    "content": "The complete article text"
-}
+{instructions}
+
+{json_format}
 """
 
         # Assemble full prompt

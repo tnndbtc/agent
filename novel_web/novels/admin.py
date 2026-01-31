@@ -6,6 +6,7 @@ from .models import (
     ScoreCategory, ScoreCategoryTranslation, ExampleScore,
     SystemPolicy, SystemPolicyTranslation,
     AgentRole, AgentRoleTranslation,
+    InstructionTemplate, InstructionTemplateTranslation,
     WritingStyle, WritingStyleTranslation,
     WritingTechnique, WritingTechniqueTranslation,
     ContentStructureTemplate, ContentPiece,
@@ -163,6 +164,31 @@ class AgentRoleAdmin(admin.ModelAdmin):
     fieldsets = (
         ('Basic Info', {
             'fields': ('name_key', 'module_name', 'is_active')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+
+
+class InstructionTemplateTranslationInline(admin.TabularInline):
+    """Inline admin for InstructionTemplateTranslation."""
+    model = InstructionTemplateTranslation
+    extra = 0
+    fields = ['language_code', 'task_description', 'instructions', 'json_format']
+
+
+@admin.register(InstructionTemplate)
+class InstructionTemplateAdmin(admin.ModelAdmin):
+    """Admin for InstructionTemplate."""
+    list_display = ['name_key', 'content_type', 'is_active', 'created_at']
+    list_filter = ['content_type', 'is_active']
+    search_fields = ['name_key']
+    readonly_fields = ['created_at', 'updated_at']
+    inlines = [InstructionTemplateTranslationInline]
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('name_key', 'content_type', 'is_active')
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at')
