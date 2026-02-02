@@ -90,7 +90,7 @@ class PlotService:
     """Service for plot operations."""
 
     @staticmethod
-    def create_full_plot(project, idea_data, user_language='en', temperature=None, top_p=None):
+    def create_full_plot(project, idea_data, user_language='en', temperature=None, top_p=None, model=None):
         """
         Create a complete plot structure using 5-layer prompt architecture.
 
@@ -100,6 +100,7 @@ class PlotService:
             user_language: Language code (e.g., 'en', 'zh-hans')
             temperature: OpenAI temperature (optional, uses content type default if not provided)
             top_p: OpenAI top_p (optional, uses content type default if not provided)
+            model: OpenAI model (optional, uses default if not provided)
 
         Returns:
             tuple: (plot_dict, token_usage)
@@ -183,7 +184,8 @@ Return ONLY the JSON object, no additional text or explanation."""
             response = client.chat_completion(
                 messages=messages,
                 temperature=temperature,
-                top_p=top_p
+                top_p=top_p,
+                model=model
             )
 
             # Extract token usage using client helper
@@ -357,7 +359,7 @@ class ContentGenerationService:
     """Generic content generation service for different content types."""
 
     @staticmethod
-    def generate_content(project, idea_data, user_language='en', temperature=None, top_p=None):
+    def generate_content(project, idea_data, user_language='en', temperature=None, top_p=None, model=None):
         """
         Generate complete content piece based on project content type.
 
@@ -367,6 +369,7 @@ class ContentGenerationService:
             user_language: Language code for generation (default: 'en')
             temperature: OpenAI temperature (optional, uses content type default if not provided)
             top_p: OpenAI top_p (optional, uses content type default if not provided)
+            model: OpenAI model (optional, uses default if not provided)
 
         Returns:
             Tuple of (content_dict, token_usage)
@@ -386,29 +389,29 @@ class ContentGenerationService:
 
         elif project.content_type == 'poem':
             return ContentGenerationService._generate_poem(
-                project, idea_data, user_language, temperature, top_p
+                project, idea_data, user_language, temperature, top_p, model
             )
 
         elif project.content_type == 'essay':
             return ContentGenerationService._generate_essay(
-                project, idea_data, user_language, temperature, top_p
+                project, idea_data, user_language, temperature, top_p, model
             )
 
         elif project.content_type == 'sketch':
             return ContentGenerationService._generate_sketch(
-                project, idea_data, user_language, temperature, top_p
+                project, idea_data, user_language, temperature, top_p, model
             )
 
         elif project.content_type == 'article':
             return ContentGenerationService._generate_article(
-                project, idea_data, user_language, temperature, top_p
+                project, idea_data, user_language, temperature, top_p, model
             )
 
         else:
             raise ValueError(f"Content generation not implemented for: {project.content_type}")
 
     @staticmethod
-    def _generate_poem(project, idea_data, user_language, temperature=None, top_p=None):
+    def _generate_poem(project, idea_data, user_language, temperature=None, top_p=None, model=None):
         """
         Generate complete poem from idea.
 
@@ -418,6 +421,7 @@ class ContentGenerationService:
             user_language: Language code
             temperature: OpenAI temperature (optional, uses content type default if not provided)
             top_p: OpenAI top_p (optional, uses content type default if not provided)
+            model: OpenAI model (optional, uses default if not provided)
 
         Returns:
             Tuple of (content_dict, token_usage)
@@ -520,7 +524,8 @@ class ContentGenerationService:
         response = ai_client.chat_completion(
             messages=messages,
             temperature=temperature,
-            top_p=top_p
+            top_p=top_p,
+            model=model
         )
 
         token_usage = ai_client._extract_tokens(response)
@@ -549,7 +554,7 @@ class ContentGenerationService:
         return content_dict, token_usage
 
     @staticmethod
-    def _generate_essay(project, idea_data, user_language, temperature=None, top_p=None):
+    def _generate_essay(project, idea_data, user_language, temperature=None, top_p=None, model=None):
         """
         Generate complete essay from idea and structure.
 
@@ -559,6 +564,7 @@ class ContentGenerationService:
             user_language: Language code
             temperature: OpenAI temperature (optional, uses content type default if not provided)
             top_p: OpenAI top_p (optional, uses content type default if not provided)
+            model: OpenAI model (optional, uses default if not provided)
 
         Returns:
             Tuple of (content_dict, token_usage)
@@ -697,7 +703,8 @@ Structure: {template.name if template else 'Five-Paragraph Essay'}
         response = ai_client.chat_completion(
             messages=messages,
             temperature=temperature,
-            top_p=top_p
+            top_p=top_p,
+            model=model
         )
 
         token_usage = ai_client._extract_tokens(response)
@@ -730,7 +737,7 @@ Structure: {template.name if template else 'Five-Paragraph Essay'}
         return content_dict, token_usage
 
     @staticmethod
-    def _generate_sketch(project, idea_data, user_language, temperature=None, top_p=None):
+    def _generate_sketch(project, idea_data, user_language, temperature=None, top_p=None, model=None):
         """
         Generate sketch using Moment → Thought → Stop structure.
 
@@ -740,6 +747,7 @@ Structure: {template.name if template else 'Five-Paragraph Essay'}
             user_language: Language code
             temperature: OpenAI temperature (optional, uses content type default if not provided)
             top_p: OpenAI top_p (optional, uses content type default if not provided)
+            model: OpenAI model (optional, uses default if not provided)
 
         Returns:
             Tuple of (content_dict, token_usage)
@@ -864,7 +872,8 @@ Structure: Moment → Thought → Stop
         response = ai_client.chat_completion(
             messages=messages,
             temperature=temperature,
-            top_p=top_p
+            top_p=top_p,
+            model=model
         )
 
         token_usage = ai_client._extract_tokens(response)
@@ -897,7 +906,7 @@ Structure: Moment → Thought → Stop
         return content_dict, token_usage
 
     @staticmethod
-    def _generate_article(project, idea_data, user_language, temperature=None, top_p=None):
+    def _generate_article(project, idea_data, user_language, temperature=None, top_p=None, model=None):
         """
         Generate news article using journalistic structure.
 
@@ -907,6 +916,7 @@ Structure: Moment → Thought → Stop
             user_language: Language code
             temperature: OpenAI temperature (optional, uses content type default if not provided)
             top_p: OpenAI top_p (optional, uses content type default if not provided)
+            model: OpenAI model (optional, uses default if not provided)
 
         Returns:
             Tuple of (content_dict, token_usage)
@@ -1020,7 +1030,8 @@ Structure: Moment → Thought → Stop
         response = ai_client.chat_completion(
             messages=messages,
             temperature=temperature,
-            top_p=top_p
+            top_p=top_p,
+            model=model
         )
 
         token_usage = ai_client._extract_tokens(response)

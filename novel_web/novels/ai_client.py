@@ -49,15 +49,22 @@ class LoggingOpenAIClient:
         logger.info("-" * 80)
 
         try:
-            # Make the API call
-            response = self.client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                top_p=top_p,
-                max_tokens=max_tokens,
+            # Build API call parameters
+            api_params = {
+                'model': model,
+                'messages': messages,
+                'temperature': temperature,
+                'top_p': top_p,
                 **kwargs
-            )
+            }
+
+            # Only include max_tokens if it's not None
+            # When omitted, OpenAI API uses default behavior (unlimited within model limits)
+            if max_tokens is not None:
+                api_params['max_tokens'] = max_tokens
+
+            # Make the API call
+            response = self.client.chat.completions.create(**api_params)
 
             # Log the response
             response_text = response.choices[0].message.content if response.choices else ""

@@ -106,9 +106,10 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         if deleted_count > 0:
             logger.info(f"Deleted {deleted_count} old characters for project {project.id}")
 
-        # Get optional temperature and top_p from request
+        # Get optional temperature, top_p, and model from request
         temperature = request.data.get('temperature')
         top_p = request.data.get('top_p')
+        model = request.data.get('model')
 
         # Convert to float if provided
         if temperature is not None:
@@ -122,6 +123,12 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
                 top_p = float(top_p)
             except (ValueError, TypeError):
                 top_p = None
+
+        # Validate model if provided (ensure it's one of the allowed models)
+        if model is not None:
+            allowed_models = ['gpt-4o-mini', 'gpt-5.2']
+            if model not in allowed_models:
+                model = None
 
         # Track API performance
         start_time = timezone.now()
@@ -140,7 +147,8 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             serializer.validated_data['idea_data'],
             user_language=user_language,
             temperature=temperature,
-            top_p=top_p
+            top_p=top_p,
+            model=model
         )
         logger.info("-" * 80)
         logger.info("CREATE PLOT API - RESPONSE")
@@ -444,9 +452,10 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         # Get idea data from request
         idea_data = request.data.get('idea_data', {})
 
-        # Get optional temperature and top_p from request
+        # Get optional temperature, top_p, and model from request
         temperature = request.data.get('temperature')
         top_p = request.data.get('top_p')
+        model = request.data.get('model')
 
         # Convert to float if provided
         if temperature is not None:
@@ -461,6 +470,12 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             except (ValueError, TypeError):
                 top_p = None
 
+        # Validate model if provided (ensure it's one of the allowed models)
+        if model is not None:
+            allowed_models = ['gpt-4o-mini', 'gpt-5.2']
+            if model not in allowed_models:
+                model = None
+
         # Track API performance
         start_time = timezone.now()
 
@@ -472,7 +487,8 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
                 idea_data=idea_data,
                 user_language=user_language,
                 temperature=temperature,
-                top_p=top_p
+                top_p=top_p,
+                model=model
             )
 
             logger.info("-" * 80)
