@@ -7,6 +7,7 @@ from django.utils.translation import get_language, gettext_lazy as _
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 import uuid
+from .utils import calculate_word_count
 
 
 class UserProfile(models.Model):
@@ -322,78 +323,6 @@ class InstructionTemplateTranslation(models.Model):
         return f"{self.template.name_key} - {self.language_code}"
 
 
-class WritingTechnique(models.Model):
-    """Composable writing techniques (e.g., 'show don't tell', 'foreshadowing')."""
-
-    CATEGORY_CHOICES = [
-        ('narrative', 'Narrative'),
-        ('dialogue', 'Dialogue'),
-        ('description', 'Description'),
-        ('pacing', 'Pacing'),
-        ('character', 'Character Development'),
-    ]
-
-    name_key = models.CharField(max_length=50, unique=True, help_text="Unique identifier for this technique")
-    is_system = models.BooleanField(default=False, help_text="True for predefined system techniques")
-    created_by = models.ForeignKey(
-        User,
-        null=True,
-        blank=True,
-        on_delete=models.CASCADE,
-        related_name='writing_techniques',
-        help_text="User who created this technique (NULL for system techniques)"
-    )
-    public = models.BooleanField(default=False, help_text="Whether this technique is publicly available")
-    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
-
-    created_at = models.DateTimeField(default=timezone.now)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ['-is_system', 'category', 'name_key']
-        indexes = [
-            models.Index(fields=['is_system', 'public']),
-            models.Index(fields=['created_by']),
-            models.Index(fields=['category']),
-        ]
-
-    def __str__(self):
-        if self.is_system:
-            return f"{self.name_key} (System)"
-        return f"{self.name_key} by {self.created_by.username if self.created_by else 'Unknown'}"
-
-    def is_accessible_by(self, user):
-        """Check if technique is accessible by given user."""
-        if self.is_system or self.public:
-            return True
-        if self.created_by_id and self.created_by_id == user.id:
-            return True
-        return False
-
-
-class WritingTechniqueTranslation(models.Model):
-    """Translations for writing technique names and instructions."""
-
-    LANGUAGE_CHOICES = [
-        ('en', 'English'),
-        ('zh-hans', 'Simplified Chinese'),
-    ]
-
-    technique = models.ForeignKey(WritingTechnique, on_delete=models.CASCADE, related_name='translations')
-    language_code = models.CharField(max_length=10, choices=LANGUAGE_CHOICES)
-    name = models.CharField(max_length=100, help_text="Display name in this language")
-    description = models.TextField(blank=True, help_text="Technique description")
-    instructions = models.TextField(help_text="Technique-specific prompt instructions")
-
-    class Meta:
-        unique_together = [['technique', 'language_code']]
-        indexes = [
-            models.Index(fields=['language_code']),
-        ]
-
-    def __str__(self):
-        return f"{self.technique.name_key} - {self.language_code}: {self.name}"
-
 
 
 class ScoreCategory(models.Model):
@@ -534,12 +463,6 @@ class NovelProject(models.Model):
         blank=True,
         related_name='projects_using',
         help_text="Default writing style for this project"
-    )
-    selected_techniques = models.ManyToManyField(
-        'WritingTechnique',
-        blank=True,
-        related_name='projects_using',
-        help_text="Writing techniques applied to this project"
     )
     target_language = models.CharField(
         max_length=10,
@@ -810,7 +733,7 @@ class Chapter(models.Model):
 
         # Update word count
         if self.content:
-            self.word_count = len(self.content.split())
+            self.word_count = calculate_word_count(self.content)
         super().save(*args, **kwargs)
 
         # Update project total word count

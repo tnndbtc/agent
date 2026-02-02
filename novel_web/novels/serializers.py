@@ -9,7 +9,6 @@ from .models import (
     SystemPolicy, SystemPolicyTranslation,
     AgentRole, AgentRoleTranslation,
     WritingStyle, WritingStyleTranslation,
-    WritingTechnique, WritingTechniqueTranslation,
     ContentPiece
 )
 
@@ -116,7 +115,7 @@ class NovelProjectSerializer(serializers.ModelSerializer):
             'id', 'user', 'title', 'status', 'content_type',
             'total_word_count', 'created_at', 'updated_at',
             'plot', 'characters', 'settings', 'chapters', 'content_piece',
-            'selected_techniques', 'default_style', 'default_style_display'
+            'default_style', 'default_style_display'
         ]
         read_only_fields = ['id', 'user', 'chroma_collection_name', 'total_word_count', 'created_at', 'updated_at']
 
@@ -473,41 +472,3 @@ class WritingStyleSerializer(serializers.ModelSerializer):
         """Return username of creator."""
         return obj.created_by.username if obj.created_by else None
 
-
-class WritingTechniqueTranslationSerializer(serializers.ModelSerializer):
-    """Serializer for WritingTechniqueTranslation model."""
-
-    class Meta:
-        model = WritingTechniqueTranslation
-        fields = ['id', 'language_code', 'name', 'description', 'instructions']
-        read_only_fields = ['id']
-
-
-class WritingTechniqueSerializer(serializers.ModelSerializer):
-    """Serializer for WritingTechnique model with translations and display name."""
-
-    translations = WritingTechniqueTranslationSerializer(many=True, read_only=True)
-    display_name = serializers.SerializerMethodField()
-    created_by_username = serializers.SerializerMethodField()
-
-    class Meta:
-        model = WritingTechnique
-        fields = ['id', 'name_key', 'is_system', 'created_by', 'created_by_username',
-                  'public', 'category', 'created_at', 'updated_at', 'translations',
-                  'display_name']
-        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by']
-
-    def get_display_name(self, obj):
-        """Return localized name based on current language."""
-        request = self.context.get('request')
-        language_code = getattr(request, 'LANGUAGE_CODE', 'en') if request else 'en'
-
-        translation = obj.translations.filter(language_code=language_code).first()
-        if not translation and language_code != 'en':
-            translation = obj.translations.filter(language_code='en').first()
-
-        return translation.name if translation else obj.name_key
-
-    def get_created_by_username(self, obj):
-        """Return username of creator."""
-        return obj.created_by.username if obj.created_by else None

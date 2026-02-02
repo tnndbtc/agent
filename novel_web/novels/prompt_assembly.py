@@ -127,19 +127,6 @@ class PromptAssemblyService:
                 parts.append(trans.instructions)
                 logger.debug(f"Added style {style.name_key} ({language_code})")
 
-        # Get techniques
-        for technique in project.selected_techniques.all():
-            trans = technique.translations.filter(language_code=language_code).first()
-
-            # Fallback to English if translation not found
-            if not trans and language_code != 'en':
-                trans = technique.translations.filter(language_code='en').first()
-
-            if trans:
-                parts.append(f"## Technique: {trans.name}")
-                parts.append(trans.instructions)
-                logger.debug(f"Added technique {technique.name_key} ({language_code})")
-
         style_instructions = "\n\n".join(parts) if parts else ""
         logger.info(f"Built style instructions for project {project.title}: {len(style_instructions)} chars")
 

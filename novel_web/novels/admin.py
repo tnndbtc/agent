@@ -8,7 +8,6 @@ from .models import (
     AgentRole, AgentRoleTranslation,
     InstructionTemplate, InstructionTemplateTranslation,
     WritingStyle, WritingStyleTranslation,
-    WritingTechnique, WritingTechniqueTranslation,
     ContentStructureTemplate, ContentPiece,
     ContentTypeScoringConfig, ContentTypeCategoryWeight
 )
@@ -223,30 +222,6 @@ class WritingStyleAdmin(admin.ModelAdmin):
         }),
     )
 
-
-class WritingTechniqueTranslationInline(admin.TabularInline):
-    """Inline admin for WritingTechniqueTranslation."""
-    model = WritingTechniqueTranslation
-    extra = 0
-    fields = ['language_code', 'name', 'description', 'instructions']
-
-
-@admin.register(WritingTechnique)
-class WritingTechniqueAdmin(admin.ModelAdmin):
-    """Admin for WritingTechnique."""
-    list_display = ['name_key', 'is_system', 'created_by', 'public', 'category', 'created_at']
-    list_filter = ['is_system', 'public', 'category']
-    search_fields = ['name_key', 'created_by__username']
-    readonly_fields = ['created_at', 'updated_at']
-    inlines = [WritingTechniqueTranslationInline]
-    fieldsets = (
-        ('Basic Info', {
-            'fields': ('name_key', 'is_system', 'created_by', 'public', 'category')
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at')
-        }),
-    )
 
 
 # ========================================

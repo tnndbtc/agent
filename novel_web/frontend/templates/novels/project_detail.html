@@ -44,11 +44,6 @@
                     <div id="styleDisplay" style="color: #6B7280;">{% trans "Loading..." %}</div>
                     <button onclick="openEditStyleModal()" class="btn btn-sm" style="margin-top: 0.5rem;">{% trans "Edit Style" %}</button>
                 </div>
-                <div class="info-item">
-                    <label style="font-weight: bold;">{% trans "Writing Techniques" %}</label>
-                    <div id="techniquesDisplay" style="color: #6B7280;">{% trans "Loading..." %}</div>
-                    <button onclick="openEditTechniquesModal()" class="btn btn-sm" style="margin-top: 0.5rem;">{% trans "Edit Techniques" %}</button>
-                </div>
             </div>
         </div>
 
@@ -203,11 +198,9 @@
             {% if project.content_piece %}
             <div class="content-display" style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.5rem;">
                 <h4 style="margin-top: 0; margin-bottom: 1rem; color: #374151;">{{ project.content_piece.title }}</h4>
-                <div id="contentPieceText" class="content-text" contenteditable="true" style="white-space: pre-wrap; line-height: 1.8; font-size: 1rem; color: #1f2937;">
-                    {{ project.content_piece.content }}
-                </div>
+                <div id="contentPieceText" class="content-text" contenteditable="true" style="white-space: pre-wrap; line-height: 1.8; font-size: 1rem; color: #1f2937;">{{ project.content_piece.content }}</div>
                 <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 0.875rem;">
-                    <span>{% trans "Word count" %}: {{ project.content_piece.word_count }}</span>
+                    <span>{% trans "Word count" %}: <span id="contentPieceWordCount">{{ project.content_piece.word_count }}</span></span>
                     {% if project.content_piece.structure_template %}
                     <span style="margin-left: 1.5rem;">{% trans "Structure" %}: {{ project.content_piece.structure_template.name }}</span>
                     {% endif %}
@@ -575,12 +568,6 @@
                     <span class="tool-icon">🎨</span>
                     <h4>{% trans "Manage Styles" %}</h4>
                     <p>{% trans "Browse and create custom writing styles" %}</p>
-                </button>
-                <!-- Phase 5: Writing Techniques Management -->
-                <button class="tool-card" onclick="openTechniqueBrowser()">
-                    <span class="tool-icon">✨</span>
-                    <h4>{% trans "Manage Techniques" %}</h4>
-                    <p>{% trans "Browse and create writing techniques" %}</p>
                 </button>
             </div>
         </div>
@@ -989,33 +976,6 @@
     </div>
 </div>
 
-<!-- Phase 5: Technique Browser Modal -->
-<div class="modal" id="techniqueBrowserModal" style="display: none;">
-    <div class="modal-content modal-large">
-        <div class="modal-header">
-            <h3>{% trans "Browse Writing Techniques" %}</h3>
-            <button class="modal-close" onclick="closeTechniqueBrowser()">&times;</button>
-        </div>
-        <div class="modal-body">
-            <div class="filter-tabs" id="techniqueFilterTabs">
-                <button class="filter-tab active" data-filter="all" onclick="displayTechniquesInBrowser('all')">{% trans "All" %}</button>
-                <button class="filter-tab" data-filter="narrative" onclick="displayTechniquesInBrowser('narrative')">{% trans "Narrative" %}</button>
-                <button class="filter-tab" data-filter="dialogue" onclick="displayTechniquesInBrowser('dialogue')">{% trans "Dialogue" %}</button>
-                <button class="filter-tab" data-filter="description" onclick="displayTechniquesInBrowser('description')">{% trans "Description" %}</button>
-                <button class="filter-tab" data-filter="pacing" onclick="displayTechniquesInBrowser('pacing')">{% trans "Pacing" %}</button>
-                <button class="filter-tab" data-filter="character" onclick="displayTechniquesInBrowser('character')">{% trans "Character" %}</button>
-            </div>
-            <div id="techniquesList" class="techniques-grid">
-                <!-- Populated by JavaScript -->
-            </div>
-        </div>
-        <div class="modal-actions">
-            <button type="button" class="btn btn-primary" onclick="openCreateTechniqueModal()">{% trans "Create New Technique" %}</button>
-            <button type="button" class="btn btn-secondary" onclick="closeTechniqueBrowser()">{% trans "Close" %}</button>
-        </div>
-    </div>
-</div>
-
 <!-- Phase 5: Create Custom Style Modal -->
 <div class="modal" id="createStyleModal" style="display: none;">
     <div class="modal-content modal-large">
@@ -1108,64 +1068,6 @@
     </div>
 </div>
 
-<!-- Phase 5: Create Custom Technique Modal -->
-<div class="modal" id="createTechniqueModal" style="display: none;">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3>{% trans "Create Custom Writing Technique" %}</h3>
-            <button class="modal-close" onclick="closeCreateTechniqueModal()">&times;</button>
-        </div>
-        <form id="createTechniqueForm" class="modal-form" onsubmit="submitCreateTechnique(event)">
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="technique_name_key">{% trans "Technique Name (Key)" %} <small style="color: #dc2626;">*</small></label>
-                    <input type="text" id="technique_name_key" name="name_key" required placeholder="e.g., foreshadowing">
-                    <small class="form-text">{% trans "Unique identifier (lowercase, underscores only)" %}</small>
-                </div>
-
-                <div class="form-group">
-                    <label for="technique_display_name">{% trans "Display Name" %} <small style="color: #dc2626;">*</small></label>
-                    <input type="text" id="technique_display_name" name="technique_name" required placeholder="e.g., Foreshadowing">
-                </div>
-
-                <div class="form-group">
-                    <label for="technique_category">{% trans "Category" %} <small style="color: #dc2626;">*</small></label>
-                    <select id="technique_category" name="category" required>
-                        <option value="">{% trans "Select category..." %}</option>
-                        <option value="narrative">{% trans "Narrative" %}</option>
-                        <option value="dialogue">{% trans "Dialogue" %}</option>
-                        <option value="description">{% trans "Description" %}</option>
-                        <option value="pacing">{% trans "Pacing" %}</option>
-                        <option value="character">{% trans "Character" %}</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="technique_description">{% trans "Description" %}</label>
-                    <textarea id="technique_description" name="description" rows="3" placeholder="{% trans 'Describe this technique...' %}"></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label for="technique_instructions">{% trans "Writing Instructions" %}</label>
-                    <textarea id="technique_instructions" name="instructions" rows="4" placeholder="{% trans 'Detailed instructions for the AI on how to apply this technique...' %}"></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="technique_public" name="public">
-                        {% trans "Make Public (share with other users)" %}
-                    </label>
-                </div>
-            </div>
-
-            <div class="modal-actions">
-                <button type="button" class="btn btn-secondary" onclick="closeCreateTechniqueModal()">{% trans "Cancel" %}</button>
-                <button type="submit" class="btn btn-primary">{% trans "Create Technique" %}</button>
-            </div>
-        </form>
-    </div>
-</div>
-
 <!-- Edit Project Writing Style Modal -->
 <div id="editStyleModal" class="modal-overlay" style="display: none;">
     <div class="modal-dialog">
@@ -1186,32 +1088,34 @@
     </div>
 </div>
 
-<!-- Edit Project Techniques Modal -->
-<div id="editTechniquesModal" class="modal-overlay" style="display: none;">
-    <div class="modal-dialog">
-        <div class="modal-header">
-            <h3>{% trans "Edit Writing Techniques" %}</h3>
-            <button class="modal-close" onclick="closeEditTechniquesModal()">&times;</button>
-        </div>
-        <div class="modal-body">
-            <p style="color: #6B7280; margin-bottom: 1rem;">{% trans "Select the writing techniques to use for this project:" %}</p>
-            <div id="techniquesCheckboxList" style="max-height: 400px; overflow-y: auto;">
-                <!-- Will be populated by JavaScript -->
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" onclick="closeEditTechniquesModal()">{% trans "Cancel" %}</button>
-            <button type="button" class="btn btn-primary" onclick="saveProjectTechniques()">{% trans "Save" %}</button>
-        </div>
-    </div>
-</div>
-
-<script src="/static/js/api.js"></script>
 <script src="/static/js/project.js"></script>
 <script src="/static/js/ai-modification.js"></script>
 <script>
 const projectId = '{{ project.id }}';
 const projectContentType = '{{ project.content_type }}';
+
+/**
+ * Calculate word count for text in any language.
+ * For CJK (Chinese, Japanese, Korean) languages, counts characters.
+ * For other languages, counts words separated by spaces.
+ */
+function calculateWordCount(text) {
+    if (!text) return 0;
+
+    // Check if text contains CJK characters
+    // Unicode ranges for CJK: \u4e00-\u9fff (Chinese), \u3040-\u309f (Hiragana),
+    // \u30a0-\u30ff (Katakana), \uac00-\ud7af (Hangul)
+    const cjkPattern = /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/g;
+    const cjkChars = text.match(cjkPattern);
+
+    if (cjkChars) {
+        // For CJK text, count CJK characters
+        return cjkChars.length;
+    } else {
+        // For other languages, count words by splitting on whitespace
+        return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+    }
+}
 
 // Create Plot progress bar management
 let createPlotProgressInterval = null;
@@ -1463,11 +1367,6 @@ async function loadContentTypeDefaults() {
     }
 }
 
-// Load defaults on page load
-if (temperatureSlider && topPSlider) {
-    loadContentTypeDefaults();
-}
-
 // Manual form submission - simplified to directly create plot
 const manualForm = document.getElementById('manualForm');
 if (manualForm) {
@@ -1670,11 +1569,11 @@ async function saveContentPiece() {
         hideLoading();
         showToast('Content saved successfully!', 'success');
 
-        // Optionally update word count display if returned from API
-        if (response && response.word_count) {
-            const wordCountElement = document.querySelector('#contentPieceSection .content-display span');
+        // Update word count display with server-calculated value
+        if (response && response.word_count !== undefined) {
+            const wordCountElement = document.getElementById('contentPieceWordCount');
             if (wordCountElement) {
-                wordCountElement.textContent = `Word count: ${response.word_count}`;
+                wordCountElement.textContent = response.word_count;
             }
         }
 
@@ -2518,6 +2417,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Continue with null project data - functions will handle gracefully
     }
 
+    // Load generation parameter defaults on page load
+    const temperatureSlider = document.getElementById('temperatureSlider');
+    const topPSlider = document.getElementById('topPSlider');
+    if (temperatureSlider && topPSlider) {
+        await loadContentTypeDefaults();
+    }
+
     // Enable AI text selection on content elements
     // Plot themes
     if (document.getElementById('plotThemesText')) {
@@ -2550,9 +2456,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         enableTextSelection('contentPieceText', 'content_piece');
     }
 
-    // Load project techniques and style on page load
+    // Load project style on page load
     // Pass the project data to avoid duplicate API calls
-    await loadProjectTechniques(projectData);
     await loadProjectStyle(projectData);
 
     // Track idea changes and enable/disable "Save Idea and continue" button
@@ -2588,124 +2493,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         saveContentBtn.disabled = !hasContent;
 
         // Enable/disable button based on whether content exists
+        // Also update word count in real-time
         const checkContentChange = function() {
             const currentValue = (contentPieceText.textContent || contentPieceText.innerText).trim();
             const hasContent = currentValue.length > 0;
             // Enable if has content, disable otherwise
             saveContentBtn.disabled = !hasContent;
+
+            // Update word count display in real-time
+            const wordCountElement = document.getElementById('contentPieceWordCount');
+            if (wordCountElement) {
+                const count = calculateWordCount(currentValue);
+                wordCountElement.textContent = count;
+            }
         };
 
         contentPieceText.addEventListener('input', checkContentChange);
         contentPieceText.addEventListener('blur', checkContentChange);
     }
 });
-
-// ========================================
-// Writing Techniques Management Functions
-// ========================================
-
-async function loadProjectTechniques(project = null) {
-    try {
-        // If project data not provided, fetch it (for backward compatibility)
-        if (!project) {
-            const response = await apiRequest(`/api/projects/${projectId}/`);
-            project = response;
-        }
-
-        const techniquesDisplay = document.getElementById('techniquesDisplay');
-
-        if (project.selected_techniques && project.selected_techniques.length > 0) {
-            // Use global allTechniques variable if available (loaded by initWritingStylesAndTechniques)
-            // Otherwise fetch technique details
-            let techniques = typeof allTechniques !== 'undefined' && allTechniques ? allTechniques : null;
-
-            if (!techniques) {
-                const techniquesResponse = await apiRequest('/api/writing-techniques/');
-                techniques = techniquesResponse.results || techniquesResponse;
-            }
-
-            const selectedTechniques = techniques.filter(t =>
-                project.selected_techniques.includes(t.id)
-            );
-
-            const techniqueNames = selectedTechniques.map(t => t.display_name || t.name_key).join(', ');
-            techniquesDisplay.textContent = techniqueNames;
-            techniquesDisplay.style.color = '#111827';
-        } else {
-            techniquesDisplay.textContent = '{% trans "No techniques selected" %}';
-            techniquesDisplay.style.color = '#6B7280';
-        }
-    } catch (error) {
-        console.error('Error loading techniques:', error);
-        document.getElementById('techniquesDisplay').textContent = '{% trans "Error loading techniques" %}';
-    }
-}
-
-async function openEditTechniquesModal() {
-    try {
-        // Fetch all available techniques
-        const techniquesResponse = await apiRequest('/api/writing-techniques/');
-        const allTechniques = techniquesResponse;
-
-        // Fetch current project techniques
-        const projectResponse = await apiRequest(`/api/projects/${projectId}/`);
-        const selectedTechniqueIds = projectResponse.selected_techniques || [];
-
-        // Populate checkboxes
-        const checkboxList = document.getElementById('techniquesCheckboxList');
-        checkboxList.innerHTML = allTechniques.map(technique => `
-            <div style="padding: 0.5rem; border-bottom: 1px solid #E5E7EB;">
-                <label style="display: flex; align-items: flex-start; cursor: pointer;">
-                    <input
-                        type="checkbox"
-                        value="${technique.id}"
-                        ${selectedTechniqueIds.includes(technique.id) ? 'checked' : ''}
-                        style="margin-right: 0.5rem; margin-top: 0.25rem;"
-                    >
-                    <div>
-                        <div style="font-weight: 500;">${technique.display_name || technique.name_key}</div>
-                        ${technique.description ? `<div style="color: #6B7280; font-size: 0.875rem; margin-top: 0.25rem;">${technique.description}</div>` : ''}
-                    </div>
-                </label>
-            </div>
-        `).join('');
-
-        // Show modal
-        document.getElementById('editTechniquesModal').style.display = 'flex';
-    } catch (error) {
-        console.error('Error opening techniques modal:', error);
-        showToast('{% trans "Error loading techniques" %}', 'error');
-    }
-}
-
-function closeEditTechniquesModal() {
-    document.getElementById('editTechniquesModal').style.display = 'none';
-}
-
-async function saveProjectTechniques() {
-    try {
-        // Get selected technique IDs
-        const checkboxes = document.querySelectorAll('#techniquesCheckboxList input[type="checkbox"]:checked');
-        const selectedIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
-
-        // Update project
-        await apiRequest(`/api/projects/${projectId}/`, {
-            method: 'PATCH',
-            body: JSON.stringify({
-                selected_techniques: selectedIds
-            })
-        });
-
-        showToast('{% trans "Techniques updated successfully" %}', 'success');
-        closeEditTechniquesModal();
-
-        // Reload techniques display
-        await loadProjectTechniques();
-    } catch (error) {
-        console.error('Error saving techniques:', error);
-        showToast('{% trans "Error saving techniques" %}', 'error');
-    }
-}
 
 // ========================================
 // Writing Style Management Functions

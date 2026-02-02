@@ -11,6 +11,7 @@ This verifies the workflow where:
 import pytest
 from django.test import Client
 from novels.models import NovelProject, ContentPiece
+from novels.utils import calculate_word_count
 
 
 @pytest.fixture
@@ -305,5 +306,5 @@ class TestWriteContentFromIdea:
 
         content_piece = ContentPiece.objects.get(project=project)
         # Calculate expected word count
-        expected_word_count = len(content_piece.content.split())
+        expected_word_count = calculate_word_count(content_piece.content)
         assert content_piece.word_count == expected_word_count

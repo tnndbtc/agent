@@ -1,34 +1,29 @@
 /**
- * Writing Styles & Techniques Management
+ * Writing Styles Management
  * Handles UI for 5-layer prompt architecture integration
  */
 
 // Global state
 let allStyles = [];
-let allTechniques = [];
 let currentProject = null;
 
 /**
- * Initialize writing styles and techniques on page load
+ * Initialize writing styles on page load
  */
 async function initWritingStylesAndTechniques(projectId = null) {
     currentProject = projectId;
 
     try {
-        // Load styles and techniques in parallel
-        const [stylesResponse, techniquesResponse] = await Promise.all([
-            apiRequest('/api/writing-styles/'),
-            apiRequest('/api/writing-techniques/')
-        ]);
+        // Load styles
+        const stylesResponse = await apiRequest('/api/writing-styles/');
 
         // Handle both paginated and non-paginated responses
         allStyles = stylesResponse.results || stylesResponse;
-        allTechniques = techniquesResponse.results || techniquesResponse;
 
-        console.log(`Loaded ${allStyles.length} styles and ${allTechniques.length} techniques`);
+        console.log(`Loaded ${allStyles.length} styles`);
     } catch (error) {
-        console.error('Error loading styles/techniques:', error);
-        showToast('Failed to load writing styles and techniques', 'error');
+        console.error('Error loading styles:', error);
+        showToast('Failed to load writing styles', 'error');
     }
 }
 
@@ -477,56 +472,6 @@ function closeCreateTechniqueModal() {
     const modal = document.getElementById('createTechniqueModal');
     if (modal) {
         modal.style.display = 'none';
-    }
-}
-
-/**
- * Submit custom technique creation
- */
-async function submitCreateTechnique(event) {
-    event.preventDefault();
-
-    const form = event.target;
-    const formData = new FormData(form);
-
-    // Build request data
-    const data = {
-        name_key: formData.get('name_key'),
-        category: formData.get('category'),
-        public: formData.get('public') === 'on',
-        translations: [
-            {
-                language_code: 'en', // TODO: Get from user's locale
-                name: formData.get('technique_name'),
-                description: formData.get('description') || '',
-                instructions: formData.get('instructions') || ''
-            }
-        ]
-    };
-
-    try {
-        showLoading('Creating custom technique...');
-        const newTechnique = await apiRequest('/api/writing-techniques/', {
-            method: 'POST',
-            body: JSON.stringify(data)
-        });
-        hideLoading();
-
-        // Add to local cache
-        allTechniques.push(newTechnique);
-
-        showToast('Custom technique created successfully!', 'success');
-        closeCreateTechniqueModal();
-
-        // Refresh technique checkboxes on the page
-        if (document.getElementById('techniqueCheckboxes')) {
-            populateTechniqueCheckboxes('techniqueCheckboxes');
-        }
-
-    } catch (error) {
-        hideLoading();
-        console.error('Error creating technique:', error);
-        showToast('Error creating technique: ' + (error.message || 'Unknown error'), 'error');
     }
 }
 

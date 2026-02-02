@@ -8,7 +8,7 @@ from .views import (
     ExampleScoreViewSet, ActViewSet,
     UserPromptViewSet, AIModificationViewSet,
     SystemPolicyViewSet, AgentRoleViewSet,
-    WritingStyleViewSet, WritingTechniqueViewSet
+    WritingStyleViewSet
 )
 
 router = DefaultRouter()
@@ -26,7 +26,6 @@ router.register(r'ai-modifications', AIModificationViewSet, basename='ai-modific
 router.register(r'system-policies', SystemPolicyViewSet, basename='system-policy')
 router.register(r'agent-roles', AgentRoleViewSet, basename='agent-role')
 router.register(r'writing-styles', WritingStyleViewSet, basename='writing-style')
-router.register(r'writing-techniques', WritingTechniqueViewSet, basename='writing-technique')
 
 urlpatterns = [
     path('', include(router.urls)),

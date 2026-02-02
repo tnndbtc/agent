@@ -17,6 +17,7 @@ from novel_agent.modules import (
 )
 from novel_agent.output import NovelExporter, NovelScorer
 from .prompt_assembly import get_language_name  # For services not yet refactored
+from .utils import calculate_word_count
 
 logger = logging.getLogger(__name__)
 
@@ -492,7 +493,7 @@ class ContentGenerationService:
             content = content_str
 
         # Calculate word count
-        word_count = len(content.split())
+        word_count = calculate_word_count(content)
 
         content_dict = {
             'title': title,
@@ -604,7 +605,7 @@ class ContentGenerationService:
             sections_data = {}
 
         # Calculate word count
-        word_count = len(content.split())
+        word_count = calculate_word_count(content)
 
         content_dict = {
             'title': title,
@@ -702,7 +703,7 @@ class ContentGenerationService:
             content = content_str.strip()
 
         # Calculate word count
-        word_count = len(content.split())
+        word_count = calculate_word_count(content)
 
         content_dict = {
             'content': content,
@@ -801,7 +802,7 @@ class ContentGenerationService:
             content = content_str
 
         # Calculate word count
-        word_count = len(content.split())
+        word_count = calculate_word_count(content)
 
         content_dict = {
             'title': title,
@@ -1398,7 +1399,7 @@ class WritingService:
             ai_title = None
 
         # Count words
-        word_count = len(content.split())
+        word_count = calculate_word_count(content)
 
         # Use AI-generated title if available, otherwise use default
         title = ai_title if ai_title else f"Chapter {next_chapter_number}"

@@ -16,7 +16,7 @@ from .models import (
     Chapter, Example, GenerationTask, APIPerformanceMetric,
     ScoreCategory, ScoreCategoryTranslation, ExampleScore,
     UserProfile, UserPrompt,
-    SystemPolicy, AgentRole, WritingStyle, WritingTechnique
+    SystemPolicy, AgentRole, WritingStyle
 )
 from .serializers import (
     NovelProjectSerializer, NovelProjectListSerializer,
@@ -29,7 +29,7 @@ from .serializers import (
     ScoreCategorySerializer, ScoreCategoryTranslationSerializer, ExampleScoreSerializer,
     UserPromptSerializer, AIModificationRequestSerializer, AIModificationResponseSerializer,
     SystemPolicySerializer, AgentRoleSerializer,
-    WritingStyleSerializer, WritingTechniqueSerializer
+    WritingStyleSerializer
 )
 from .services import (
     PlotService, CharacterService,
@@ -37,6 +37,7 @@ from .services import (
     EditingService, ConsistencyService, ScoringService, ExportService,
     ProjectService, AIModificationService
 )
+from .utils import calculate_word_count
 from .prompt_assembly import get_language_name
 from .tasks import write_chapter_task, score_novel_task
 from .permissions import IsOwner
@@ -610,7 +611,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
         content_piece.content = new_content
 
         # Recalculate word count
-        content_piece.word_count = len(new_content.split())
+        content_piece.word_count = calculate_word_count(new_content)
         content_piece.save()
 
         # Return updated content piece
@@ -1551,37 +1552,3 @@ class WritingStyleViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError("Cannot delete another user's style")
         instance.delete()
 
-
-class WritingTechniqueViewSet(viewsets.ModelViewSet):
-    """ViewSet for WritingTechnique model."""
-
-    permission_classes = [IsAuthenticated]
-    serializer_class = WritingTechniqueSerializer
-    pagination_class = None
-
-    def get_queryset(self):
-        """Return accessible techniques (system techniques + public techniques + user's private techniques)."""
-        return WritingTechnique.objects.filter(
-            Q(is_system=True) | Q(public=True) | Q(created_by=self.request.user)
-        ).prefetch_related('translations').distinct()
-
-    def perform_create(self, serializer):
-        """Create technique with current user as creator."""
-        serializer.save(created_by=self.request.user)
-
-    def perform_update(self, serializer):
-        """Only allow users to update their own non-system techniques."""
-        instance = self.get_object()
-        if instance.is_system:
-            raise serializers.ValidationError("Cannot modify system techniques")
-        if instance.created_by != self.request.user:
-            raise serializers.ValidationError("Cannot modify another user's technique")
-        serializer.save()
-
-    def perform_destroy(self, instance):
-        """Only allow users to delete their own non-system techniques."""
-        if instance.is_system:
-            raise serializers.ValidationError("Cannot delete system techniques")
-        if instance.created_by != self.request.user:
-            raise serializers.ValidationError("Cannot delete another user's technique")
-        instance.delete()
