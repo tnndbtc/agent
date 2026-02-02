@@ -249,15 +249,9 @@ While technology has brought remarkable benefits to modern society, it also pres
     @staticmethod
     def sketch_response():
         """Mock response for sketch generation."""
-        return """The Coffee Shop at Dawn
-
-I push open the heavy glass door at 6:47 AM, and the smell hits me immediately—that rich, dark aroma of coffee beans being ground, mixed with something sweeter, maybe cinnamon rolls warming in the oven. The barista looks up and nods, recognizing me without really seeing me. She's already reaching for the medium cup.
-
-There's only one other person here, an older man in the corner reading a newspaper—actual paper, not a screen. His hands are weathered, spotted with age, and they tremble slightly as he turns the pages. Every few minutes, he reaches for his coffee cup, takes a small sip, and returns to his reading without ever looking up.
-
-The morning light is just starting to filter through the front windows, golden and tentative, illuminating dust motes that dance in the air. Outside, the street is empty except for a jogger passing by in bright yellow sneakers. Inside, the espresso machine hisses and steams, a familiar soundtrack to this quiet moment before the world fully wakes.
-
-I find myself wondering about the man in the corner—does he come here every morning? Does he live alone? Is this newspaper his ritual, his anchor to routine? But I don't ask. We share this space in comfortable silence, two early risers seeking something in the aroma of coffee and the soft glow of dawn."""
+        return """{
+  "content": "The Coffee Shop at Dawn\\n\\nI push open the heavy glass door at 6:47 AM, and the smell hits me immediately—that rich, dark aroma of coffee beans being ground, mixed with something sweeter, maybe cinnamon rolls warming in the oven. The barista looks up and nods, recognizing me without really seeing me. She's already reaching for the medium cup.\\n\\nThere's only one other person here, an older man in the corner reading a newspaper—actual paper, not a screen. His hands are weathered, spotted with age, and they tremble slightly as he turns the pages. Every few minutes, he reaches for his coffee cup, takes a small sip, and returns to his reading without ever looking up.\\n\\nThe morning light is just starting to filter through the front windows, golden and tentative, illuminating dust motes that dance in the air. Outside, the street is empty except for a jogger passing by in bright yellow sneakers. Inside, the espresso machine hisses and steams, a familiar soundtrack to this quiet moment before the world fully wakes.\\n\\nI find myself wondering about the man in the corner—does he come here every morning? Does he live alone? Is this newspaper his ritual, his anchor to routine? But I don't ask. We share this space in comfortable silence, two early risers seeking something in the aroma of coffee and the soft glow of dawn."
+}"""
 
     @staticmethod
     def article_response():
@@ -298,14 +292,19 @@ def get_mock_response_for_prompt(prompt_text):
 
     prompt_lower = prompt_text.lower()
 
-    # Content type generation (check these first before other patterns)
-    if 'poem' in prompt_lower and ('write' in prompt_lower or 'create' in prompt_lower or 'generate' in prompt_lower):
+    # Content type generation - check for agent role keywords or content type indicators
+    # After removing instruction templates, we check for role-specific keywords in developer messages
+    # Poet keywords: "poet", "poetry", "诗人" (Chinese)
+    if any(keyword in prompt_lower for keyword in ['poet', 'poetry', '诗人']):
         return MockOpenAIResponses.poem_response()
-    elif 'essay' in prompt_lower and ('write' in prompt_lower or 'create' in prompt_lower or 'generate' in prompt_lower):
+    # Essayist keywords: "essayist", "essay", "散文", "论文" (Chinese)
+    elif any(keyword in prompt_lower for keyword in ['essayist', '散文', '论文']):
         return MockOpenAIResponses.essay_response()
-    elif 'sketch' in prompt_lower and ('write' in prompt_lower or 'create' in prompt_lower or 'generate' in prompt_lower):
+    # Sketch writer keywords: "sketch", "observational writing", "速写" (Chinese)
+    elif any(keyword in prompt_lower for keyword in ['sketch', 'observational writing', '速写']):
         return MockOpenAIResponses.sketch_response()
-    elif ('article' in prompt_lower or 'news' in prompt_lower) and ('write' in prompt_lower or 'create' in prompt_lower or 'generate' in prompt_lower):
+    # Journalist keywords: "journalist", "journalistic", "记者", "新闻" (Chinese)
+    elif any(keyword in prompt_lower for keyword in ['journalist', 'journalistic', '记者', '新闻']):
         return MockOpenAIResponses.article_response()
 
     # Brainstorm/Ideas

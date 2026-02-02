@@ -273,6 +273,39 @@ and it began to glow with a soft blue light.''',
 
 
 # ============================================================================
+# Agent Role Fixtures
+# ============================================================================
+
+@pytest.fixture
+def test_agent_roles(db):
+    """Create test agent roles with translations."""
+    from novels.models import AgentRole, AgentRoleTranslation
+
+    roles_data = [
+        ('poet', 'Poetry Writing', 'You are an accomplished poet with deep understanding of poetic craft.'),
+        ('essayist', 'Essay Writing', 'You are a skilled essayist and analytical writer.'),
+        ('sketch_writer', 'Sketch Writing', 'You are a master of the literary sketch and observational writing.'),
+        ('journalist', 'Journalistic Writing', 'You are a professional journalist committed to factual, objective reporting.'),
+    ]
+
+    roles = {}
+    for name_key, module_name, system_prompt in roles_data:
+        role = AgentRole.objects.create(
+            name_key=name_key,
+            module_name=module_name,
+            is_active=True
+        )
+        AgentRoleTranslation.objects.create(
+            role=role,
+            language_code='en',
+            system_prompt=system_prompt
+        )
+        roles[name_key] = role
+
+    return roles
+
+
+# ============================================================================
 # Project Fixtures
 # ============================================================================
 

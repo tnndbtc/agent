@@ -63,7 +63,7 @@ class TestWriteContentFromIdea:
     """Test the full flow: generate content from idea -> verify overview shows content."""
 
     def test_poem_generation_and_display(
-        self, authenticated_client, test_poem_project, mock_all_openai
+        self, authenticated_client, test_poem_project, mock_all_openai, test_agent_roles
     ):
         """
         Test poem generation from idea and verify the content is displayed.
@@ -117,7 +117,7 @@ class TestWriteContentFromIdea:
             "Poem content should appear in rendered HTML"
 
     def test_essay_generation_and_display(
-        self, authenticated_client, test_essay_project, mock_all_openai
+        self, authenticated_client, test_essay_project, mock_all_openai, test_agent_roles
     ):
         """
         Test essay generation from idea and verify the content is displayed.
@@ -167,7 +167,7 @@ class TestWriteContentFromIdea:
         assert 'technology' in html.lower()
 
     def test_sketch_generation_and_display(
-        self, authenticated_client, test_sketch_project, mock_all_openai
+        self, authenticated_client, test_sketch_project, mock_all_openai, test_agent_roles
     ):
         """
         Test sketch generation from idea and verify the content is displayed.
@@ -216,7 +216,7 @@ class TestWriteContentFromIdea:
         assert 'coffee' in html.lower() or 'dawn' in html.lower()
 
     def test_article_generation_and_display(
-        self, authenticated_client, test_article_project, mock_all_openai
+        self, authenticated_client, test_article_project, mock_all_openai, test_agent_roles
     ):
         """
         Test article generation from idea and verify the content is displayed.

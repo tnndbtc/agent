@@ -451,63 +451,13 @@ class ContentGenerationService:
         style_notes = idea_data.get('style_notes', '')
         word_count = idea_data.get('word_count', 200)  # Poems are typically shorter
 
-        # Get translated instructions from database
-        from .models import InstructionTemplate
-        template = InstructionTemplate.objects.filter(
-            name_key='poem_instructions',
-            is_active=True
-        ).first()
-
-        if template:
-            trans = template.translations.filter(language_code=user_language).first()
-            # Fallback to English if translation not found
-            if not trans and user_language != 'en':
-                trans = template.translations.filter(language_code='en').first()
-
-            if trans:
-                task_desc = trans.task_description.format(theme=theme)
-                instructions = trans.instructions.format(word_count=word_count)
-                json_format = trans.json_format
-            else:
-                # Fallback to hardcoded English if no translation found
-                task_desc = f"Write a complete poem based on this theme: {theme}"
-                instructions = f"""Instructions:
-- Create vivid imagery and sensory details
-- Pay attention to rhythm and musicality
-- Use appropriate poetic form and structure
-- Evoke strong emotions
-- Target length: approximately {word_count} words"""
-                json_format = """Return the poem in JSON format:
-{
-    "title": "Poem Title",
-    "content": "The complete poem text with line breaks"
-}"""
-        else:
-            # Fallback to hardcoded English if template not found
-            task_desc = f"Write a complete poem based on this theme: {theme}"
-            instructions = f"""Instructions:
-- Create vivid imagery and sensory details
-- Pay attention to rhythm and musicality
-- Use appropriate poetic form and structure
-- Evoke strong emotions
-- Target length: approximately {word_count} words"""
-            json_format = """Return the poem in JSON format:
-{
-    "title": "Poem Title",
-    "content": "The complete poem text with line breaks"
-}"""
-
-        # Build user prompt
-        user_prompt = f"""{task_desc}
-
-{instructions}"""
+        # Build simple user prompt with just the theme (no instruction templates)
+        user_prompt = theme
         if style_notes:
-            user_prompt += f"\nStyle notes: {style_notes}"
+            user_prompt += f"\n\n{style_notes}"
 
-        user_prompt += f"""
-
-{json_format}
-"""
+        # Add word count instruction
+        user_prompt += f"\n\nWrite approximately {word_count} words."
 
         # Assemble full prompt with 5-layer architecture
         messages = PromptAssemblyService.assemble_full_prompt(
@@ -516,7 +466,7 @@ class ContentGenerationService:
             project=project,
             language_code=user_language,
             context_type='poem',
-            include_context=True
+            include_context=False  # Skip project context
         )
 
         # Call OpenAI API using LoggingOpenAIClient
@@ -608,85 +558,16 @@ class ContentGenerationService:
                 is_system=True
             ).first()
 
-        # Build user prompt
-        # Get translated instructions from database
-        from .models import InstructionTemplate
-        instr_template = InstructionTemplate.objects.filter(
-            name_key='essay_instructions',
-            is_active=True
-        ).first()
-
-        if instr_template:
-            trans = instr_template.translations.filter(language_code=user_language).first()
-            # Fallback to English if translation not found
-            if not trans and user_language != 'en':
-                trans = instr_template.translations.filter(language_code='en').first()
-
-            if trans:
-                task_desc = trans.task_description.format(thesis=thesis)
-                instructions = trans.instructions.format(word_count=word_count)
-                json_format = trans.json_format
-            else:
-                # Fallback to hardcoded English
-                task_desc = f"Write a complete essay with the following thesis: {thesis}"
-                instructions = f"""Instructions:
-- Present a clear, compelling thesis
-- Build strong arguments with evidence
-- Organize with logical flow
-- Address potential counterarguments
-- Write with clarity and precision
-- Target length: approximately {word_count} words"""
-                json_format = """Return the essay in JSON format:
-{
-    "title": "Essay Title",
-    "content": "The complete essay text with paragraphs separated by double newlines",
-    "sections": {
-        "introduction": "...",
-        "body1": "...",
-        "conclusion": "..."
-    }
-}"""
-        else:
-            # Fallback to hardcoded English
-            task_desc = f"Write a complete essay with the following thesis: {thesis}"
-            instructions = f"""Instructions:
-- Present a clear, compelling thesis
-- Build strong arguments with evidence
-- Organize with logical flow
-- Address potential counterarguments
-- Write with clarity and precision
-- Target length: approximately {word_count} words"""
-            json_format = """Return the essay in JSON format:
-{
-    "title": "Essay Title",
-    "content": "The complete essay text with paragraphs separated by double newlines",
-    "sections": {
-        "introduction": "...",
-        "body1": "...",
-        "conclusion": "..."
-    }
-}"""
-
-        # Build user prompt
-        user_prompt = f"""{task_desc}
-
-Structure: {template.name if template else 'Five-Paragraph Essay'}
-"""
-        if template:
-            sections = template.structure_data.get('sections', [])
-            user_prompt += f"Sections: {', '.join(sections)}\n"
+        # Build simple user prompt with just the thesis (no instruction templates)
+        user_prompt = thesis
 
         if key_points:
-            user_prompt += f"\nKey points to address:\n"
+            user_prompt += f"\n\nKey points:\n"
             for point in key_points:
                 user_prompt += f"- {point}\n"
 
-        user_prompt += f"""
-
-{instructions}
-
-{json_format}
-"""
+        # Add word count instruction
+        user_prompt += f"\n\nWrite approximately {word_count} words."
 
         # Assemble full prompt
         messages = PromptAssemblyService.assemble_full_prompt(
@@ -695,7 +576,7 @@ Structure: {template.name if template else 'Five-Paragraph Essay'}
             project=project,
             language_code=user_language,
             context_type='essay',
-            include_context=True
+            include_context=False  # Skip project context
         )
 
         # Call OpenAI API using LoggingOpenAIClient
@@ -777,85 +658,18 @@ Structure: {template.name if template else 'Five-Paragraph Essay'}
         scene_notes = idea_data.get('scene_notes', '')
         word_count = idea_data.get('word_count', 300)  # Brief literary sketches
 
-        # Get sketch template
-        template = ContentStructureTemplate.objects.filter(
-            content_type='sketch',
-            name='Moment-Thought-Stop'
-        ).first()
-
-        # Get translated instructions from database
-        from .models import InstructionTemplate
-        instr_template = InstructionTemplate.objects.filter(
-            name_key='sketch_instructions',
-            is_active=True
-        ).first()
-
-        if instr_template:
-            trans = instr_template.translations.filter(language_code=user_language).first()
-            # Fallback to English if translation not found
-            if not trans and user_language != 'en':
-                trans = instr_template.translations.filter(language_code='en').first()
-
-            if trans:
-                task_desc = trans.task_description.format(observation=observation)
-                instructions = trans.instructions.format(word_count=word_count)
-                json_format = trans.json_format
-            else:
-                # Fallback to hardcoded English
-                task_desc = f"Write a literary sketch capturing this observation: {observation}"
-                instructions = f"""Instructions:
-- Observe keenly with precise, concrete details
-- Use vivid imagery to bring the moment to life
-- Reflect thoughtfully on deeper meaning
-- Know when to stop - don't over-explain
-- Target length: approximately {word_count} words"""
-                json_format = """Return the sketch in JSON format:
-{
-    "title": "Sketch Title",
-    "content": "The complete sketch text",
-    "sections": {
-        "moment": "The observed moment...",
-        "thought": "Reflection on the moment...",
-        "stop": "Final thought or image..."
-    }
-}"""
-        else:
-            # Fallback to hardcoded English
-            task_desc = f"Write a literary sketch capturing this observation: {observation}"
-            instructions = f"""Instructions:
-- Observe keenly with precise, concrete details
-- Use vivid imagery to bring the moment to life
-- Reflect thoughtfully on deeper meaning
-- Know when to stop - don't over-explain
-- Target length: approximately {word_count} words"""
-            json_format = """Return the sketch in JSON format:
-{
-    "title": "Sketch Title",
-    "content": "The complete sketch text",
-    "sections": {
-        "moment": "The observed moment...",
-        "thought": "Reflection on the moment...",
-        "stop": "Final thought or image..."
-    }
-}"""
-
-        # Build user prompt
-        user_prompt = f"""{task_desc}
-
-Structure: Moment → Thought → Stop
-- Moment: Capture a specific observation or scene with vivid detail
-- Thought: Reflect on its meaning or significance
-- Stop: End abruptly, leaving a lasting impression
-"""
+        # Build simple user prompt with just the observation (no instruction templates)
+        user_prompt = observation
         if scene_notes:
-            user_prompt += f"\nScene notes: {scene_notes}"
+            user_prompt += f"\n\n{scene_notes}"
 
-        user_prompt += f"""
+        # Add word count instruction
+        user_prompt += f"\n\nWrite approximately {word_count} words."
 
-{instructions}
+        # Add JSON format request
+        user_prompt += '\n\nReturn your response in JSON format:\n{"content": "your text here"}'
 
-{json_format}
-"""
+        template = None  # No template needed
 
         # Assemble full prompt
         messages = PromptAssemblyService.assemble_full_prompt(
@@ -864,7 +678,7 @@ Structure: Moment → Thought → Stop
             project=project,
             language_code=user_language,
             context_type='sketch',
-            include_context=True
+            include_context=False  # Skip project context
         )
 
         # Call OpenAI API using LoggingOpenAIClient
@@ -879,30 +693,23 @@ Structure: Moment → Thought → Stop
         token_usage = ai_client._extract_tokens(response)
         content_str = response.choices[0].message.content
 
-        # Parse JSON response
+        # Parse JSON response to extract content
         try:
             result = ai_client._parse_json(content_str)
-            title = result.get('title', 'Untitled')
             content = result.get('content', '')
-            sections_data = result.get('sections', {})
         except json.JSONDecodeError:
             logger.warning("Failed to parse JSON, using raw content")
-            title = observation
-            content = content_str
-            sections_data = {}
+            content = content_str.strip()
 
         # Calculate word count
         word_count = len(content.split())
 
         content_dict = {
-            'title': title,
             'content': content,
-            'word_count': word_count,
-            'sections_data': sections_data,
-            'structure_template_id': template.id if template else None
+            'word_count': word_count
         }
 
-        logger.info(f"Generated sketch: {title} ({word_count} words)")
+        logger.info(f"Generated sketch: {word_count} words")
         return content_dict, token_usage
 
     @staticmethod
@@ -947,73 +754,19 @@ Structure: Moment → Thought → Stop
         angle = idea_data.get('angle', '')
         word_count = idea_data.get('word_count', 400)  # Standard news article
 
-        # Get translated instructions from database
-        from .models import InstructionTemplate
-        instr_template = InstructionTemplate.objects.filter(
-            name_key='article_instructions',
-            is_active=True
-        ).first()
+        # Build simple user prompt with just the headline (no instruction templates)
+        user_prompt = headline
 
-        if instr_template:
-            trans = instr_template.translations.filter(language_code=user_language).first()
-            # Fallback to English if translation not found
-            if not trans and user_language != 'en':
-                trans = instr_template.translations.filter(language_code='en').first()
-
-            if trans:
-                task_desc = trans.task_description.format(headline=headline)
-                instructions = trans.instructions.format(word_count=word_count)
-                json_format = trans.json_format
-            else:
-                # Fallback to hardcoded English if no translation found
-                task_desc = f"Write a news article with the following headline: {headline}"
-                instructions = f"""Instructions:
-- Prioritize accuracy and factual reporting
-- Maintain objectivity and balance
-- Use clear, concise language
-- Present multiple perspectives when relevant
-- Follow AP style guidelines
-- Target length: approximately {word_count} words"""
-                json_format = """Return the article in JSON format:
-{
-    "title": "Article Headline",
-    "content": "The complete article text"
-}"""
-        else:
-            # Fallback to hardcoded English if template not found
-            task_desc = f"Write a news article with the following headline: {headline}"
-            instructions = f"""Instructions:
-- Prioritize accuracy and factual reporting
-- Maintain objectivity and balance
-- Use clear, concise language
-- Present multiple perspectives when relevant
-- Follow AP style guidelines
-- Target length: approximately {word_count} words"""
-            json_format = """Return the article in JSON format:
-{
-    "title": "Article Headline",
-    "content": "The complete article text"
-}"""
-
-        # Build user prompt with translated instructions
-        user_prompt = task_desc
-
-        # Add optional angle and facts (user-provided data)
         if angle:
-            user_prompt += f"\n\nAngle: {angle}"
+            user_prompt += f"\n\n{angle}"
 
         if facts:
             user_prompt += f"\n\nKey facts:\n"
             for fact in facts:
                 user_prompt += f"- {fact}\n"
 
-        # Add translated instructions and JSON format
-        user_prompt += f"""
-
-{instructions}
-
-{json_format}
-"""
+        # Add word count instruction
+        user_prompt += f"\n\nWrite approximately {word_count} words."
 
         # Assemble full prompt
         messages = PromptAssemblyService.assemble_full_prompt(
@@ -1022,7 +775,7 @@ Structure: Moment → Thought → Stop
             project=project,
             language_code=user_language,
             context_type='article',
-            include_context=True
+            include_context=False  # Skip project context
         )
 
         # Call OpenAI API using LoggingOpenAIClient
