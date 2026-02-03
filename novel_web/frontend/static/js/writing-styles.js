@@ -889,8 +889,22 @@ async function loadCustomStyles() {
                 const option = document.createElement('option');
                 option.value = style.id;
                 option.textContent = `${style.style_name} (${style.language_code})`;
-                option.dataset.styleInstruction = style.style_instruction;
+
+                // Store style instruction
+                option.dataset.styleInstruction = style.style_instruction || '';
                 option.dataset.languageCode = style.language_code;
+
+                // Store agent role data (if exists)
+                if (style.custom_agent_role) {
+                    option.dataset.agentRoleId = style.custom_agent_role.id;  // Critical: needed for updating
+                    option.dataset.agentRoleName = style.custom_agent_role.role_name || '';
+                    option.dataset.agentRoleInstruction = style.custom_agent_role.role_instruction || '';
+                } else {
+                    option.dataset.agentRoleId = '';
+                    option.dataset.agentRoleName = '';
+                    option.dataset.agentRoleInstruction = '';
+                }
+
                 select.appendChild(option);
             });
             console.log('[DEBUG] Custom styles successfully added to dropdown');
@@ -918,19 +932,206 @@ function selectCustomStyle() {
     const selectedOption = select.options[select.selectedIndex];
     const styleId = select.value;
 
-    if (styleId) {
+    // Get display elements
+    const detailsDiv = document.getElementById('customStyleDetails');
+    const agentRoleDisplay = document.getElementById('customAgentRoleDisplay');
+    const styleInstructionDisplay = document.getElementById('customStyleInstructionDisplay');
+
+    if (styleId && selectedOption) {
         // Store the selected custom style ID on the project
         // This will be used when generating content
         console.log('Selected custom style:', {
             id: styleId,
             name: selectedOption.textContent,
             instruction: selectedOption.dataset.styleInstruction,
-            languageCode: selectedOption.dataset.languageCode
+            languageCode: selectedOption.dataset.languageCode,
+            agentRoleName: selectedOption.dataset.agentRoleName,
+            agentRoleInstruction: selectedOption.dataset.agentRoleInstruction
         });
+
+        // Show the details div
+        if (detailsDiv) {
+            detailsDiv.style.display = 'block';
+        }
+
+        // Populate agent role textarea
+        if (agentRoleDisplay) {
+            const agentRoleText = selectedOption.dataset.agentRoleInstruction || 'No agent role defined for this style';
+            agentRoleDisplay.value = agentRoleText;
+        }
+
+        // Populate style instruction textarea
+        if (styleInstructionDisplay) {
+            const styleInstructionText = selectedOption.dataset.styleInstruction || '';
+            styleInstructionDisplay.value = styleInstructionText;
+        }
 
         // Save selection to localStorage or make API call to update project
         localStorage.setItem(`project_${PROJECT_ID}_custom_style`, styleId);
         showToast('Custom style selected: ' + selectedOption.textContent, 'success');
+    } else {
+        // Hide details div when no style is selected
+        if (detailsDiv) {
+            detailsDiv.style.display = 'none';
+        }
+    }
+}
+
+/**
+ * Enable edit mode for custom style instructions
+ */
+function enableEditMode() {
+    const agentRoleTextarea = document.getElementById('customAgentRoleDisplay');
+    const styleInstructionTextarea = document.getElementById('customStyleInstructionDisplay');
+    const editModeBtn = document.getElementById('editModeBtn');
+    const editModeButtons = document.getElementById('editModeButtons');
+
+    if (!agentRoleTextarea || !styleInstructionTextarea) return;
+
+    // Remove readonly attribute
+    agentRoleTextarea.removeAttribute('readonly');
+    styleInstructionTextarea.removeAttribute('readonly');
+
+    // Change background to white to indicate editable
+    agentRoleTextarea.style.backgroundColor = '#FFFFFF';
+    styleInstructionTextarea.style.backgroundColor = '#FFFFFF';
+
+    // Store original values for cancel functionality
+    agentRoleTextarea.dataset.originalValue = agentRoleTextarea.value;
+    styleInstructionTextarea.dataset.originalValue = styleInstructionTextarea.value;
+
+    // Show save/cancel buttons, hide edit button
+    if (editModeButtons) editModeButtons.style.display = 'block';
+    if (editModeBtn) editModeBtn.style.display = 'none';
+
+    console.log('[DEBUG] Edit mode enabled');
+}
+
+/**
+ * Disable edit mode and return to readonly state
+ */
+function disableEditMode() {
+    const agentRoleTextarea = document.getElementById('customAgentRoleDisplay');
+    const styleInstructionTextarea = document.getElementById('customStyleInstructionDisplay');
+    const editModeBtn = document.getElementById('editModeBtn');
+    const editModeButtons = document.getElementById('editModeButtons');
+
+    if (!agentRoleTextarea || !styleInstructionTextarea) return;
+
+    // Add readonly attribute back
+    agentRoleTextarea.setAttribute('readonly', 'readonly');
+    styleInstructionTextarea.setAttribute('readonly', 'readonly');
+
+    // Change background back to gray
+    agentRoleTextarea.style.backgroundColor = '#F9FAFB';
+    styleInstructionTextarea.style.backgroundColor = '#F9FAFB';
+
+    // Hide save/cancel buttons, show edit button
+    if (editModeButtons) editModeButtons.style.display = 'none';
+    if (editModeBtn) editModeBtn.style.display = 'block';
+
+    console.log('[DEBUG] Edit mode disabled');
+}
+
+/**
+ * Cancel edit mode and restore original values
+ */
+function cancelEditMode() {
+    const agentRoleTextarea = document.getElementById('customAgentRoleDisplay');
+    const styleInstructionTextarea = document.getElementById('customStyleInstructionDisplay');
+
+    if (!agentRoleTextarea || !styleInstructionTextarea) return;
+
+    // Restore original values
+    agentRoleTextarea.value = agentRoleTextarea.dataset.originalValue || '';
+    styleInstructionTextarea.value = styleInstructionTextarea.dataset.originalValue || '';
+
+    // Exit edit mode
+    disableEditMode();
+
+    console.log('[DEBUG] Edit cancelled, original values restored');
+}
+
+/**
+ * Save changes to custom style and agent role instructions
+ */
+async function saveCustomStyleChanges() {
+    const select = document.getElementById('customStyleSelect');
+    if (!select) return;
+
+    const selectedOption = select.options[select.selectedIndex];
+    const styleId = select.value;
+
+    if (!styleId) {
+        showToast('No style selected', 'error');
+        return;
+    }
+
+    const agentRoleTextarea = document.getElementById('customAgentRoleDisplay');
+    const styleInstructionTextarea = document.getElementById('customStyleInstructionDisplay');
+
+    const newAgentRoleInstruction = agentRoleTextarea.value.trim();
+    const newStyleInstruction = styleInstructionTextarea.value.trim();
+
+    // Validation
+    if (newStyleInstruction.length < 10) {
+        showToast('Style instruction must be at least 10 characters', 'error');
+        return;
+    }
+
+    if (newAgentRoleInstruction.length < 10) {
+        showToast('Agent role instruction must be at least 10 characters', 'error');
+        return;
+    }
+
+    try {
+        showLoading('Saving changes...');
+
+        // Update CustomWritingStyle
+        await apiRequest(`/api/custom-writing-styles/${styleId}/`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+                style_instruction: newStyleInstruction
+            })
+        });
+
+        console.log('[DEBUG] Style instruction updated successfully');
+
+        // Get agent role ID from dataset
+        const agentRoleId = selectedOption.dataset.agentRoleId;
+
+        if (agentRoleId) {
+            // Update CustomAgentRole
+            await apiRequest(`/api/custom-agent-roles/${agentRoleId}/`, {
+                method: 'PATCH',
+                body: JSON.stringify({
+                    role_instruction: newAgentRoleInstruction
+                })
+            });
+            console.log('[DEBUG] Agent role instruction updated successfully');
+        } else {
+            console.warn('[WARN] No agent role ID found, only style updated');
+        }
+
+        hideLoading();
+
+        // Update dataset with new values so they persist in dropdown
+        selectedOption.dataset.styleInstruction = newStyleInstruction;
+        selectedOption.dataset.agentRoleInstruction = newAgentRoleInstruction;
+
+        // Update original values for future edits
+        agentRoleTextarea.dataset.originalValue = newAgentRoleInstruction;
+        styleInstructionTextarea.dataset.originalValue = newStyleInstruction;
+
+        // Exit edit mode
+        disableEditMode();
+
+        showToast('Changes saved successfully!', 'success');
+
+    } catch (error) {
+        hideLoading();
+        console.error('[ERROR] Failed to save changes:', error);
+        showToast('Error saving changes: ' + (error.message || 'Unknown error'), 'error');
     }
 }
 

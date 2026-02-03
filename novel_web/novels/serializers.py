@@ -541,16 +541,6 @@ class AnalyzeWritingSampleResponseSerializer(serializers.Serializer):
 # Custom Writing Style Serializers (Simplified)
 # ========================================
 
-class CustomWritingStyleSerializer(serializers.ModelSerializer):
-    """Serializer for CustomWritingStyle model."""
-
-    class Meta:
-        model = CustomWritingStyle
-        fields = ['id', 'user', 'created_at', 'language_code', 'style_name',
-                  'style_instruction', 'sample']
-        read_only_fields = ['id', 'user', 'created_at']
-
-
 class CustomAgentRoleSerializer(serializers.ModelSerializer):
     """Serializer for CustomAgentRole model."""
 
@@ -558,6 +548,17 @@ class CustomAgentRoleSerializer(serializers.ModelSerializer):
         model = CustomAgentRole
         fields = ['id', 'user', 'created_at', 'language_code', 'role_name',
                   'role_instruction', 'custom_style']
+        read_only_fields = ['id', 'user', 'created_at']
+
+
+class CustomWritingStyleSerializer(serializers.ModelSerializer):
+    """Serializer for CustomWritingStyle model."""
+    custom_agent_role = CustomAgentRoleSerializer(read_only=True, allow_null=True)
+
+    class Meta:
+        model = CustomWritingStyle
+        fields = ['id', 'user', 'created_at', 'language_code', 'style_name',
+                  'style_instruction', 'sample', 'custom_agent_role']
         read_only_fields = ['id', 'user', 'created_at']
 
 

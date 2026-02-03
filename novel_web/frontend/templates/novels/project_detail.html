@@ -54,6 +54,46 @@
                     <button onclick="openSimpleStyleCreator()" class="btn btn-sm" style="margin-top: 0.5rem;">
                         <span style="margin-right: 0.25rem;">🔍</span>{% trans "Create New Style" %}
                     </button>
+
+                    <!-- Display areas for selected custom style -->
+                    <div id="customStyleDetails" style="display: none; margin-top: 1rem;">
+                        <!-- Edit button header -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <span style="font-weight: bold; color: #374151;">{% trans "Instructions" %}</span>
+                            <button id="editModeBtn" onclick="enableEditMode()" class="btn btn-sm" style="padding: 0.25rem 0.75rem;">
+                                ✏️ {% trans "Edit" %}
+                            </button>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label style="font-weight: bold; color: #374151;">{% trans "Agent Role Instruction" %}</label>
+                            <textarea id="customAgentRoleDisplay"
+                                      readonly
+                                      rows="4"
+                                      class="form-control"
+                                      style="font-family: monospace; font-size: 0.875rem; background-color: #F9FAFB; border: 1px solid #D1D5DB; padding: 0.5rem; margin-top: 0.5rem;">
+                            </textarea>
+                        </div>
+                        <div class="form-group">
+                            <label style="font-weight: bold; color: #374151;">{% trans "Writing Style Instruction" %}</label>
+                            <textarea id="customStyleInstructionDisplay"
+                                      readonly
+                                      rows="4"
+                                      class="form-control"
+                                      style="font-family: monospace; font-size: 0.875rem; background-color: #F9FAFB; border: 1px solid #D1D5DB; padding: 0.5rem; margin-top: 0.5rem;">
+                            </textarea>
+                        </div>
+
+                        <!-- Save/Cancel buttons (hidden by default, shown in edit mode) -->
+                        <div id="editModeButtons" style="display: none; margin-top: 1rem;">
+                            <button id="saveChangesBtn" onclick="saveCustomStyleChanges()" class="btn btn-primary" style="padding: 0.5rem 1rem;">
+                                💾 {% trans "Save Changes" %}
+                            </button>
+                            <button onclick="cancelEditMode()" class="btn btn-secondary" style="margin-left: 0.5rem; padding: 0.5rem 1rem;">
+                                ❌ {% trans "Cancel" %}
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 {% else %}
                 <div class="info-item">
