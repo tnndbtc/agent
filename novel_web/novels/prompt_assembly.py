@@ -45,13 +45,16 @@ class PromptAssemblyService:
     """Service for assembling prompts from 5-layer architecture."""
 
     @staticmethod
-    def build_system_prompt(agent_role_key, language_code='en'):
+    def build_system_prompt(agent_role_key, language_code='en', model_name=None):
         """
         Build Layer 1 + Layer 2: System policies + Agent role.
 
         Args:
             agent_role_key: Key for agent role (e.g., 'brainstormer', 'writer')
             language_code: Language code (e.g., 'en', 'zh-hans')
+            model_name: OpenAI model name (e.g., 'gpt-4o-mini', 'gpt-5.2').
+                       If provided, tries to find model-specific policy/role first,
+                       then falls back to default (model_name=None).
 
         Returns:
             str: Assembled system prompt with policies and role definition
@@ -60,8 +63,28 @@ class PromptAssemblyService:
 
         parts = []
 
-        # Layer 1: System Policy (consolidated)
-        system_policy = SystemPolicy.objects.filter(name_key='system_policy', is_active=True).first()
+        # Layer 1: System Policy (consolidated) with model-specific filtering
+        # Try model-specific first, then fall back to default
+        system_policy = None
+        if model_name:
+            system_policy = SystemPolicy.objects.filter(
+                name_key='system_policy',
+                is_active=True,
+                model_name=model_name
+            ).first()
+            if system_policy:
+                logger.debug(f"Found model-specific system policy for {model_name}")
+
+        # Fallback to default policy (model_name=None)
+        if not system_policy:
+            system_policy = SystemPolicy.objects.filter(
+                name_key='system_policy',
+                is_active=True,
+                model_name__isnull=True
+            ).first()
+            if system_policy:
+                logger.debug("Using default system policy")
+
         if system_policy:
             trans = system_policy.translations.filter(language_code=language_code).first()
 
@@ -75,8 +98,28 @@ class PromptAssemblyService:
         else:
             logger.warning("Consolidated system policy not found")
 
-        # Layer 2: Agent Role
-        role = AgentRole.objects.filter(name_key=agent_role_key, is_active=True).first()
+        # Layer 2: Agent Role with model-specific filtering
+        # Try model-specific first, then fall back to default
+        role = None
+        if model_name:
+            role = AgentRole.objects.filter(
+                name_key=agent_role_key,
+                is_active=True,
+                model_name=model_name
+            ).first()
+            if role:
+                logger.debug(f"Found model-specific agent role '{agent_role_key}' for {model_name}")
+
+        # Fallback to default role (model_name=None)
+        if not role:
+            role = AgentRole.objects.filter(
+                name_key=agent_role_key,
+                is_active=True,
+                model_name__isnull=True
+            ).first()
+            if role:
+                logger.debug(f"Using default agent role '{agent_role_key}'")
+
         if role:
             trans = role.translations.filter(language_code=language_code).first()
 
@@ -91,7 +134,7 @@ class PromptAssemblyService:
             logger.warning(f"Agent role '{agent_role_key}' not found")
 
         system_prompt = "\n\n---\n\n".join(parts) if parts else ""
-        logger.info(f"Built system prompt for {agent_role_key} ({language_code}): {len(system_prompt)} chars")
+        logger.info(f"Built system prompt for {agent_role_key} ({language_code}, model={model_name}): {len(system_prompt)} chars")
 
         return system_prompt
 
@@ -247,7 +290,7 @@ class PromptAssemblyService:
     @staticmethod
     def assemble_full_prompt(agent_role_key, user_prompt, project=None,
                             language_code='en', context_type='text',
-                            act=None, include_context=True):
+                            act=None, include_context=True, model_name=None):
         """
         Assemble all 5 layers into OpenAI API message format.
 
@@ -259,6 +302,7 @@ class PromptAssemblyService:
             context_type: Type of context for Layer 4
             act: Optional Act for chapter creation
             include_context: Whether to include Layer 4 context
+            model_name: OpenAI model name for model-specific policies/roles
 
         Returns:
             list: List of message dicts for OpenAI API with 5-layer structure:
@@ -268,12 +312,12 @@ class PromptAssemblyService:
                   Layer 4 (Project Context) -> role="developer"
                   Layer 5 (User Task) -> role="user"
         """
-        logger.info(f"Assembling prompt for {agent_role_key}, language={language_code}, context_type={context_type}")
+        logger.info(f"Assembling prompt for {agent_role_key}, language={language_code}, context_type={context_type}, model={model_name}")
 
         # Extract individual layer contents
         # Layer 1 + 2: System policies + role definition
         system_prompt_combined = PromptAssemblyService.build_system_prompt(
-            agent_role_key, language_code
+            agent_role_key, language_code, model_name=model_name
         )
 
         # Separate Layer 1 (System Policy) and Layer 2 (Role Definition)

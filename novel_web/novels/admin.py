@@ -131,14 +131,15 @@ class SystemPolicyTranslationInline(admin.TabularInline):
 @admin.register(SystemPolicy)
 class SystemPolicyAdmin(admin.ModelAdmin):
     """Admin for SystemPolicy."""
-    list_display = ['name_key', 'policy_type', 'is_active', 'priority', 'created_at']
-    list_filter = ['policy_type', 'is_active']
-    search_fields = ['name_key']
+    list_display = ['name_key', 'policy_type', 'model_name', 'is_active', 'priority', 'created_at']
+    list_filter = ['policy_type', 'is_active', 'model_name']
+    search_fields = ['name_key', 'model_name']
     readonly_fields = ['created_at', 'updated_at']
     inlines = [SystemPolicyTranslationInline]
     fieldsets = (
         ('Basic Info', {
-            'fields': ('name_key', 'policy_type', 'is_active', 'priority')
+            'fields': ('name_key', 'policy_type', 'model_name', 'is_active', 'priority'),
+            'description': 'Leave model_name blank to create a default policy that applies to all models when no model-specific policy exists.'
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at')
@@ -156,14 +157,15 @@ class AgentRoleTranslationInline(admin.TabularInline):
 @admin.register(AgentRole)
 class AgentRoleAdmin(admin.ModelAdmin):
     """Admin for AgentRole."""
-    list_display = ['name_key', 'module_name', 'is_active', 'created_at']
-    list_filter = ['is_active']
-    search_fields = ['name_key', 'module_name']
+    list_display = ['name_key', 'module_name', 'model_name', 'is_active', 'created_at']
+    list_filter = ['is_active', 'model_name']
+    search_fields = ['name_key', 'module_name', 'model_name']
     readonly_fields = ['created_at', 'updated_at']
     inlines = [AgentRoleTranslationInline]
     fieldsets = (
         ('Basic Info', {
-            'fields': ('name_key', 'module_name', 'is_active')
+            'fields': ('name_key', 'module_name', 'model_name', 'is_active'),
+            'description': 'Leave model_name blank to create a default role that applies to all models when no model-specific role exists.'
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at')

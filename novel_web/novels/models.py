@@ -85,8 +85,15 @@ class SystemPolicy(models.Model):
         ('behavior', 'Behavior Boundaries'),
     ]
 
-    name_key = models.CharField(max_length=50, unique=True, help_text="Unique identifier for this policy")
+    name_key = models.CharField(max_length=50, help_text="Unique identifier for this policy")
     policy_type = models.CharField(max_length=20, choices=POLICY_TYPE_CHOICES)
+    model_name = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="OpenAI model this policy applies to (e.g., 'gpt-4o-mini', 'gpt-5.2'). "
+                  "Leave blank for 'default' policy that applies when no model-specific policy exists."
+    )
     is_active = models.BooleanField(default=True, help_text="Whether this policy is enforced")
     priority = models.IntegerField(default=0, help_text="Lower number = higher priority")
     created_at = models.DateTimeField(default=timezone.now)
@@ -95,8 +102,9 @@ class SystemPolicy(models.Model):
     class Meta:
         ordering = ['priority', 'name_key']
         verbose_name_plural = "System policies"
+        unique_together = [['name_key', 'model_name']]
         indexes = [
-            models.Index(fields=['is_active', 'priority']),
+            models.Index(fields=['is_active', 'priority', 'model_name']),
         ]
 
     def __str__(self):
@@ -128,8 +136,15 @@ class SystemPolicyTranslation(models.Model):
 class AgentRole(models.Model):
     """AI agent role definitions for different modules."""
 
-    name_key = models.CharField(max_length=50, unique=True, help_text="Unique identifier for this role")
+    name_key = models.CharField(max_length=50, help_text="Unique identifier for this role")
     module_name = models.CharField(max_length=100, help_text="Associated module name")
+    model_name = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="OpenAI model this role applies to (e.g., 'gpt-4o-mini', 'gpt-5.2'). "
+                  "Leave blank for 'default' role that applies when no model-specific role exists."
+    )
     is_system = models.BooleanField(default=False, help_text="Whether this is a system-defined role")
     created_by = models.ForeignKey(
         User,
@@ -145,8 +160,9 @@ class AgentRole(models.Model):
 
     class Meta:
         ordering = ['name_key']
+        unique_together = [['name_key', 'model_name']]
         indexes = [
-            models.Index(fields=['is_active']),
+            models.Index(fields=['is_active', 'model_name']),
             models.Index(fields=['is_system', 'created_by']),
         ]
 

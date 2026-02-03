@@ -173,7 +173,8 @@ Return ONLY the JSON object, no additional text or explanation."""
             project=project,
             language_code=user_language,
             context_type='plot',
-            include_context=False
+            include_context=False,
+            model_name=model
         )
 
         # Use LoggingOpenAIClient for consistent API calls with logging and token tracking
@@ -508,7 +509,8 @@ class ContentGenerationService:
             project=project,
             language_code=user_language,
             context_type='poem',
-            include_context=False  # Skip project context
+            include_context=False,  # Skip project context
+            model_name=model
         )
 
         # Call OpenAI API using LoggingOpenAIClient
@@ -621,7 +623,8 @@ class ContentGenerationService:
             project=project,
             language_code=user_language,
             context_type='essay',
-            include_context=False  # Skip project context
+            include_context=False,  # Skip project context
+            model_name=model
         )
 
         # Call OpenAI API using LoggingOpenAIClient
@@ -723,7 +726,8 @@ class ContentGenerationService:
             project=project,
             language_code=user_language,
             context_type='sketch',
-            include_context=False  # Skip project context
+            include_context=False,  # Skip project context
+            model_name=model
         )
 
         # Call OpenAI API using LoggingOpenAIClient
@@ -823,7 +827,8 @@ class ContentGenerationService:
             project=project,
             language_code=user_language,
             context_type='article',
-            include_context=False  # Skip project context
+            include_context=False,  # Skip project context
+            model_name=model
         )
 
         # Call OpenAI API using LoggingOpenAIClient
@@ -969,7 +974,8 @@ class ContentGenerationService:
                 project=project,
                 language_code=user_language,
                 context_type='text',
-                include_context=False
+                include_context=False,
+                model_name=model
             )
 
         # Call OpenAI API using LoggingOpenAIClient
