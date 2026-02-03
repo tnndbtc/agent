@@ -4,10 +4,21 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db.models import Q
+
+# Optional swagger support
+try:
+    from drf_yasg.utils import swagger_auto_schema
+except ImportError:
+    # If swagger is not installed, create a no-op decorator
+    def swagger_auto_schema(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +27,7 @@ from .models import (
     Chapter, Example, GenerationTask, APIPerformanceMetric,
     ScoreCategory, ScoreCategoryTranslation, ExampleScore,
     UserProfile, UserPrompt,
-    SystemPolicy, AgentRole, WritingStyle
+    SystemPolicy, AgentRole, WritingStyle, CustomWritingStyle, CustomAgentRole
 )
 from .serializers import (
     NovelProjectSerializer, NovelProjectListSerializer,
@@ -29,7 +40,10 @@ from .serializers import (
     ScoreCategorySerializer, ScoreCategoryTranslationSerializer, ExampleScoreSerializer,
     UserPromptSerializer, AIModificationRequestSerializer, AIModificationResponseSerializer,
     SystemPolicySerializer, AgentRoleSerializer,
-    WritingStyleSerializer
+    WritingStyleSerializer,
+    AnalyzeWritingSampleRequestSerializer, AnalyzeWritingSampleResponseSerializer,
+    CustomWritingStyleSerializer, CustomAgentRoleSerializer,
+    AnalyzeSimpleStyleRequestSerializer, AnalyzeSimpleStyleResponseSerializer
 )
 from .services import (
     PlotService, CharacterService,
@@ -76,6 +90,36 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
                 serializer.validated_data['default_style'] = matching_style
 
         serializer.save(user=self.request.user)
+
+    @action(detail=False, methods=['get'], url_path='content-type-choices', permission_classes=[IsAuthenticated])
+    def content_type_choices(self, request):
+        """
+        Return available content type choices with metadata.
+        GET /api/projects/content-type-choices/
+        """
+        from .models import NovelProject
+
+        # Metadata for each content type (icon and description)
+        metadata = {
+            'novel': {'icon': '📚', 'description': 'Multi-chapter long-form narrative'},
+            'poem': {'icon': '✍️', 'description': 'Single poetic piece'},
+            'essay': {'icon': '📝', 'description': 'Structured analytical writing'},
+            'sketch': {'icon': '🎨', 'description': 'Observational writing piece'},
+            'article': {'icon': '📰', 'description': 'News or journalistic piece'},
+            'other': {'icon': '🔧', 'description': 'User-specified content type'},
+        }
+
+        choices = []
+        for value, label in NovelProject.CONTENT_TYPE_CHOICES:
+            meta = metadata.get(value, {'icon': '📄', 'description': label})
+            choices.append({
+                'value': value,
+                'label': label,
+                'icon': meta['icon'],
+                'description': meta['description']
+            })
+
+        return Response({'choices': choices})
 
     @action(detail=True, methods=['post'])
     def create_plot(self, request, pk=None):
@@ -1493,15 +1537,51 @@ class SystemPolicyViewSet(viewsets.ReadOnlyModelViewSet):
         return SystemPolicy.objects.filter(is_active=True).prefetch_related('translations').order_by('priority', 'name_key')
 
 
-class AgentRoleViewSet(viewsets.ReadOnlyModelViewSet):
-    """ViewSet for AgentRole model - read-only access to agent roles."""
+class AgentRoleViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for AgentRole model.
+    - System roles (is_system=True): Read-only for all users
+    - User-created roles: Full CRUD for the creator
+    """
 
     permission_classes = [IsAuthenticated]
     serializer_class = AgentRoleSerializer
 
     def get_queryset(self):
-        """Return all active agent roles with translations."""
-        return AgentRole.objects.filter(is_active=True).prefetch_related('translations').order_by('name_key')
+        """
+        Return:
+        - All active system roles (is_system=True)
+        - User's own custom roles (created_by=current_user)
+        """
+        return AgentRole.objects.filter(
+            Q(is_system=True, is_active=True) |
+            Q(created_by=self.request.user, is_active=True)
+        ).prefetch_related('translations').order_by('-is_system', 'name_key')
+
+    def perform_create(self, serializer):
+        """Set created_by to current user when creating a new role."""
+        serializer.save(created_by=self.request.user, is_system=False)
+
+    def perform_update(self, serializer):
+        """Only allow updating user's own custom roles."""
+        instance = self.get_object()
+        if instance.is_system:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Cannot modify system-defined roles.")
+        if instance.created_by != self.request.user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You can only modify your own custom roles.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        """Only allow deleting user's own custom roles."""
+        if instance.is_system:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Cannot delete system-defined roles.")
+        if instance.created_by != self.request.user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You can only delete your own custom roles.")
+        instance.delete()
 
 
 class WritingStyleViewSet(viewsets.ModelViewSet):
@@ -1552,3 +1632,183 @@ class WritingStyleViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError("Cannot delete another user's style")
         instance.delete()
 
+
+class AnalyzeWritingSampleView(APIView):
+    """
+    API view for analyzing writing samples to extract style characteristics.
+    POST /api/analyze-writing-sample/
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        request_body=AnalyzeWritingSampleRequestSerializer,
+        responses={
+            200: AnalyzeWritingSampleResponseSerializer,
+            400: 'Bad Request - Invalid sample text',
+            500: 'Internal Server Error - AI analysis failed'
+        },
+        operation_description="Analyze a writing sample to detect language and extract style characteristics"
+    )
+    def post(self, request):
+        """
+        Analyze a writing sample and return style parameters.
+
+        This endpoint uses AI to analyze the provided text sample and extract:
+        - Language/locale detection
+        - Writing style characteristics (pacing, tone, paragraph length, dialogue ratio)
+        - Detailed style instructions for content generation
+        """
+        from .serializers import AnalyzeWritingSampleRequestSerializer, AnalyzeWritingSampleResponseSerializer
+        from .ai_client import LoggingOpenAIClient
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        # Validate request
+        serializer = AnalyzeWritingSampleRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        sample_text = serializer.validated_data['sample_text']
+
+        try:
+            # Use AI client to analyze the sample
+            client = LoggingOpenAIClient()
+            analysis_data, token_usage = client.analyze_writing_sample(sample_text)
+
+            # Track token usage for the user
+            if hasattr(request.user, 'profile'):
+                request.user.profile.add_tokens(
+                    prompt_tokens=token_usage.get('prompt_tokens', 0),
+                    completion_tokens=token_usage.get('completion_tokens', 0),
+                    total_tokens=token_usage.get('total_tokens', 0)
+                )
+
+            # Add token usage to response
+            analysis_data['token_usage'] = token_usage
+
+            # Validate and return response
+            response_serializer = AnalyzeWritingSampleResponseSerializer(data=analysis_data)
+            if response_serializer.is_valid():
+                return Response(response_serializer.data, status=status.HTTP_200_OK)
+            else:
+                logger.error(f"AI response validation failed: {response_serializer.errors}")
+                return Response(
+                    {"error": "AI analysis produced invalid results", "details": response_serializer.errors},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+        except Exception as e:
+            logger.error(f"Writing sample analysis failed: {str(e)}", exc_info=True)
+            return Response(
+                {"error": "Failed to analyze writing sample", "details": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class AnalyzeSimpleStyleView(APIView):
+    """
+    API view for simplified writing sample analysis.
+    POST /api/analyze-simple-style/
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        request_body=AnalyzeSimpleStyleRequestSerializer,
+        responses={
+            200: AnalyzeSimpleStyleResponseSerializer,
+            400: 'Bad Request - Invalid sample text',
+            500: 'Internal Server Error - AI analysis failed'
+        },
+        operation_description="Analyze a writing sample (first 100 words) to generate style name, instruction, and language code"
+    )
+    def post(self, request):
+        """
+        Simplified style analysis: extract first 100 words, generate style_name, style_instruction, language_code.
+        """
+        from .serializers import AnalyzeSimpleStyleRequestSerializer, AnalyzeSimpleStyleResponseSerializer
+        from .ai_client import LoggingOpenAIClient
+        import logging
+        import time
+
+        logger = logging.getLogger(__name__)
+
+        # Validate request
+        serializer = AnalyzeSimpleStyleRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        sample_text = serializer.validated_data['sample_text']
+
+        try:
+            # Use AI client to analyze the sample (simplified)
+            client = LoggingOpenAIClient()
+            analysis_data, token_usage = client.analyze_simple_style(sample_text)
+
+            # Track token usage for the user
+            if hasattr(request.user, 'profile'):
+                request.user.profile.add_tokens(
+                    prompt_tokens=token_usage.get('prompt_tokens', 0),
+                    completion_tokens=token_usage.get('completion_tokens', 0),
+                    total_tokens=token_usage.get('total_tokens', 0)
+                )
+
+            # Add token usage to response
+            analysis_data['token_usage'] = token_usage
+
+            # Validate and return response
+            response_serializer = AnalyzeSimpleStyleResponseSerializer(data=analysis_data)
+            if response_serializer.is_valid():
+                return Response(response_serializer.data, status=status.HTTP_200_OK)
+            else:
+                logger.error(f"AI response validation failed: {response_serializer.errors}")
+                return Response(
+                    {"error": "AI analysis produced invalid results", "details": response_serializer.errors},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+        except Exception as e:
+            logger.error(f"Simple style analysis failed: {str(e)}", exc_info=True)
+            return Response(
+                {"error": "Failed to analyze writing sample", "details": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class CustomWritingStyleViewSet(viewsets.ModelViewSet):
+    """ViewSet for CustomWritingStyle model - user's simplified custom styles."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = CustomWritingStyleSerializer
+
+    def get_queryset(self):
+        """Return only the current user's custom styles."""
+        return CustomWritingStyle.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        """Set user and created_at timestamp when creating."""
+        import time
+        serializer.save(
+            user=self.request.user,
+            created_at=int(time.time())
+        )
+
+
+class CustomAgentRoleViewSet(viewsets.ModelViewSet):
+    """ViewSet for CustomAgentRole model - user's custom agent roles linked to styles."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = CustomAgentRoleSerializer
+
+    def get_queryset(self):
+        """Return only the current user's custom agent roles."""
+        return CustomAgentRole.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        """Set user and created_at timestamp when creating."""
+        import time
+        serializer.save(
+            user=self.request.user,
+            created_at=int(time.time())
+        )

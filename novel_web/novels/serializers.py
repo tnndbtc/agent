@@ -9,6 +9,7 @@ from .models import (
     SystemPolicy, SystemPolicyTranslation,
     AgentRole, AgentRoleTranslation,
     WritingStyle, WritingStyleTranslation,
+    CustomWritingStyle, CustomAgentRole,
     ContentPiece
 )
 
@@ -425,12 +426,32 @@ class AgentRoleSerializer(serializers.ModelSerializer):
     """Serializer for AgentRole model with translations."""
 
     translations = AgentRoleTranslationSerializer(many=True, read_only=True)
+    created_by_username = serializers.SerializerMethodField()
+    display_name = serializers.SerializerMethodField()
 
     class Meta:
         model = AgentRole
-        fields = ['id', 'name_key', 'module_name', 'is_active',
-                  'created_at', 'updated_at', 'translations']
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        fields = ['id', 'name_key', 'module_name', 'is_system', 'created_by',
+                  'created_by_username', 'is_active', 'created_at', 'updated_at',
+                  'translations', 'display_name']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by']
+
+    def get_created_by_username(self, obj):
+        """Return username of creator."""
+        return obj.created_by.username if obj.created_by else None
+
+    def get_display_name(self, obj):
+        """Return localized name based on current language."""
+        request = self.context.get('request')
+        language_code = getattr(request, 'LANGUAGE_CODE', 'en') if request else 'en'
+
+        translation = obj.translations.filter(language_code=language_code).first()
+        if not translation and language_code != 'en':
+            translation = obj.translations.filter(language_code='en').first()
+
+        # For system roles, use name_key if no translation
+        # For custom roles, use name_key (users can set whatever name they want)
+        return obj.name_key if not translation else obj.name_key
 
 
 class WritingStyleTranslationSerializer(serializers.ModelSerializer):
@@ -453,8 +474,8 @@ class WritingStyleSerializer(serializers.ModelSerializer):
         model = WritingStyle
         fields = ['id', 'name_key', 'is_system', 'created_by', 'created_by_username',
                   'public', 'pacing', 'tone', 'paragraph_length', 'dialogue_ratio',
-                  'cliffhanger_enabled', 'created_at', 'updated_at', 'translations',
-                  'display_name']
+                  'cliffhanger_enabled', 'target_locale', 'created_at', 'updated_at',
+                  'translations', 'display_name']
         read_only_fields = ['id', 'created_at', 'updated_at', 'created_by']
 
     def get_display_name(self, obj):
@@ -472,3 +493,99 @@ class WritingStyleSerializer(serializers.ModelSerializer):
         """Return username of creator."""
         return obj.created_by.username if obj.created_by else None
 
+
+# ========================================
+# Writing Sample Analysis Serializers
+# ========================================
+
+class AnalyzeWritingSampleRequestSerializer(serializers.Serializer):
+    """Request serializer for analyzing writing samples."""
+
+    sample_text = serializers.CharField(
+        max_length=5000,
+        help_text="Writing sample text (ideally ≤100 words, max 5000 chars)"
+    )
+
+    def validate_sample_text(self, value):
+        """Ensure sample text is not empty."""
+        if not value or not value.strip():
+            raise serializers.ValidationError("Sample text cannot be empty.")
+        return value.strip()
+
+
+class AnalyzeWritingSampleResponseSerializer(serializers.Serializer):
+    """Response serializer for writing sample analysis."""
+
+    detected_locale = serializers.CharField(help_text="Detected language code (e.g., 'en', 'zh-hans')")
+    detected_language = serializers.CharField(help_text="Human-readable language name")
+    pacing = serializers.ChoiceField(
+        choices=['slow', 'medium', 'fast'],
+        help_text="Analyzed pacing of the sample"
+    )
+    tone = serializers.CharField(help_text="Descriptive tone (e.g., 'formal', 'conversational')")
+    paragraph_length = serializers.ChoiceField(
+        choices=['short', 'medium', 'long'],
+        help_text="Analyzed paragraph length"
+    )
+    dialogue_ratio = serializers.ChoiceField(
+        choices=['low', 'medium', 'high'],
+        help_text="Estimated dialogue ratio"
+    )
+    instructions = serializers.CharField(help_text="Detailed writing style instructions")
+    token_usage = serializers.DictField(
+        help_text="Token usage statistics from AI analysis",
+        required=False
+    )
+
+# ========================================
+# Custom Writing Style Serializers (Simplified)
+# ========================================
+
+class CustomWritingStyleSerializer(serializers.ModelSerializer):
+    """Serializer for CustomWritingStyle model."""
+
+    class Meta:
+        model = CustomWritingStyle
+        fields = ['id', 'user', 'created_at', 'language_code', 'style_name',
+                  'style_instruction', 'sample']
+        read_only_fields = ['id', 'user', 'created_at']
+
+
+class CustomAgentRoleSerializer(serializers.ModelSerializer):
+    """Serializer for CustomAgentRole model."""
+
+    class Meta:
+        model = CustomAgentRole
+        fields = ['id', 'user', 'created_at', 'language_code', 'role_name',
+                  'role_instruction', 'custom_style']
+        read_only_fields = ['id', 'user', 'created_at']
+
+
+class AnalyzeSimpleStyleRequestSerializer(serializers.Serializer):
+    """Request serializer for simplified style analysis."""
+
+    sample_text = serializers.CharField(
+        max_length=10000,
+        help_text="Writing sample text (only first 100 words will be analyzed)"
+    )
+
+    def validate_sample_text(self, value):
+        """Ensure sample text is not empty."""
+        if not value or not value.strip():
+            raise serializers.ValidationError("Sample text cannot be empty.")
+        return value.strip()
+
+
+class AnalyzeSimpleStyleResponseSerializer(serializers.Serializer):
+    """Response serializer for simplified style analysis."""
+
+    style_name = serializers.CharField(help_text="AI-generated style name")
+    style_instruction = serializers.CharField(help_text="AI-generated writing style instructions")
+    agent_role_name = serializers.CharField(help_text="AI-generated agent role name")
+    agent_role_instruction = serializers.CharField(help_text="AI-generated agent role instructions")
+    language_code = serializers.CharField(help_text="Detected language code (e.g., 'en', 'zh-hans')")
+    first_100_words = serializers.CharField(help_text="First 100 words extracted from sample")
+    token_usage = serializers.DictField(
+        help_text="Token usage statistics from AI analysis",
+        required=False
+    )

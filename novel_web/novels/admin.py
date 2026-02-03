@@ -8,6 +8,7 @@ from .models import (
     AgentRole, AgentRoleTranslation,
     InstructionTemplate, InstructionTemplateTranslation,
     WritingStyle, WritingStyleTranslation,
+    CustomWritingStyle, CustomAgentRole,
     ContentStructureTemplate, ContentPiece,
     ContentTypeScoringConfig, ContentTypeCategoryWeight
 )
@@ -222,6 +223,45 @@ class WritingStyleAdmin(admin.ModelAdmin):
         }),
     )
 
+
+@admin.register(CustomWritingStyle)
+class CustomWritingStyleAdmin(admin.ModelAdmin):
+    """Admin for CustomWritingStyle."""
+    list_display = ['style_name', 'user', 'language_code', 'created_at']
+    list_filter = ['language_code']
+    search_fields = ['style_name', 'user__username', 'style_instruction']
+    readonly_fields = ['created_at']
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('user', 'style_name', 'language_code')
+        }),
+        ('Instructions', {
+            'fields': ('style_instruction', 'sample')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at',)
+        }),
+    )
+
+
+@admin.register(CustomAgentRole)
+class CustomAgentRoleAdmin(admin.ModelAdmin):
+    """Admin for CustomAgentRole."""
+    list_display = ['role_name', 'user', 'language_code', 'custom_style', 'created_at']
+    list_filter = ['language_code']
+    search_fields = ['role_name', 'user__username', 'role_instruction']
+    readonly_fields = ['created_at']
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('user', 'role_name', 'language_code', 'custom_style')
+        }),
+        ('Instructions', {
+            'fields': ('role_instruction',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at',)
+        }),
+    )
 
 
 # ========================================

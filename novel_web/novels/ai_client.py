@@ -166,6 +166,156 @@ class LoggingOpenAIClient:
 
         return parsed_json, token_usage
 
+    def analyze_writing_sample(self, sample_text, max_tokens=800):
+        """
+        Analyze a writing sample to detect language and extract style characteristics.
+
+        Args:
+            sample_text: Text sample (ideally ≤100 words)
+            max_tokens: Maximum tokens for response (default: 800)
+
+        Returns:
+            tuple: (analysis_dict, token_usage_dict) where analysis_dict contains:
+                - detected_locale: Language code (e.g., 'en', 'zh-hans', 'ja')
+                - detected_language: Human-readable language name
+                - pacing: 'slow', 'medium', or 'fast'
+                - tone: Descriptive tone (e.g., 'formal', 'conversational')
+                - paragraph_length: 'short', 'medium', or 'long'
+                - dialogue_ratio: 'low', 'medium', or 'high'
+                - instructions: Detailed writing style instructions for AI
+        """
+        logger.info(f"Analyzing writing sample ({len(sample_text)} chars)")
+
+        prompt = f"""Analyze the following writing sample and extract its stylistic characteristics.
+
+Writing Sample:
+{sample_text}
+
+Perform the following analysis:
+1. Detect the language and provide the language code (e.g., 'en', 'zh-hans', 'zh-hant', 'ja', 'ko', 'fr', 'de', 'es', etc.)
+2. Analyze the pacing: slow (deliberate, detailed), medium (balanced), or fast (rapid, action-driven)
+3. Identify the tone (e.g., formal, conversational, poetic, journalistic, humorous, dramatic)
+4. Assess paragraph length: short (1-3 sentences), medium (4-6 sentences), or long (7+ sentences)
+5. Estimate dialogue ratio: low (<20% dialogue), medium (20-50%), or high (>50%)
+6. Generate detailed writing style instructions that capture:
+   - Sentence structure patterns
+   - Vocabulary level and word choice
+   - Narrative voice and perspective
+   - Rhythm and flow
+   - Any distinctive stylistic features
+
+Return a JSON object with this structure:
+{{
+    "detected_locale": "language_code",
+    "detected_language": "Human readable language name",
+    "pacing": "slow|medium|fast",
+    "tone": "descriptive tone",
+    "paragraph_length": "short|medium|long",
+    "dialogue_ratio": "low|medium|high",
+    "instructions": "Detailed multi-sentence writing style instructions"
+}}
+
+Return ONLY the JSON object, no additional text."""
+
+        messages = [
+            {"role": "system", "content": "You are an expert literary analyst skilled at identifying writing styles and linguistic patterns."},
+            {"role": "user", "content": prompt}
+        ]
+
+        try:
+            data, token_usage = self.chat_completion_with_json(
+                messages=messages,
+                temperature=0.3,  # Lower temperature for more consistent analysis
+                max_tokens=max_tokens
+            )
+
+            logger.info(f"Writing sample analysis complete: {data.get('detected_language', 'Unknown')} language detected")
+            return data, token_usage
+
+        except Exception as e:
+            logger.error(f"Failed to analyze writing sample: {str(e)}")
+            raise
+
+    def analyze_simple_style(self, sample_text, max_tokens=800):
+        """
+        Simplified analysis: extract first 100 words and generate style definition and agent role.
+
+        Args:
+            sample_text: Full text sample
+            max_tokens: Maximum tokens for response (default: 800)
+
+        Returns:
+            tuple: (analysis_dict, token_usage_dict) where analysis_dict contains:
+                - style_name: Short descriptive name for the style
+                - style_instruction: Detailed writing style instructions
+                - agent_role_name: Short name for the AI agent role
+                - agent_role_instruction: Agent role definition/instructions
+                - language_code: Language code (e.g., 'en', 'zh-hans')
+                - first_100_words: The extracted sample (first 100 words)
+        """
+        logger.info(f"Simple style analysis ({len(sample_text)} chars)")
+
+        # Extract first 100 words
+        words = sample_text.split()
+        first_100_words = ' '.join(words[:100])
+
+        logger.info(f"Extracted first {len(words[:100])} words from sample")
+
+        prompt = f"""Analyze the following text sample and generate a custom writing style definition and agent role definition.
+
+Text Sample:
+{first_100_words}
+
+Based on this sample, generate:
+1. **style_name**: A short, descriptive name for this writing style (e.g., "Poetic Narrative", "Technical Academic", "Conversational Storytelling")
+2. **style_instruction**: Detailed instructions for an AI to replicate this writing style. Include specifics about:
+   - Sentence structure and rhythm
+   - Vocabulary level and word choice
+   - Tone and voice
+   - Any distinctive stylistic features
+3. **agent_role_name**: A short name for the AI agent role that would write in this style (e.g., "Creative Poet", "Academic Scholar", "Casual Storyteller")
+4. **agent_role_instruction**: Instructions defining the AI agent's persona, expertise, and approach when writing in this style
+5. **language_code**: The language code of the text (e.g., 'en', 'zh-hans', 'zh-hant', 'ja', 'ko', 'fr', 'de', 'es', etc.)
+
+**IMPORTANT INSTRUCTION:**
+- Generate ALL text values (`style_name`, `style_instruction`, `agent_role_name`, `agent_role_instruction`) in the SAME LANGUAGE as the text sample above.
+- For example: if the sample is in Chinese, write everything in Chinese; if in Japanese, write in Japanese; if in English, write in English.
+- The JSON keys must remain in English.
+- Only the `language_code` value should be the language code (e.g., 'zh-hans'), not translated.
+
+Return a JSON object with this exact structure:
+{{
+    "style_name": "name in sample's language",
+    "style_instruction": "instructions in sample's language",
+    "agent_role_name": "role name in sample's language",
+    "agent_role_instruction": "role instructions in sample's language",
+    "language_code": "language_code_here"
+}}
+
+Return ONLY the JSON object, no additional text."""
+
+        messages = [
+            {"role": "system", "content": "You are an expert literary analyst who creates precise writing style definitions and agent role definitions."},
+            {"role": "user", "content": prompt}
+        ]
+
+        try:
+            data, token_usage = self.chat_completion_with_json(
+                messages=messages,
+                temperature=0.3,  # Lower temperature for consistent analysis
+                max_tokens=max_tokens
+            )
+
+            # Add the first_100_words to the response
+            data['first_100_words'] = first_100_words
+
+            logger.info(f"Simple style analysis complete: {data.get('style_name', 'Unknown')}")
+            return data, token_usage
+
+        except Exception as e:
+            logger.error(f"Failed to analyze simple style: {str(e)}")
+            raise
+
 
 def generate_theme_from_idea(idea_data, language='English'):
     """

@@ -174,3 +174,17 @@ ContentTypeRegistry.register(ContentTypeConfig(
         'writing_style'  # Placeholder - reuse existing category for now
     ]
 ))
+
+# Custom Content - User-defined content type with custom writing styles
+ContentTypeRegistry.register(ContentTypeConfig(
+    content_type='other',
+    display_name='Custom Content',
+    agent_role='writer',  # Generic writer role (overridden by custom agent role if provided)
+    has_structure=False,  # Flexible, no rigid structure required
+    workflow_steps=['idea', 'write', 'score'],
+    scoring_categories=[
+        'writing_style',  # Use generic scoring category
+        'creativity',
+        'coherence'
+    ]
+))

@@ -408,8 +408,46 @@ class ContentGenerationService:
                 project, idea_data, user_language, temperature, top_p, model
             )
 
+        elif project.content_type == 'other':
+            return ContentGenerationService._generate_other(
+                project, idea_data, user_language, temperature, top_p, model
+            )
+
         else:
             raise ValueError(f"Content generation not implemented for: {project.content_type}")
+
+    @staticmethod
+    def _get_json_format_instruction(content_type, language_code='en'):
+        """
+        Fetch JSON format instruction from InstructionTemplate.
+
+        Args:
+            content_type: Content type (poem, essay, sketch, article, other)
+            language_code: Language code for translation (default: 'en')
+
+        Returns:
+            String with JSON format instruction including newline prefix,
+            or fallback format if template not found
+        """
+        from .models import InstructionTemplate
+
+        template = InstructionTemplate.objects.filter(
+            content_type=content_type,
+            is_active=True
+        ).first()
+
+        if not template:
+            # Fallback for missing templates
+            logger.warning(f"No InstructionTemplate found for content_type='{content_type}'")
+            return '\n\nReturn your response in JSON format:\n{"title": "your title here", "content": "your text here"}'
+
+        json_format = template.get_json_format(language_code)
+        if not json_format:
+            # Fallback if language not found
+            logger.warning(f"No json_format found for content_type='{content_type}', language='{language_code}'")
+            return '\n\nReturn your response in JSON format:\n{"title": "your title here", "content": "your text here"}'
+
+        return '\n\n' + json_format
 
     @staticmethod
     def _generate_poem(project, idea_data, user_language, temperature=None, top_p=None, model=None):
@@ -459,6 +497,9 @@ class ContentGenerationService:
 
         # Add word count instruction
         user_prompt += f"\n\nWrite approximately {word_count} words."
+
+        # Add JSON format instruction from InstructionTemplate
+        user_prompt += ContentGenerationService._get_json_format_instruction('poem', user_language)
 
         # Assemble full prompt with 5-layer architecture
         messages = PromptAssemblyService.assemble_full_prompt(
@@ -570,6 +611,9 @@ class ContentGenerationService:
         # Add word count instruction
         user_prompt += f"\n\nWrite approximately {word_count} words."
 
+        # Add JSON format instruction from InstructionTemplate
+        user_prompt += ContentGenerationService._get_json_format_instruction('essay', user_language)
+
         # Assemble full prompt
         messages = PromptAssemblyService.assemble_full_prompt(
             agent_role_key='essayist',
@@ -667,8 +711,8 @@ class ContentGenerationService:
         # Add word count instruction
         user_prompt += f"\n\nWrite approximately {word_count} words."
 
-        # Add JSON format request
-        user_prompt += '\n\nReturn your response in JSON format:\n{"content": "your text here"}'
+        # Add JSON format instruction from InstructionTemplate
+        user_prompt += ContentGenerationService._get_json_format_instruction('sketch', user_language)
 
         template = None  # No template needed
 
@@ -769,6 +813,9 @@ class ContentGenerationService:
         # Add word count instruction
         user_prompt += f"\n\nWrite approximately {word_count} words."
 
+        # Add JSON format instruction from InstructionTemplate
+        user_prompt += ContentGenerationService._get_json_format_instruction('article', user_language)
+
         # Assemble full prompt
         messages = PromptAssemblyService.assemble_full_prompt(
             agent_role_key='journalist',
@@ -811,6 +858,152 @@ class ContentGenerationService:
         }
 
         logger.info(f"Generated article: {title} ({word_count} words)")
+        return content_dict, token_usage
+
+    @staticmethod
+    def _generate_other(project, idea_data, user_language, temperature=None, top_p=None, model=None):
+        """
+        Generate custom content using user-defined custom writing styles.
+
+        Args:
+            project: NovelProject instance
+            idea_data: Dictionary with idea information and custom_style_id
+            user_language: Language code (may be overridden by custom style)
+            temperature: OpenAI temperature (optional, uses content type default if not provided)
+            top_p: OpenAI top_p (optional, uses content type default if not provided)
+            model: OpenAI model (optional, uses default if not provided)
+
+        Returns:
+            Tuple of (content_dict, token_usage)
+        """
+        from .prompt_assembly import PromptAssemblyService
+        from .ai_client import LoggingOpenAIClient
+        from .models import ContentTypeScoringConfig, CustomWritingStyle
+        import json
+
+        logger.info(f"Generating custom content for project: {project.title}")
+
+        # Fetch default temperature and top_p from content type config if not provided
+        if temperature is None or top_p is None:
+            config = ContentTypeScoringConfig.objects.filter(content_type='other').first()
+            if config:
+                if temperature is None:
+                    temperature = float(config.default_temperature)
+                if top_p is None:
+                    top_p = float(config.default_top_p)
+            else:
+                # Fallback defaults
+                temperature = temperature or 0.7
+                top_p = top_p or 1.0
+
+        # Extract parameters
+        idea = idea_data.get('idea', idea_data.get('premise', project.title))
+        word_count = idea_data.get('word_count', 500)
+        custom_style_id = idea_data.get('custom_style_id')
+
+        # Build basic user prompt
+        user_prompt = idea
+        user_prompt += f"\n\nWrite approximately {word_count} words."
+
+        # Add JSON format instruction from InstructionTemplate
+        user_prompt += ContentGenerationService._get_json_format_instruction('other', user_language)
+
+        # Check if custom style is specified
+        custom_style = None
+        if custom_style_id:
+            try:
+                custom_style = CustomWritingStyle.objects.get(id=custom_style_id, user=project.user)
+                logger.info(f"Using custom style: {custom_style.style_name} ({custom_style.language_code})")
+            except CustomWritingStyle.DoesNotExist:
+                logger.warning(f"Custom style {custom_style_id} not found, using default")
+
+        # If custom style exists, use it to override language and build custom messages
+        if custom_style:
+            effective_language = custom_style.language_code
+
+            # Build messages manually with custom style
+            messages = []
+
+            # Layer 1: System Policy
+            messages.append({
+                "role": "system",
+                "content": "You are a professional writer who creates high-quality content."
+            })
+
+            # Layer 2: Custom Agent Role (use linked agent role if exists)
+            if hasattr(custom_style, 'custom_agent_role') and custom_style.custom_agent_role:
+                agent_role = custom_style.custom_agent_role
+                messages.append({
+                    "role": "developer",
+                    "content": f"## Agent Role: {agent_role.role_name}\n\n{agent_role.role_instruction}"
+                })
+            else:
+                # Fallback if no agent role linked
+                messages.append({
+                    "role": "developer",
+                    "content": "Your task is to write engaging content based on the user's requirements and specified writing style."
+                })
+
+            # Layer 3: Custom Writing Style
+            messages.append({
+                "role": "developer",
+                "content": f"## Writing Style\n\n{custom_style.style_instruction}"
+            })
+
+            # Layer 5: User Task
+            if effective_language != 'en':
+                # Use get_language_name already imported from prompt_assembly at top of file
+                lang_name = get_language_name(effective_language)
+                user_task = f"{user_prompt}\n\n**IMPORTANT:** Generate all output in {lang_name}."
+            else:
+                user_task = user_prompt
+
+            messages.append({"role": "user", "content": user_task})
+
+        else:
+            # No custom style, use standard prompt assembly with default style
+            effective_language = user_language
+            messages = PromptAssemblyService.assemble_full_prompt(
+                agent_role_key='writer',
+                user_prompt=user_prompt,
+                project=project,
+                language_code=user_language,
+                context_type='text',
+                include_context=False
+            )
+
+        # Call OpenAI API using LoggingOpenAIClient
+        ai_client = LoggingOpenAIClient()
+        response = ai_client.chat_completion(
+            messages=messages,
+            temperature=temperature,
+            top_p=top_p,
+            model=model
+        )
+
+        token_usage = ai_client._extract_tokens(response)
+        content_str = response.choices[0].message.content
+
+        # Parse JSON response if possible, otherwise use raw content
+        try:
+            result = ai_client._parse_json(content_str)
+            title = result.get('title', 'Untitled')
+            content = result.get('content', content_str)
+        except json.JSONDecodeError:
+            logger.info("No JSON structure, using raw content")
+            title = project.title
+            content = content_str
+
+        # Calculate word count
+        word_count = calculate_word_count(content)
+
+        content_dict = {
+            'title': title,
+            'content': content,
+            'word_count': word_count
+        }
+
+        logger.info(f"Generated custom content: {title} ({word_count} words)")
         return content_dict, token_usage
 
 

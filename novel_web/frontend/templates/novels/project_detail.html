@@ -44,6 +44,26 @@
                     <div id="styleDisplay" style="color: #6B7280;">{% trans "Loading..." %}</div>
                     <button onclick="openEditStyleModal()" class="btn btn-sm" style="margin-top: 0.5rem;">{% trans "Edit Style" %}</button>
                 </div>
+                {% if project.content_type == 'other' %}
+                <div class="info-item">
+                    <label style="font-weight: bold;">{% trans "Custom Writing Style" %}</label>
+                    <select id="customStyleSelect" class="form-control" style="margin-top: 0.5rem;" onchange="selectCustomStyle()">
+                        <option value="">{% trans "Loading..." %}</option>
+                    </select>
+                    <p style="color: #6B7280; font-size: 0.875rem; margin: 0.5rem 0 0.25rem 0;">{% trans "Or create a new custom style from a writing sample" %}</p>
+                    <button onclick="openSimpleStyleCreator()" class="btn btn-sm" style="margin-top: 0.5rem;">
+                        <span style="margin-right: 0.25rem;">🔍</span>{% trans "Create New Style" %}
+                    </button>
+                </div>
+                {% else %}
+                <div class="info-item">
+                    <label style="font-weight: bold;">{% trans "Custom Writing Styles" %}</label>
+                    <p style="color: #6B7280; font-size: 0.875rem; margin: 0.25rem 0;">{% trans "Create custom styles from your writing samples" %}</p>
+                    <button onclick="openSimpleStyleCreator()" class="btn btn-sm" style="margin-top: 0.5rem;">
+                        <span style="margin-right: 0.25rem;">🔍</span>{% trans "Analyze Sample" %}
+                    </button>
+                </div>
+                {% endif %}
             </div>
         </div>
 
@@ -55,7 +75,7 @@
                 <div class="form-group">
                     <label for="manual_premise">{% trans "Enter Your Idea" %}</label>
                     <textarea id="manual_premise" name="premise" class="form-control" rows="4" required
-                              placeholder="{% if project.content_type == 'novel' %}{% trans "Describe your plot idea..." %}{% elif project.content_type == 'poem' %}{% trans "Describe your poem theme..." %}{% elif project.content_type == 'essay' %}{% trans "Describe your thesis or topic..." %}{% elif project.content_type == 'sketch' %}{% trans "Describe the observation or scene..." %}{% else %}{% trans "Describe your idea..." %}{% endif %}">{% if has_idea %}{% if project.content_type == 'novel' %}{{ project.idea.idea_data.premise }}{% elif project.content_type == 'poem' %}{{ project.idea.idea_data.theme }}{% elif project.content_type == 'essay' %}{{ project.idea.idea_data.thesis }}{% elif project.content_type == 'sketch' %}{{ project.idea.idea_data.observation }}{% elif project.content_type == 'article' %}{{ project.idea.idea_data.headline }}{% endif %}{% endif %}</textarea>
+                              placeholder="{% if project.content_type == 'novel' %}{% trans "Describe your plot idea..." %}{% elif project.content_type == 'poem' %}{% trans "Describe your poem theme..." %}{% elif project.content_type == 'essay' %}{% trans "Describe your thesis or topic..." %}{% elif project.content_type == 'sketch' %}{% trans "Describe the observation or scene..." %}{% else %}{% trans "Describe your idea..." %}{% endif %}">{% if has_idea %}{% if project.content_type == 'novel' %}{{ project.idea.idea_data.premise }}{% elif project.content_type == 'poem' %}{{ project.idea.idea_data.theme }}{% elif project.content_type == 'essay' %}{{ project.idea.idea_data.thesis }}{% elif project.content_type == 'sketch' %}{{ project.idea.idea_data.observation }}{% elif project.content_type == 'article' %}{{ project.idea.idea_data.headline }}{% elif project.content_type == 'other' %}{{ project.idea.idea_data.idea }}{% endif %}{% endif %}</textarea>
                 </div>
 
                 <div class="form-group" id="contentWordCountGroup">
@@ -1068,6 +1088,188 @@
     </div>
 </div>
 
+<!-- Analyze Writing Sample Modal -->
+<div class="modal" id="analyzeSampleModal" style="display: none;">
+    <div class="modal-content modal-large">
+        <div class="modal-header">
+            <h3>{% trans "Analyze Writing Sample" %}</h3>
+            <button class="modal-close" onclick="closeAnalyzeSampleModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label for="writingSampleText">{% trans "Paste Your Writing Sample" %} <small style="color: #dc2626;">*</small></label>
+                <textarea
+                    id="writingSampleText"
+                    rows="8"
+                    maxlength="5000"
+                    placeholder="{% trans 'Paste a sample of writing (ideally 50-100 words) that represents the style you want to replicate...' %}"
+                    style="width: 100%; font-family: monospace;"
+                ></textarea>
+                <small class="form-text">
+                    <span id="sampleCharCount">0</span> / 5000 {% trans "characters" %}
+                    &nbsp;|&nbsp;
+                    <span id="sampleWordCount">0</span> {% trans "words" %}
+                </small>
+            </div>
+
+            <div style="text-align: center; margin: 20px 0;">
+                <button type="button" class="btn btn-primary" onclick="analyzeSample()" id="analyzeSampleBtn">
+                    {% trans "Analyze Sample" %}
+                </button>
+            </div>
+
+            <!-- Analysis Results (hidden until analysis complete) -->
+            <div id="analysisResults" style="display: none;">
+                <h4 style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e5e7eb;">{% trans "Analysis Results" %}</h4>
+
+                <div class="form-group">
+                    <label>{% trans "Detected Language" %}</label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span id="detectedLanguage" style="font-weight: bold; color: #2563eb;"></span>
+                        <span id="detectedLocale" class="badge badge-locale"></span>
+                    </div>
+                </div>
+
+                <form id="saveStyleFromAnalysisForm" onsubmit="saveStyleFromAnalysis(event)">
+                    <div class="form-group">
+                        <label for="analyzed_style_name_key">{% trans "Style Name (Key)" %} <small style="color: #dc2626;">*</small></label>
+                        <input type="text" id="analyzed_style_name_key" required placeholder="e.g., chinese_wuxia">
+                        <small class="form-text">{% trans "Unique identifier (lowercase, underscores only)" %}</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="analyzed_style_display_name">{% trans "Display Name" %} <small style="color: #dc2626;">*</small></label>
+                        <input type="text" id="analyzed_style_display_name" required placeholder="e.g., Chinese Wuxia">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="analyzed_pacing">{% trans "Pacing" %}</label>
+                            <select id="analyzed_pacing">
+                                <option value="slow">{% trans "Slow" %}</option>
+                                <option value="medium">{% trans "Medium" %}</option>
+                                <option value="fast">{% trans "Fast" %}</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="analyzed_tone">{% trans "Tone" %}</label>
+                            <input type="text" id="analyzed_tone" placeholder="e.g., formal, poetic">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="analyzed_paragraph_length">{% trans "Paragraph Length" %}</label>
+                            <select id="analyzed_paragraph_length">
+                                <option value="short">{% trans "Short" %}</option>
+                                <option value="medium">{% trans "Medium" %}</option>
+                                <option value="long">{% trans "Long" %}</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="analyzed_dialogue_ratio">{% trans "Dialogue Ratio" %}</label>
+                            <select id="analyzed_dialogue_ratio">
+                                <option value="low">{% trans "Low" %}</option>
+                                <option value="medium">{% trans "Medium" %}</option>
+                                <option value="high">{% trans "High" %}</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="analyzed_instructions">{% trans "Writing Style Instructions" %}</label>
+                        <textarea id="analyzed_instructions" rows="6" style="width: 100%;"></textarea>
+                        <small class="form-text">{% trans "You can edit these AI-generated instructions" %}</small>
+                    </div>
+
+                    <input type="hidden" id="analyzed_target_locale">
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeAnalyzeSampleModal()">{% trans "Cancel" %}</button>
+                        <button type="submit" class="btn btn-primary">{% trans "Save as Custom Style" %}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Simple Custom Style Creator Modal -->
+<div class="modal" id="simpleStyleCreatorModal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>{% trans "Create Custom Writing Style" %}</h3>
+            <button class="modal-close" onclick="closeSimpleStyleCreator()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <!-- Step 1: Input Sample -->
+            <div id="sampleInputStep">
+                <div class="form-group">
+                    <label for="customStyleSample">{% trans "Paste Your Writing Sample" %} <small style="color: #dc2626;">*</small></label>
+                    <textarea
+                        id="customStyleSample"
+                        rows="8"
+                        maxlength="10000"
+                        placeholder="{% trans 'Paste a sample of your writing. The AI will analyze the first 100 words to detect the style...' %}"
+                        style="width: 100%; font-family: monospace;"
+                    ></textarea>
+                    <small class="form-text">
+                        <span id="customStyleWordCount">0</span> {% trans "words" %}
+                        <span style="color: #9CA3AF;">({% trans "first 100 words will be analyzed" %})</span>
+                    </small>
+                </div>
+                <div style="text-align: center; margin: 20px 0;">
+                    <button type="button" class="btn btn-primary" onclick="analyzeAndCreateStyle()" id="analyzeSimpleBtn">
+                        {% trans "Analyze & Create Style" %}
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 2: Display Results & Save -->
+            <div id="styleResultsStep" style="display: none;">
+                <div style="background-color: #f9fafb; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <h4 style="margin-top: 0;">{% trans "AI Analysis Results" %}</h4>
+
+                    <div class="form-group">
+                        <label>{% trans "Style Name" %}</label>
+                        <div id="resultStyleName" style="font-weight: bold; color: #2563eb;"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>{% trans "Language" %}</label>
+                        <div id="resultLanguageCode" style="font-weight: bold;"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>{% trans "Style Instructions" %}</label>
+                        <div id="resultStyleInstruction" style="white-space: pre-wrap; padding: 0.5rem; background-color: white; border: 1px solid #e5e7eb; border-radius: 4px;"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>{% trans "Agent Role Name" %}</label>
+                        <div id="resultAgentRoleName" style="font-weight: bold; color: #2563eb;"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>{% trans "Agent Role Instructions" %}</label>
+                        <div id="resultAgentRoleInstruction" style="white-space: pre-wrap; padding: 0.5rem; background-color: white; border: 1px solid #e5e7eb; border-radius: 4px;"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>{% trans "Sample Used (First 100 Words)" %}</label>
+                        <div id="resultSample" style="font-size: 0.875rem; color: #6B7280; font-style: italic; white-space: pre-wrap;"></div>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="resetSimpleStyleCreator()">{% trans "Start Over" %}</button>
+                    <button type="button" class="btn btn-primary" onclick="saveCustomStyle()">{% trans "Save Custom Style" %}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Edit Project Writing Style Modal -->
 <div id="editStyleModal" class="modal-overlay" style="display: none;">
     <div class="modal-dialog">
@@ -1093,6 +1295,7 @@
 <script>
 const projectId = '{{ project.id }}';
 const projectContentType = '{{ project.content_type }}';
+window.PROJECT_ID = projectId;  // Make globally accessible for writing-styles.js
 
 /**
  * Calculate word count for text in any language.
@@ -1490,6 +1693,14 @@ function buildIdeaDataForContentType(contentType, premise, wordCount) {
             return { observation: premise, scene_notes: '', word_count: wordCount };
         case 'article':
             return { headline: premise, facts: [], angle: '', word_count: wordCount };
+        case 'other':
+            // For 'other' content type, include custom_style_id if selected
+            const ideaData = { idea: premise, word_count: wordCount };
+            const customStyleSelect = document.getElementById('customStyleSelect');
+            if (customStyleSelect && customStyleSelect.value) {
+                ideaData.custom_style_id = parseInt(customStyleSelect.value);
+            }
+            return ideaData;
         default:
             return { premise: premise };
     }

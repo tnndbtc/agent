@@ -130,6 +130,15 @@ class AgentRole(models.Model):
 
     name_key = models.CharField(max_length=50, unique=True, help_text="Unique identifier for this role")
     module_name = models.CharField(max_length=100, help_text="Associated module name")
+    is_system = models.BooleanField(default=False, help_text="Whether this is a system-defined role")
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='custom_agent_roles',
+        null=True,
+        blank=True,
+        help_text="User who created this custom role (null for system roles)"
+    )
     is_active = models.BooleanField(default=True, help_text="Whether this role is available")
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -138,6 +147,7 @@ class AgentRole(models.Model):
         ordering = ['name_key']
         indexes = [
             models.Index(fields=['is_active']),
+            models.Index(fields=['is_system', 'created_by']),
         ]
 
     def __str__(self):
@@ -211,6 +221,13 @@ class WritingStyle(models.Model):
     paragraph_length = models.CharField(max_length=20, choices=PARAGRAPH_LENGTH_CHOICES, default='medium')
     dialogue_ratio = models.CharField(max_length=20, choices=DIALOGUE_RATIO_CHOICES, default='medium')
     cliffhanger_enabled = models.BooleanField(default=False)
+    target_locale = models.CharField(
+        max_length=10,
+        blank=True,
+        null=True,
+        help_text="Target language for content generation (e.g., 'en', 'zh-hans', 'ja'). "
+                  "When set, overrides user's UI language preference for content generation."
+    )
 
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -262,6 +279,87 @@ class WritingStyleTranslation(models.Model):
         return f"{self.style.name_key} - {self.language_code}: {self.name}"
 
 
+class CustomWritingStyle(models.Model):
+    """User-created custom writing styles from sample text analysis (simplified)."""
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='custom_writing_styles',
+        help_text="User who created this custom style"
+    )
+    created_at = models.BigIntegerField(
+        help_text="Creation time in UNIX timestamp"
+    )
+    language_code = models.CharField(
+        max_length=10,
+        help_text="Detected language code (e.g., 'en', 'zh-hans', 'ja')"
+    )
+    style_name = models.CharField(
+        max_length=200,
+        help_text="AI-generated style name"
+    )
+    style_instruction = models.TextField(
+        help_text="AI-generated writing style instructions/prompt"
+    )
+    sample = models.TextField(
+        help_text="First 100 words of user's sample text"
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+        ]
+        verbose_name = "Custom Writing Style"
+        verbose_name_plural = "Custom Writing Styles"
+
+    def __str__(self):
+        return f"{self.style_name} ({self.language_code}) by {self.user.username}"
+
+
+class CustomAgentRole(models.Model):
+    """User-created custom agent roles linked to custom writing styles."""
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='user_custom_agent_roles',
+        help_text="User who created this custom agent role"
+    )
+    created_at = models.BigIntegerField(
+        help_text="Creation time in UNIX timestamp"
+    )
+    language_code = models.CharField(
+        max_length=10,
+        help_text="Language code (e.g., 'en', 'zh-hans', 'ja')"
+    )
+    role_name = models.CharField(
+        max_length=200,
+        help_text="AI-generated agent role name"
+    )
+    role_instruction = models.TextField(
+        help_text="AI-generated agent role instructions/prompt"
+    )
+    custom_style = models.OneToOneField(
+        'CustomWritingStyle',
+        on_delete=models.CASCADE,
+        related_name='custom_agent_role',
+        help_text="Associated custom writing style"
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+        ]
+        verbose_name = "Custom Agent Role"
+        verbose_name_plural = "Custom Agent Roles"
+
+    def __str__(self):
+        return f"{self.role_name} ({self.language_code}) by {self.user.username}"
+
+
 class InstructionTemplate(models.Model):
     """Translatable instruction templates for user task prompts (Layer 5)."""
 
@@ -287,6 +385,22 @@ class InstructionTemplate(models.Model):
 
     def __str__(self):
         return f"{self.name_key} ({self.content_type})"
+
+    def get_json_format(self, language_code='en'):
+        """
+        Get JSON format instruction for this template in specified language.
+
+        Args:
+            language_code: Language code (e.g., 'en', 'zh-hans')
+
+        Returns:
+            String with JSON format instruction, or None if not found
+        """
+        translation = self.translations.filter(language_code=language_code).first()
+        if not translation and language_code != 'en':
+            # Fallback to English if requested language not found
+            translation = self.translations.filter(language_code='en').first()
+        return translation.json_format if translation else None
 
 
 class InstructionTemplateTranslation(models.Model):
@@ -431,6 +545,7 @@ class NovelProject(models.Model):
         ('essay', 'Essay'),
         ('sketch', 'Sketch'),
         ('article', 'News Article'),
+        ('other', 'Other - User Specified'),
     ]
 
     STATUS_CHOICES = [

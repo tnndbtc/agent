@@ -103,11 +103,14 @@ class PromptAssemblyService:
         Args:
             project: NovelProject instance
             language_code: Language code (e.g., 'en', 'zh-hans')
+                          NOTE: If style has target_locale set, it overrides this parameter
 
         Returns:
-            str: Assembled style and technique instructions
+            tuple: (style_instructions, effective_language_code)
+                   effective_language_code is the target_locale if set, otherwise language_code
         """
         parts = []
+        effective_language_code = language_code
 
         # Get project default style
         style = None
@@ -116,21 +119,26 @@ class PromptAssemblyService:
             logger.debug(f"Using project default style: {style.name_key}")
 
         if style:
-            trans = style.translations.filter(language_code=language_code).first()
+            # Check if style has a target locale override
+            if style.target_locale:
+                effective_language_code = style.target_locale
+                logger.info(f"Style '{style.name_key}' has target_locale={style.target_locale}, overriding language_code={language_code}")
+
+            trans = style.translations.filter(language_code=effective_language_code).first()
 
             # Fallback to English if translation not found
-            if not trans and language_code != 'en':
+            if not trans and effective_language_code != 'en':
                 trans = style.translations.filter(language_code='en').first()
 
             if trans:
                 parts.append(f"## Writing Style: {trans.name}")
                 parts.append(trans.instructions)
-                logger.debug(f"Added style {style.name_key} ({language_code})")
+                logger.debug(f"Added style {style.name_key} ({effective_language_code})")
 
         style_instructions = "\n\n".join(parts) if parts else ""
-        logger.info(f"Built style instructions for project {project.title}: {len(style_instructions)} chars")
+        logger.info(f"Built style instructions for project {project.title}: {len(style_instructions)} chars, language={effective_language_code}")
 
-        return style_instructions
+        return style_instructions, effective_language_code
 
     @staticmethod
     def build_context_prompt(project, context_type, **kwargs):
@@ -280,8 +288,9 @@ class PromptAssemblyService:
 
         # Layer 3: Style and techniques
         style_instructions = ""
+        effective_language_code = language_code
         if project:
-            style_instructions = PromptAssemblyService.build_style_instructions(
+            style_instructions, effective_language_code = PromptAssemblyService.build_style_instructions(
                 project, language_code
             )
 
@@ -296,8 +305,9 @@ class PromptAssemblyService:
         user_task = user_prompt
 
         # Add language instruction to user task if not English
-        if language_code != 'en':
-            lang_name = get_language_name(language_code)
+        # Use effective_language_code (which may be overridden by style's target_locale)
+        if effective_language_code != 'en':
+            lang_name = get_language_name(effective_language_code)
             user_task = f"{user_task}\n\n**IMPORTANT:** Generate all output in {lang_name}."
 
         # Build messages with 5-layer structure

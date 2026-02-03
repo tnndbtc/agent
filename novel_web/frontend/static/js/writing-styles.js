@@ -6,6 +6,7 @@
 // Global state
 let allStyles = [];
 let currentProject = null;
+let allTechniques = [];  // Initialize techniques array
 
 /**
  * Initialize writing styles on page load
@@ -226,6 +227,15 @@ function displayStylesInBrowser(filter = 'all') {
             systemBadge.className = 'badge badge-system';
             systemBadge.textContent = 'System';
             header.appendChild(systemBadge);
+        }
+
+        // Show target locale badge if set
+        if (style.target_locale) {
+            const localeBadge = document.createElement('span');
+            localeBadge.className = 'badge badge-locale';
+            localeBadge.textContent = `🌐 ${style.target_locale}`;
+            localeBadge.title = `This style generates content in ${style.target_locale}, overriding your UI language`;
+            header.appendChild(localeBadge);
         }
 
         card.appendChild(header);
@@ -497,3 +507,443 @@ function setupFilterTabs(containerId, displayFunction) {
         });
     });
 }
+
+// ========================================
+// Writing Sample Analysis Functions
+// ========================================
+
+/**
+ * Open analyze writing sample modal
+ */
+function openAnalyzeSampleModal() {
+    const modal = document.getElementById('analyzeSampleModal');
+    if (!modal) {
+        console.error('Analyze sample modal not found');
+        return;
+    }
+
+    // Reset form
+    document.getElementById('writingSampleText').value = '';
+    document.getElementById('sampleCharCount').textContent = '0';
+    document.getElementById('sampleWordCount').textContent = '0';
+    document.getElementById('analysisResults').style.display = 'none';
+
+    // Add input listener for character/word count
+    const textarea = document.getElementById('writingSampleText');
+    textarea.addEventListener('input', updateSampleCounts);
+
+    modal.style.display = 'flex';
+}
+
+/**
+ * Close analyze writing sample modal
+ */
+function closeAnalyzeSampleModal() {
+    const modal = document.getElementById('analyzeSampleModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+/**
+ * Update character and word counts for sample text
+ */
+function updateSampleCounts() {
+    const textarea = document.getElementById('writingSampleText');
+    const text = textarea.value;
+
+    // Update character count
+    document.getElementById('sampleCharCount').textContent = text.length;
+
+    // Update word count (use same logic as backend)
+    const cjkPattern = /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/g;
+    const cjkChars = text.match(cjkPattern);
+    let wordCount;
+    if (cjkChars) {
+        wordCount = cjkChars.length;
+    } else {
+        wordCount = text.trim().split(/\s+/).filter(word => word.length > 0).length;
+    }
+    document.getElementById('sampleWordCount').textContent = wordCount;
+}
+
+/**
+ * Analyze writing sample using AI
+ */
+async function analyzeSample() {
+    const sampleText = document.getElementById('writingSampleText').value.trim();
+
+    if (!sampleText) {
+        showToast('Please enter a writing sample', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('analyzeSampleBtn');
+    btn.disabled = true;
+    btn.textContent = 'Analyzing...';
+
+    try {
+        showLoading('Analyzing writing sample with AI...');
+        const response = await apiRequest('/api/analyze-writing-sample/', {
+            method: 'POST',
+            body: JSON.stringify({ sample_text: sampleText })
+        });
+        hideLoading();
+
+        // Display results
+        displayAnalysisResults(response);
+
+        btn.disabled = false;
+        btn.textContent = 'Analyze Sample';
+        showToast('Analysis complete!', 'success');
+
+    } catch (error) {
+        hideLoading();
+        btn.disabled = false;
+        btn.textContent = 'Analyze Sample';
+        console.error('Analysis error:', error);
+        showToast('Failed to analyze sample: ' + (error.message || 'Unknown error'), 'error');
+    }
+}
+
+/**
+ * Display analysis results in the form
+ */
+function displayAnalysisResults(data) {
+    // Show results section
+    document.getElementById('analysisResults').style.display = 'block';
+
+    // Display detected language
+    document.getElementById('detectedLanguage').textContent = data.detected_language || 'Unknown';
+    document.getElementById('detectedLocale').textContent = `🌐 ${data.detected_locale}`;
+
+    // Populate form fields with analyzed data
+    document.getElementById('analyzed_pacing').value = data.pacing || 'medium';
+    document.getElementById('analyzed_tone').value = data.tone || '';
+    document.getElementById('analyzed_paragraph_length').value = data.paragraph_length || 'medium';
+    document.getElementById('analyzed_dialogue_ratio').value = data.dialogue_ratio || 'medium';
+    document.getElementById('analyzed_instructions').value = data.instructions || '';
+    document.getElementById('analyzed_target_locale').value = data.detected_locale || '';
+
+    // Scroll to results
+    document.getElementById('analysisResults').scrollIntoView({ behavior: 'smooth' });
+}
+
+/**
+ * Save writing style from analysis results
+ */
+async function saveStyleFromAnalysis(event) {
+    event.preventDefault();
+
+    const form = event.target;
+    const formData = new FormData(form);
+
+    // Build WritingStyle creation data
+    const data = {
+        name_key: document.getElementById('analyzed_style_name_key').value,
+        pacing: document.getElementById('analyzed_pacing').value,
+        tone: document.getElementById('analyzed_tone').value,
+        paragraph_length: document.getElementById('analyzed_paragraph_length').value,
+        dialogue_ratio: document.getElementById('analyzed_dialogue_ratio').value,
+        target_locale: document.getElementById('analyzed_target_locale').value,
+        cliffhanger_enabled: false,
+        public: false,
+        translations: [
+            {
+                language_code: 'en',
+                name: document.getElementById('analyzed_style_display_name').value,
+                description: `Custom style created from writing sample analysis`,
+                instructions: document.getElementById('analyzed_instructions').value
+            }
+        ]
+    };
+
+    try {
+        showLoading('Creating custom writing style...');
+        const newStyle = await apiRequest('/api/writing-styles/', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+        hideLoading();
+
+        // Add to local cache
+        allStyles.push(newStyle);
+
+        showToast(`Custom style "${data.translations[0].name}" created successfully!`, 'success');
+        closeAnalyzeSampleModal();
+
+        // Refresh any style dropdowns on the page
+        if (document.getElementById('styleSelect')) {
+            populateStyleSelect('styleSelect', true, 'Select a style...');
+        }
+
+    } catch (error) {
+        hideLoading();
+        console.error('Error creating style:', error);
+        showToast('Error creating style: ' + (error.message || 'Unknown error'), 'error');
+    }
+}
+
+// ========================================
+// SIMPLIFIED CUSTOM STYLE CREATOR
+// ========================================
+
+// Store analysis results temporarily
+let tempAnalysisResults = null;
+
+/**
+ * Open the simplified custom style creator modal
+ */
+function openSimpleStyleCreator() {
+    const modal = document.getElementById('simpleStyleCreatorModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        resetSimpleStyleCreator();
+
+        // Add word count listener
+        const textarea = document.getElementById('customStyleSample');
+        const wordCountSpan = document.getElementById('customStyleWordCount');
+
+        if (textarea && wordCountSpan) {
+            textarea.addEventListener('input', function() {
+                const text = this.value.trim();
+                const wordCount = text ? text.split(/\s+/).length : 0;
+                wordCountSpan.textContent = wordCount;
+            });
+        }
+    }
+}
+
+/**
+ * Close the simplified custom style creator modal
+ */
+function closeSimpleStyleCreator() {
+    const modal = document.getElementById('simpleStyleCreatorModal');
+    if (modal) {
+        modal.style.display = 'none';
+        resetSimpleStyleCreator();
+    }
+}
+
+/**
+ * Reset the modal to initial state
+ */
+function resetSimpleStyleCreator() {
+    // Reset input step
+    const textarea = document.getElementById('customStyleSample');
+    const wordCount = document.getElementById('customStyleWordCount');
+    if (textarea) textarea.value = '';
+    if (wordCount) wordCount.textContent = '0';
+
+    // Hide results, show input
+    document.getElementById('sampleInputStep').style.display = 'block';
+    document.getElementById('styleResultsStep').style.display = 'none';
+
+    // Clear temp results
+    tempAnalysisResults = null;
+}
+
+/**
+ * Analyze sample text and create custom style using the simplified API
+ */
+async function analyzeAndCreateStyle() {
+    const textarea = document.getElementById('customStyleSample');
+    const sampleText = textarea.value.trim();
+
+    if (!sampleText) {
+        showToast('Please paste a writing sample', 'error');
+        return;
+    }
+
+    const analyzeBtn = document.getElementById('analyzeSimpleBtn');
+    analyzeBtn.disabled = true;
+    analyzeBtn.textContent = 'Analyzing...';
+
+    try {
+        showLoading('Analyzing your writing sample with AI...');
+
+        // Call the simplified API endpoint
+        const response = await apiRequest('/api/analyze-simple-style/', {
+            method: 'POST',
+            body: JSON.stringify({
+                sample_text: sampleText
+            })
+        });
+
+        hideLoading();
+
+        // Store results
+        tempAnalysisResults = response;
+
+        // Display results
+        document.getElementById('resultStyleName').textContent = response.style_name || 'N/A';
+        document.getElementById('resultLanguageCode').textContent = response.language_code || 'N/A';
+        document.getElementById('resultStyleInstruction').textContent = response.style_instruction || 'N/A';
+        document.getElementById('resultAgentRoleName').textContent = response.agent_role_name || 'N/A';
+        document.getElementById('resultAgentRoleInstruction').textContent = response.agent_role_instruction || 'N/A';
+        document.getElementById('resultSample').textContent = response.first_100_words || 'N/A';
+
+        // Switch to results view
+        document.getElementById('sampleInputStep').style.display = 'none';
+        document.getElementById('styleResultsStep').style.display = 'block';
+
+        showToast('Writing style analyzed successfully!', 'success');
+
+    } catch (error) {
+        hideLoading();
+        console.error('Error analyzing sample:', error);
+        showToast('Error analyzing sample: ' + (error.message || 'Unknown error'), 'error');
+    } finally {
+        analyzeBtn.disabled = false;
+        analyzeBtn.textContent = 'Analyze & Create Style';
+    }
+}
+
+/**
+ * Save the analyzed custom style to the database
+ */
+async function saveCustomStyle() {
+    if (!tempAnalysisResults) {
+        showToast('No analysis results to save', 'error');
+        return;
+    }
+
+    try {
+        showLoading('Saving custom style and agent role...');
+
+        // Step 1: Create CustomWritingStyle first
+        const styleResponse = await apiRequest('/api/custom-writing-styles/', {
+            method: 'POST',
+            body: JSON.stringify({
+                language_code: tempAnalysisResults.language_code,
+                style_name: tempAnalysisResults.style_name,
+                style_instruction: tempAnalysisResults.style_instruction,
+                sample: tempAnalysisResults.first_100_words
+            })
+        });
+
+        // Step 2: Create CustomAgentRole linked to the style
+        await apiRequest('/api/custom-agent-roles/', {
+            method: 'POST',
+            body: JSON.stringify({
+                language_code: tempAnalysisResults.language_code,
+                role_name: tempAnalysisResults.agent_role_name,
+                role_instruction: tempAnalysisResults.agent_role_instruction,
+                custom_style: styleResponse.id  // Link via FK
+            })
+        });
+
+        hideLoading();
+        closeSimpleStyleCreator();
+
+        // Reload custom styles dropdown with a small delay to ensure DOM is ready
+        setTimeout(function() {
+            const select = document.getElementById('customStyleSelect');
+            if (select) {
+                loadCustomStyles();
+            }
+        }, 100);
+
+        showToast('Custom style and agent role saved successfully!', 'success');
+
+    } catch (error) {
+        hideLoading();
+        console.error('Error saving custom style and agent role:', error);
+        showToast('Error saving: ' + (error.message || 'Unknown error'), 'error');
+    }
+}
+
+/**
+ * Load custom styles and populate the dropdown
+ */
+async function loadCustomStyles() {
+    console.log('[DEBUG] loadCustomStyles() called');
+    const select = document.getElementById('customStyleSelect');
+    console.log('[DEBUG] customStyleSelect element:', select);
+
+    if (!select) {
+        console.log('[DEBUG] customStyleSelect not found, returning');
+        return;
+    }
+
+    try {
+        console.log('[DEBUG] Fetching custom writing styles from API...');
+        const response = await apiRequest('/api/custom-writing-styles/');
+        console.log('[DEBUG] API response received:', response);
+
+        // Clear existing options
+        select.innerHTML = '';
+
+        // Add default option
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = 'Select a custom style...';
+        select.appendChild(defaultOption);
+
+        // Add custom style options
+        // Handle paginated response (response.results is the actual array)
+        const styles = response.results || response;
+        if (styles && styles.length > 0) {
+            console.log(`[DEBUG] Adding ${styles.length} custom style(s) to dropdown`);
+            styles.forEach(style => {
+                const option = document.createElement('option');
+                option.value = style.id;
+                option.textContent = `${style.style_name} (${style.language_code})`;
+                option.dataset.styleInstruction = style.style_instruction;
+                option.dataset.languageCode = style.language_code;
+                select.appendChild(option);
+            });
+            console.log('[DEBUG] Custom styles successfully added to dropdown');
+        } else {
+            console.log('[DEBUG] No custom styles found, showing "create" message');
+            const noStylesOption = document.createElement('option');
+            noStylesOption.value = '';
+            noStylesOption.textContent = 'No custom styles yet - create one below';
+            select.appendChild(noStylesOption);
+        }
+
+    } catch (error) {
+        console.error('[ERROR] Failed to load custom styles:', error);
+        select.innerHTML = '<option value="">Error loading styles</option>';
+    }
+}
+
+/**
+ * Handle custom style selection
+ */
+function selectCustomStyle() {
+    const select = document.getElementById('customStyleSelect');
+    if (!select) return;
+
+    const selectedOption = select.options[select.selectedIndex];
+    const styleId = select.value;
+
+    if (styleId) {
+        // Store the selected custom style ID on the project
+        // This will be used when generating content
+        console.log('Selected custom style:', {
+            id: styleId,
+            name: selectedOption.textContent,
+            instruction: selectedOption.dataset.styleInstruction,
+            languageCode: selectedOption.dataset.languageCode
+        });
+
+        // Save selection to localStorage or make API call to update project
+        localStorage.setItem(`project_${PROJECT_ID}_custom_style`, styleId);
+        showToast('Custom style selected: ' + selectedOption.textContent, 'success');
+    }
+}
+
+// Load custom styles on page load if the dropdown exists
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('[DEBUG] DOMContentLoaded fired in writing-styles.js');
+    const customStyleSelect = document.getElementById('customStyleSelect');
+    console.log('[DEBUG] Checking for customStyleSelect element:', customStyleSelect);
+
+    if (customStyleSelect) {
+        console.log('[DEBUG] customStyleSelect found, calling loadCustomStyles()');
+        loadCustomStyles();
+    } else {
+        console.log('[DEBUG] customStyleSelect not found, skipping loadCustomStyles()');
+    }
+});

@@ -70,11 +70,7 @@
             <div class="form-group">
                 <label for="contentType">{% trans "Content Type" %}</label>
                 <select id="contentType" name="contentType" required>
-                    <option value="novel">📚 {% trans "Novel" %} - {% trans "Multi-chapter long-form narrative" %}</option>
-                    <option value="poem">✍️ {% trans "Poem" %} - {% trans "Single poetic piece" %}</option>
-                    <option value="essay">📝 {% trans "Essay" %} - {% trans "Structured analytical writing" %}</option>
-                    <option value="sketch">🎨 {% trans "Sketch" %} - {% trans "Observational writing piece" %}</option>
-                    <option value="article">📰 {% trans "Article" %} - {% trans "News or journalistic piece" %}</option>
+                    <option value="">{% trans "Loading..." %}</option>
                 </select>
             </div>
 
@@ -112,8 +108,56 @@
 </div>
 
 <script>
+/**
+ * Load content type choices from backend API
+ */
+async function loadContentTypeChoices() {
+    try {
+        const response = await apiRequest('/api/projects/content-type-choices/');
+        const select = document.getElementById('contentType');
+
+        if (!select) {
+            console.error('Content type select element not found');
+            return;
+        }
+
+        // Clear loading option
+        select.innerHTML = '';
+
+        // Populate with choices from backend
+        if (response.choices && Array.isArray(response.choices)) {
+            response.choices.forEach(choice => {
+                const option = document.createElement('option');
+                option.value = choice.value;
+                option.textContent = `${choice.icon} ${choice.label} - ${choice.description}`;
+                select.appendChild(option);
+            });
+            console.log(`Loaded ${response.choices.length} content type choices`);
+        } else {
+            console.error('Invalid response format from content-type-choices API');
+        }
+    } catch (error) {
+        console.error('Failed to load content types:', error);
+        // Fallback: add basic options
+        const select = document.getElementById('contentType');
+        if (select) {
+            select.innerHTML = `
+                <option value="novel">📚 Novel - Multi-chapter long-form narrative</option>
+                <option value="poem">✍️ Poem - Single poetic piece</option>
+                <option value="essay">📝 Essay - Structured analytical writing</option>
+                <option value="sketch">🎨 Sketch - Observational writing piece</option>
+                <option value="article">📰 Article - News or journalistic piece</option>
+                <option value="other">🔧 Other - User-specified content type</option>
+            `;
+        }
+    }
+}
+
 async function createNewProject() {
     document.getElementById('createProjectModal').style.display = 'flex';
+
+    // Load content types from backend
+    await loadContentTypeChoices();
 
     // Load styles (Phase 5)
     await initWritingStylesAndTechniques();
