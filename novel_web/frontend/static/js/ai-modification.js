@@ -381,6 +381,14 @@ function showAIModificationModal() {
                         </div>
                     </div>
 
+                    <!-- Progress bar (hidden by default) -->
+                    <div id="aiModProgressContainer" style="display: none; margin-bottom: 16px;">
+                        <div style="width: 100%; height: 30px; background: #e5e7eb; border-radius: 15px; overflow: hidden; position: relative;">
+                            <div id="aiModProgressBarFill" style="height: 100%; background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%); width: 0%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 0.875rem; transition: width 0.3s ease; border-radius: 15px;">0%</div>
+                        </div>
+                        <div id="aiModProgressText" style="margin-top: 0.5rem; text-align: center; font-size: 0.875rem; color: #6b7280;">Processing with AI...</div>
+                    </div>
+
                     <!-- Action buttons -->
                     <div style="display: flex; gap: 8px; justify-content: flex-end;">
                         <button onclick="closeAIModificationModal()" style="
@@ -392,7 +400,7 @@ function showAIModificationModal() {
                             cursor: pointer;
                         " onmouseover="this.style.background='#d1d5db'"
                            onmouseout="this.style.background='#e5e7eb'">Cancel</button>
-                        <button onclick="applyAIModification()" style="
+                        <button id="applyModificationButton" onclick="applyAIModification()" style="
                             background: #10b981;
                             color: white;
                             border: none;
@@ -492,14 +500,77 @@ function selectSavedPrompt() {
     }
 }
 
+// Progress bar control variables
+let aiModProgressInterval = null;
+let aiModCurrentProgress = 0;
+
+// Start progress bar animation
+function startAIModProgressBar() {
+    const progressContainer = document.getElementById('aiModProgressContainer');
+    const progressBarFill = document.getElementById('aiModProgressBarFill');
+    const applyButton = document.getElementById('applyModificationButton');
+
+    if (progressContainer) {
+        progressContainer.style.display = 'block';
+        applyButton.disabled = true;
+        applyButton.style.background = '#9ca3af';
+        applyButton.style.cursor = 'not-allowed';
+        aiModCurrentProgress = 0;
+
+        // Increment 5% every 2 seconds, max 95%
+        aiModProgressInterval = setInterval(() => {
+            if (aiModCurrentProgress < 95) {
+                aiModCurrentProgress += 5;
+                if (aiModCurrentProgress > 95) aiModCurrentProgress = 95;
+                progressBarFill.style.width = aiModCurrentProgress + '%';
+                progressBarFill.textContent = Math.round(aiModCurrentProgress) + '%';
+            }
+        }, 2000);
+    }
+}
+
+// Complete progress bar at 100%
+function completeAIModProgressBar() {
+    const progressBarFill = document.getElementById('aiModProgressBarFill');
+
+    if (aiModProgressInterval) {
+        clearInterval(aiModProgressInterval);
+    }
+
+    aiModCurrentProgress = 100;
+    progressBarFill.style.width = '100%';
+    progressBarFill.textContent = '100%';
+}
+
+// Reset and hide progress bar
+function resetAIModProgressBar() {
+    const progressContainer = document.getElementById('aiModProgressContainer');
+    const progressBarFill = document.getElementById('aiModProgressBarFill');
+    const applyButton = document.getElementById('applyModificationButton');
+
+    if (aiModProgressInterval) {
+        clearInterval(aiModProgressInterval);
+    }
+
+    if (progressContainer) {
+        progressContainer.style.display = 'none';
+        aiModCurrentProgress = 0;
+        progressBarFill.style.width = '0%';
+        progressBarFill.textContent = '0%';
+        applyButton.disabled = false;
+        applyButton.style.background = '#10b981';
+        applyButton.style.cursor = 'pointer';
+    }
+}
+
 // Apply AI modification
 async function applyAIModification() {
     const customPrompt = document.getElementById('customPrompt').value.trim();
     const statusDiv = document.getElementById('aiModificationStatus');
 
-    // Show loading state
-    statusDiv.innerHTML = '<div style="color: #3b82f6; font-size: 0.875rem;">⏳ Processing with AI...</div>';
-    statusDiv.style.display = 'block';
+    // Start progress bar
+    startAIModProgressBar();
+    statusDiv.style.display = 'none';  // Hide status message
 
     try {
         // Get generation parameters from modal
@@ -545,11 +616,22 @@ async function applyAIModification() {
         // Enable Accept button since we have content
         updateAcceptButtonState();
 
+        // Complete progress bar at 100%
+        completeAIModProgressBar();
+
+        // Reset progress bar after a brief delay
+        setTimeout(() => {
+            resetAIModProgressBar();
+        }, 1000);
+
         // Show success status
         statusDiv.innerHTML = '<div style="color: #10b981; font-size: 0.875rem;">✅ Preview ready! You can edit the text before accepting.</div>';
         statusDiv.style.display = 'block';
 
     } catch (error) {
+        // Reset progress bar on error
+        resetAIModProgressBar();
+
         console.error('AI modification error:', error);
 
         // Show detailed error information
