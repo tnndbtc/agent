@@ -894,6 +894,10 @@ async function loadCustomStyles() {
                 option.dataset.styleInstruction = style.style_instruction || '';
                 option.dataset.languageCode = style.language_code;
 
+                // Store generation parameters
+                option.dataset.temperature = style.temperature !== undefined ? style.temperature : '0.7';
+                option.dataset.topP = style.top_p !== undefined ? style.top_p : '1.0';
+
                 // Store agent role data (if exists)
                 if (style.custom_agent_role) {
                     option.dataset.agentRoleId = style.custom_agent_role.id;  // Critical: needed for updating
@@ -964,6 +968,32 @@ function selectCustomStyle() {
         if (styleInstructionDisplay) {
             const styleInstructionText = selectedOption.dataset.styleInstruction || '';
             styleInstructionDisplay.value = styleInstructionText;
+        }
+
+        // Update temperature and top_p sliders with style-specific values
+        const temperature = selectedOption.dataset.temperature;
+        const topP = selectedOption.dataset.topP;
+
+        if (temperature !== undefined) {
+            const temperatureSlider = document.getElementById('temperatureSlider');
+            const temperatureValue = document.getElementById('temperatureValue');
+            if (temperatureSlider) {
+                temperatureSlider.value = parseFloat(temperature);
+                if (temperatureValue) {
+                    temperatureValue.textContent = parseFloat(temperature).toFixed(1);
+                }
+            }
+        }
+
+        if (topP !== undefined) {
+            const topPSlider = document.getElementById('topPSlider');
+            const topPValue = document.getElementById('topPValue');
+            if (topPSlider) {
+                topPSlider.value = parseFloat(topP);
+                if (topPValue) {
+                    topPValue.textContent = parseFloat(topP).toFixed(1);
+                }
+            }
         }
 
         // Save selection to localStorage or make API call to update project

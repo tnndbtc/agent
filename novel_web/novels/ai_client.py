@@ -251,6 +251,8 @@ Return ONLY the JSON object, no additional text."""
                 - agent_role_name: Short name for the AI agent role
                 - agent_role_instruction: Agent role definition/instructions
                 - language_code: Language code (e.g., 'en', 'zh-hans')
+                - temperature: Suggested temperature value (0.0-1.2)
+                - top_p: Suggested top_p value (0.0-1.0)
                 - first_100_words: The extracted sample (first 100 words)
         """
         logger.info(f"Simple style analysis ({len(sample_text)} chars)")
@@ -261,7 +263,49 @@ Return ONLY the JSON object, no additional text."""
 
         logger.info(f"Extracted first {len(words[:100])} words from sample")
 
-        prompt = f"""Analyze the following text sample and generate a custom writing style definition and agent role definition.
+        # Fetch prompt template from database
+        from .models import PromptTemplate
+
+        try:
+            # Try to get model-specific template first
+            template = PromptTemplate.objects.filter(
+                name_key='analyze_simple_style',
+                is_active=True,
+                model_name=self.model
+            ).first()
+
+            # Fallback to default template (model_name=None)
+            if not template:
+                template = PromptTemplate.objects.filter(
+                    name_key='analyze_simple_style',
+                    is_active=True,
+                    model_name__isnull=True
+                ).first()
+
+            if not template:
+                raise ValueError("No active 'analyze_simple_style' template found in database")
+
+            # Build messages array with 3-part structure (system/developer/user)
+            messages = [
+                {"role": "system", "content": template.system_message}
+            ]
+
+            # Add developer message if present
+            if template.developer_message:
+                messages.append({"role": "developer", "content": template.developer_message})
+
+            # Format user message template with sample text
+            user_content = template.user_message_template.format(
+                first_100_words=first_100_words
+            )
+            messages.append({"role": "user", "content": user_content})
+
+        except Exception as e:
+            logger.error(f"Failed to load prompt template from database: {str(e)}")
+            logger.warning("Falling back to hardcoded prompt")
+
+            # Fallback to hardcoded prompt if database template not found
+            prompt = f"""Analyze the following text sample and generate a custom writing style definition and agent role definition.
 
 Text Sample:
 {first_100_words}
@@ -294,10 +338,10 @@ Return a JSON object with this exact structure:
 
 Return ONLY the JSON object, no additional text."""
 
-        messages = [
-            {"role": "system", "content": "You are an expert literary analyst who creates precise writing style definitions and agent role definitions."},
-            {"role": "user", "content": prompt}
-        ]
+            messages = [
+                {"role": "system", "content": "You are an expert literary analyst who creates precise writing style definitions and agent role definitions."},
+                {"role": "user", "content": prompt}
+            ]
 
         try:
             data, token_usage = self.chat_completion_with_json(

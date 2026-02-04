@@ -10,7 +10,7 @@ from .models import (
     AgentRole, AgentRoleTranslation,
     WritingStyle, WritingStyleTranslation,
     CustomWritingStyle, CustomAgentRole,
-    ContentPiece
+    ContentPiece, ContentTypeScoringConfig
 )
 
 
@@ -600,7 +600,7 @@ class CustomWritingStyleSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomWritingStyle
         fields = ['id', 'user', 'created_at', 'language_code', 'style_name',
-                  'style_instruction', 'sample', 'custom_agent_role']
+                  'style_instruction', 'sample', 'temperature', 'top_p', 'custom_agent_role']
         read_only_fields = ['id', 'user', 'created_at']
 
 
@@ -627,8 +627,19 @@ class AnalyzeSimpleStyleResponseSerializer(serializers.Serializer):
     agent_role_name = serializers.CharField(help_text="AI-generated agent role name")
     agent_role_instruction = serializers.CharField(help_text="AI-generated agent role instructions")
     language_code = serializers.CharField(help_text="Detected language code (e.g., 'en', 'zh-hans')")
+    temperature = serializers.FloatField(help_text="AI-suggested temperature value (0.0-1.2)")
+    top_p = serializers.FloatField(help_text="AI-suggested top_p value (0.0-1.0)")
     first_100_words = serializers.CharField(help_text="First 100 words extracted from sample")
     token_usage = serializers.DictField(
         help_text="Token usage statistics from AI analysis",
         required=False
     )
+
+
+class ContentTypeScoringConfigSerializer(serializers.ModelSerializer):
+    """Serializer for ContentTypeScoringConfig - provides default temperature/top_p per content type."""
+
+    class Meta:
+        model = ContentTypeScoringConfig
+        fields = ['content_type', 'default_temperature', 'default_top_p']
+        read_only_fields = ['content_type', 'default_temperature', 'default_top_p']

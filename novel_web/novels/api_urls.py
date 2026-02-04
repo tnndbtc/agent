@@ -9,7 +9,8 @@ from .views import (
     UserPromptViewSet, AIModificationViewSet,
     SystemPolicyViewSet, AgentRoleViewSet,
     WritingStyleViewSet, AnalyzeWritingSampleView,
-    CustomWritingStyleViewSet, CustomAgentRoleViewSet, AnalyzeSimpleStyleView
+    CustomWritingStyleViewSet, CustomAgentRoleViewSet, AnalyzeSimpleStyleView,
+    ContentTypeScoringConfigViewSet
 )
 
 router = DefaultRouter()
@@ -29,6 +30,7 @@ router.register(r'agent-roles', AgentRoleViewSet, basename='agent-role')
 router.register(r'writing-styles', WritingStyleViewSet, basename='writing-style')
 router.register(r'custom-writing-styles', CustomWritingStyleViewSet, basename='custom-writing-style')
 router.register(r'custom-agent-roles', CustomAgentRoleViewSet, basename='custom-agent-role')
+router.register(r'content-type-config', ContentTypeScoringConfigViewSet, basename='content-type-config')
 
 urlpatterns = [
     path('', include(router.urls)),

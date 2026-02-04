@@ -2,22 +2,22 @@
 Management command to seed prompt architecture data.
 
 Seeds:
-- SystemPolicy (5 policies with EN + ZH-HANS translations)
-- AgentRole (9 roles with EN + ZH-HANS translations)
-- WritingStyle (8 system styles with EN + ZH-HANS translations)
-- WritingTechnique (6 system techniques with EN + ZH-HANS translations)
+- SystemPolicy (consolidated policy with EN + ZH-HANS translations)
+- AgentRole (content-type-specific roles with EN + ZH-HANS translations)
+- WritingStyle (system styles with EN + ZH-HANS translations)
+
+Note: WritingTechnique was removed in migration 0040_remove_writing_techniques.py
 """
 from django.core.management.base import BaseCommand
 from novels.models import (
     SystemPolicy, SystemPolicyTranslation,
     AgentRole, AgentRoleTranslation,
-    WritingStyle, WritingStyleTranslation,
-    WritingTechnique, WritingTechniqueTranslation
+    WritingStyle, WritingStyleTranslation
 )
 
 
 class Command(BaseCommand):
-    help = 'Seed prompt architecture data (policies, roles, styles, techniques)'
+    help = 'Seed prompt architecture data (policies, roles, styles)'
 
     def handle(self, *args, **options):
         self.stdout.write('Seeding prompt architecture data...\n')
@@ -33,10 +33,6 @@ class Command(BaseCommand):
         # Seed Writing Styles
         self.stdout.write('Creating Writing Styles...')
         self.seed_writing_styles()
-
-        # Seed Writing Techniques
-        self.stdout.write('Creating Writing Techniques...')
-        self.seed_writing_techniques()
 
         self.stdout.write(self.style.SUCCESS('\n✓ Prompt architecture data seeded successfully!'))
 
@@ -66,6 +62,7 @@ Do not reveal internal planning steps or reasoning in the output. Only provide t
 
         policy, created = SystemPolicy.objects.get_or_create(
             name_key='system_policy',
+            model_name=None,  # Default policy (applies when no model-specific policy exists)
             defaults={
                 'policy_type': 'combined',
                 'priority': 0,
@@ -211,8 +208,10 @@ Create news articles that inform readers clearly and objectively, adhering to jo
         for data in roles_data:
             role, created = AgentRole.objects.get_or_create(
                 name_key=data['name_key'],
+                model_name=None,  # Default role (applies when no model-specific role exists)
                 defaults={
                     'module_name': data['module_name'],
+                    'is_system': True,
                     'is_active': True
                 }
             )
@@ -597,128 +596,3 @@ Key elements:
             status = 'created' if created else 'already exists'
             self.stdout.write(f'  - {style.name_key}: {status}')
 
-    def seed_writing_techniques(self):
-        """Seed 6 system writing techniques with translations."""
-        techniques_data = [
-            {
-                'name_key': 'show_dont_tell',
-                'category': 'narrative',
-                'translations': {
-                    'en': {
-                        'name': "Show, Don't Tell",
-                        'description': 'Demonstrate through action and sensory details',
-                        'instructions': 'Demonstrate character emotions and plot developments through actions, dialogue, and sensory details rather than direct exposition. Use body language, facial expressions, and environmental cues to convey information.'
-                    },
-                    'zh-hans': {
-                        'name': '展示而非叙述',
-                        'description': '通过动作和感官细节展示',
-                        'instructions': '通过动作、对话和感官细节展示角色情感和情节发展，而非直接阐述。使用肢体语言、面部表情和环境线索传达信息。'
-                    }
-                }
-            },
-            {
-                'name_key': 'foreshadowing',
-                'category': 'pacing',
-                'translations': {
-                    'en': {
-                        'name': 'Foreshadowing',
-                        'description': 'Plant hints about future events',
-                        'instructions': 'Plant subtle hints and clues about future events to build anticipation. Use symbolism, dialogue, and seemingly minor details that gain significance later. Create payoffs for careful readers.'
-                    },
-                    'zh-hans': {
-                        'name': '伏笔',
-                        'description': '埋下关于未来事件的暗示',
-                        'instructions': '埋下关于未来事件的微妙暗示和线索，营造期待感。使用象征、对话和看似次要但后来变得重要的细节。为细心的读者创造回报。'
-                    }
-                }
-            },
-            {
-                'name_key': 'dialogue_subtext',
-                'category': 'dialogue',
-                'translations': {
-                    'en': {
-                        'name': 'Dialogue Subtext',
-                        'description': 'Characters say one thing, mean another',
-                        'instructions': 'Characters should not always say exactly what they mean. Use subtext, hidden agendas, and unspoken tensions. What characters don\'t say is often as important as what they do say. Create layers of meaning in conversations.'
-                    },
-                    'zh-hans': {
-                        'name': '对话潜台词',
-                        'description': '角色言不由衷',
-                        'instructions': '角色不应总是直接表达真实意图。使用潜台词、隐藏议程和未言明的紧张关系。角色未说的内容往往与已说的同样重要。在对话中创建多层含义。'
-                    }
-                }
-            },
-            {
-                'name_key': 'sensory_immersion',
-                'category': 'description',
-                'translations': {
-                    'en': {
-                        'name': 'Sensory Immersion',
-                        'description': 'Engage all five senses',
-                        'instructions': 'Engage all five senses (sight, sound, smell, taste, touch) to create immersive scenes. Don\'t rely only on visual descriptions. Use sensory details to anchor readers in the scene and evoke emotional responses.'
-                    },
-                    'zh-hans': {
-                        'name': '感官沉浸',
-                        'description': '调动五感',
-                        'instructions': '调动五感（视觉、听觉、嗅觉、味觉、触觉）创建沉浸式场景。不要仅依赖视觉描述。使用感官细节将读者锚定在场景中并唤起情感反应。'
-                    }
-                }
-            },
-            {
-                'name_key': 'varied_sentence_rhythm',
-                'category': 'narrative',
-                'translations': {
-                    'en': {
-                        'name': 'Varied Sentence Rhythm',
-                        'description': 'Mix short and long sentences for flow',
-                        'instructions': 'Vary sentence length and structure to control pacing. Short sentences for tension and action. Longer sentences for description and reflection. Avoid monotonous rhythm. Use sentence structure to create music in prose.'
-                    },
-                    'zh-hans': {
-                        'name': '句式节奏变化',
-                        'description': '混合长短句保持流畅',
-                        'instructions': '变化句子长度和结构来控制节奏。短句用于紧张和动作。长句用于描述和反思。避免单调节奏。使用句子结构在散文中创造音乐性。'
-                    }
-                }
-            },
-            {
-                'name_key': 'character_voice_consistency',
-                'category': 'character',
-                'translations': {
-                    'en': {
-                        'name': 'Character Voice Consistency',
-                        'description': 'Maintain distinct character speech patterns',
-                        'instructions': 'Each character should have a distinct voice in dialogue and internal thoughts. Consider their background, education, personality, and emotional state. Keep their speech patterns consistent throughout the story (性格不崩). Voice changes should reflect character development.'
-                    },
-                    'zh-hans': {
-                        'name': '角色语言一致性',
-                        'description': '保持独特的角色语言模式',
-                        'instructions': '每个角色在对话和内心思想中应有独特的声音。考虑他们的背景、教育、性格和情绪状态。在整个故事中保持语言模式一致（性格不崩）。声音变化应反映角色发展。'
-                    }
-                }
-            }
-        ]
-
-        for data in techniques_data:
-            technique, created = WritingTechnique.objects.get_or_create(
-                name_key=data['name_key'],
-                defaults={
-                    'is_system': True,
-                    'public': True,
-                    'category': data['category'],
-                    'created_by': None  # System technique
-                }
-            )
-
-            for lang_code, trans_data in data['translations'].items():
-                WritingTechniqueTranslation.objects.get_or_create(
-                    technique=technique,
-                    language_code=lang_code,
-                    defaults={
-                        'name': trans_data['name'],
-                        'description': trans_data['description'],
-                        'instructions': trans_data['instructions']
-                    }
-                )
-
-            status = 'created' if created else 'already exists'
-            self.stdout.write(f'  - {technique.name_key}: {status}')

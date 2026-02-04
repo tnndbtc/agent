@@ -27,7 +27,8 @@ from .models import (
     Chapter, Example, GenerationTask, APIPerformanceMetric,
     ScoreCategory, ScoreCategoryTranslation, ExampleScore,
     UserProfile, UserPrompt,
-    SystemPolicy, AgentRole, WritingStyle, CustomWritingStyle, CustomAgentRole
+    SystemPolicy, AgentRole, WritingStyle, CustomWritingStyle, CustomAgentRole,
+    ContentTypeScoringConfig
 )
 from .serializers import (
     NovelProjectSerializer, NovelProjectListSerializer,
@@ -43,7 +44,8 @@ from .serializers import (
     WritingStyleSerializer,
     AnalyzeWritingSampleRequestSerializer, AnalyzeWritingSampleResponseSerializer,
     CustomWritingStyleSerializer, CustomAgentRoleSerializer,
-    AnalyzeSimpleStyleRequestSerializer, AnalyzeSimpleStyleResponseSerializer
+    AnalyzeSimpleStyleRequestSerializer, AnalyzeSimpleStyleResponseSerializer,
+    ContentTypeScoringConfigSerializer
 )
 from .services import (
     PlotService, CharacterService,
@@ -1828,3 +1830,12 @@ class CustomAgentRoleViewSet(viewsets.ModelViewSet):
             user=self.request.user,
             created_at=int(time.time())
         )
+
+
+class ContentTypeScoringConfigViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for ContentTypeScoringConfig - read-only access to default generation params per content type."""
+
+    queryset = ContentTypeScoringConfig.objects.all()
+    serializer_class = ContentTypeScoringConfigSerializer
+    permission_classes = [IsAuthenticated]
+    lookup_field = 'content_type'  # Use content_type as lookup instead of pk

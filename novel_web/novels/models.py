@@ -75,6 +75,56 @@ class UserPrompt(models.Model):
         self.save(update_fields=['usage_count'])
 
 
+class PromptTemplate(models.Model):
+    """Multi-part prompt templates for various AI operations (English only)."""
+
+    name_key = models.CharField(
+        max_length=100,
+        unique=True,
+        help_text="Unique identifier for this prompt template (e.g., 'analyze_simple_style')"
+    )
+    description = models.CharField(
+        max_length=255,
+        help_text="Human-readable description of what this template is for"
+    )
+    system_message = models.TextField(
+        help_text="System role message - defines the AI's role and expertise"
+    )
+    developer_message = models.TextField(
+        blank=True,
+        help_text="Developer role message (optional) - additional instructions from developer"
+    )
+    user_message_template = models.TextField(
+        help_text="User prompt template with {placeholders} for dynamic content"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this template is active and should be used"
+    )
+    model_name = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="OpenAI model this template applies to (e.g., 'gpt-4o-mini', 'gpt-5.2'). "
+                  "Leave blank for 'default' template that applies when no model-specific template exists."
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name_key']
+        verbose_name = "Prompt Template"
+        verbose_name_plural = "Prompt Templates"
+        unique_together = [['name_key', 'model_name']]
+        indexes = [
+            models.Index(fields=['name_key', 'is_active', 'model_name']),
+        ]
+
+    def __str__(self):
+        model_suffix = f" ({self.model_name})" if self.model_name else ""
+        return f"{self.name_key}{model_suffix}"
+
+
 class SystemPolicy(models.Model):
     """System-wide immutable policies for AI behavior."""
 
@@ -320,6 +370,14 @@ class CustomWritingStyle(models.Model):
     )
     sample = models.TextField(
         help_text="First 100 words of user's sample text"
+    )
+    temperature = models.FloatField(
+        default=0.7,
+        help_text="AI-suggested temperature value for this writing style (0.0-1.2)"
+    )
+    top_p = models.FloatField(
+        default=1.0,
+        help_text="AI-suggested top_p value for this writing style (0.0-1.0)"
     )
 
     class Meta:

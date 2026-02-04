@@ -6,6 +6,7 @@ from .models import (
     ScoreCategory, ScoreCategoryTranslation, ExampleScore,
     SystemPolicy, SystemPolicyTranslation,
     AgentRole, AgentRoleTranslation,
+    PromptTemplate,
     InstructionTemplate, InstructionTemplateTranslation,
     WritingStyle, WritingStyleTranslation,
     CustomWritingStyle, CustomAgentRole,
@@ -173,6 +174,28 @@ class AgentRoleAdmin(admin.ModelAdmin):
     )
 
 
+@admin.register(PromptTemplate)
+class PromptTemplateAdmin(admin.ModelAdmin):
+    """Admin for PromptTemplate (English only)."""
+    list_display = ['name_key', 'description', 'model_name', 'is_active', 'created_at']
+    list_filter = ['is_active', 'model_name']
+    search_fields = ['name_key', 'description']
+    readonly_fields = ['created_at', 'updated_at']
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('name_key', 'description', 'model_name', 'is_active'),
+            'description': 'Leave model_name blank to create a default template that applies to all models when no model-specific template exists.'
+        }),
+        ('Prompt Messages (English)', {
+            'fields': ('system_message', 'developer_message', 'user_message_template'),
+            'description': 'System message defines the AI role, developer message adds optional instructions, and user message template contains the main prompt with {placeholders}.'
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+
+
 class InstructionTemplateTranslationInline(admin.TabularInline):
     """Inline admin for InstructionTemplateTranslation."""
     model = InstructionTemplateTranslation
@@ -229,7 +252,7 @@ class WritingStyleAdmin(admin.ModelAdmin):
 @admin.register(CustomWritingStyle)
 class CustomWritingStyleAdmin(admin.ModelAdmin):
     """Admin for CustomWritingStyle."""
-    list_display = ['style_name', 'user', 'language_code', 'created_at']
+    list_display = ['style_name', 'user', 'language_code', 'temperature', 'top_p', 'created_at']
     list_filter = ['language_code']
     search_fields = ['style_name', 'user__username', 'style_instruction']
     readonly_fields = ['created_at']
@@ -239,6 +262,10 @@ class CustomWritingStyleAdmin(admin.ModelAdmin):
         }),
         ('Instructions', {
             'fields': ('style_instruction', 'sample')
+        }),
+        ('Generation Parameters', {
+            'fields': ('temperature', 'top_p'),
+            'description': 'AI-suggested generation parameters for this writing style'
         }),
         ('Timestamps', {
             'fields': ('created_at',)
