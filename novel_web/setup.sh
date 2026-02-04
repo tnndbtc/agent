@@ -42,6 +42,8 @@ show_menu() {
     echo "3)  Create Superuser"
     echo "4)  Run Migrations and Seed System Data"
     echo "5)  Clean up (Remove and recreate all Docker volumes and data)"
+    echo "6)  Dump Database (Backup to file)"
+    echo "7)  Restore Database (Restore from dump file)"
     echo "0)  Exit"
     echo ""
     read -p "Enter choice: " choice
@@ -550,6 +552,258 @@ cleanup_docker() {
     echo ""
 }
 
+# Dump Database - Backup all database contents to a file
+dump_database() {
+    echo ""
+    echo "=================================="
+    echo "Dump Database (Backup)"
+    echo "=================================="
+    echo ""
+
+    # Generate filename with timestamp
+    timestamp=$(date +"%Y-%m-%d_%H-%M-%S")
+    dump_file="dump_${timestamp}.sql"
+
+    # Determine which setup is being used
+    if command -v docker &> /dev/null && [ -f "docker-compose.yml" ] && docker compose ps db 2>/dev/null | grep -q "Up"; then
+        log_info "Using Docker setup..."
+
+        # Get database credentials from .env
+        if [ -f .env ]; then
+            source .env
+        else
+            log_error ".env file not found"
+            return 1
+        fi
+
+        log_info "Dumping database to: $dump_file"
+
+        # Use pg_dump through docker
+        docker compose exec -T db pg_dump -U "${DB_USER:-novel_user}" "${DB_NAME:-novel_agent_db}" > "$dump_file"
+
+        if [ $? -eq 0 ]; then
+            file_size=$(du -h "$dump_file" | cut -f1)
+            log_info "Database dump completed successfully!"
+            echo ""
+            echo "  File: $dump_file"
+            echo "  Size: $file_size"
+            echo ""
+            log_info "To restore this dump, use option 7 and provide the filename."
+        else
+            log_error "Database dump failed!"
+            rm -f "$dump_file"
+            return 1
+        fi
+
+    elif [ -d "venv" ]; then
+        log_info "Using local setup..."
+
+        # Check if PostgreSQL is being used
+        python_check=$(python3 -c "
+import os
+import django
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'novel_web.settings')
+django.setup()
+from django.conf import settings
+db = settings.DATABASES['default']
+print(db['ENGINE'])
+print(db.get('NAME', ''))
+print(db.get('USER', ''))
+print(db.get('PASSWORD', ''))
+print(db.get('HOST', 'localhost'))
+print(db.get('PORT', '5432'))
+" 2>/dev/null)
+
+        if [ $? -ne 0 ]; then
+            log_error "Failed to read database configuration"
+            return 1
+        fi
+
+        db_engine=$(echo "$python_check" | sed -n '1p')
+        db_name=$(echo "$python_check" | sed -n '2p')
+        db_user=$(echo "$python_check" | sed -n '3p')
+        db_password=$(echo "$python_check" | sed -n '4p')
+        db_host=$(echo "$python_check" | sed -n '5p')
+        db_port=$(echo "$python_check" | sed -n '6p')
+
+        if [[ "$db_engine" == *"postgresql"* ]]; then
+            log_info "Dumping PostgreSQL database to: $dump_file"
+
+            PGPASSWORD="$db_password" pg_dump -h "$db_host" -p "$db_port" -U "$db_user" "$db_name" > "$dump_file"
+
+            if [ $? -eq 0 ]; then
+                file_size=$(du -h "$dump_file" | cut -f1)
+                log_info "Database dump completed successfully!"
+                echo ""
+                echo "  File: $dump_file"
+                echo "  Size: $file_size"
+                echo ""
+                log_info "To restore this dump, use option 7 and provide the filename."
+            else
+                log_error "Database dump failed!"
+                rm -f "$dump_file"
+                return 1
+            fi
+        else
+            log_error "Only PostgreSQL databases are supported for dump/restore"
+            log_error "Current engine: $db_engine"
+            return 1
+        fi
+
+    else
+        log_error "No setup found. Please run option 1 (Docker) or 2 (Local) first."
+        return 1
+    fi
+
+    echo ""
+}
+
+# Restore Database - Restore database from a dump file
+restore_database() {
+    echo ""
+    echo "=================================="
+    echo "Restore Database from Dump"
+    echo "=================================="
+    echo ""
+
+    # List available dump files
+    dump_files=(dump_*.sql)
+
+    if [ ${#dump_files[@]} -eq 0 ] || [ ! -f "${dump_files[0]}" ]; then
+        log_error "No dump files found in current directory."
+        log_info "Dump files should be named: dump_*.sql"
+        return 1
+    fi
+
+    echo "Available dump files:"
+    echo ""
+    for i in "${!dump_files[@]}"; do
+        file_size=$(du -h "${dump_files[$i]}" | cut -f1)
+        echo "  $((i+1))) ${dump_files[$i]} ($file_size)"
+    done
+    echo ""
+
+    read -p "Enter the number of the dump file to restore (or 0 to cancel): " file_choice
+
+    if [ "$file_choice" = "0" ] || [ -z "$file_choice" ]; then
+        log_info "Restore cancelled."
+        return 0
+    fi
+
+    # Validate choice
+    if ! [[ "$file_choice" =~ ^[0-9]+$ ]] || [ "$file_choice" -lt 1 ] || [ "$file_choice" -gt ${#dump_files[@]} ]; then
+        log_error "Invalid choice."
+        return 1
+    fi
+
+    selected_file="${dump_files[$((file_choice-1))]}"
+
+    echo ""
+    log_warn "WARNING: This will REPLACE all current database data with the dump file:"
+    log_warn "  File: $selected_file"
+    echo ""
+
+    read -p "Are you sure you want to continue? (yes/no): " confirm
+
+    if [ "$confirm" != "yes" ]; then
+        log_info "Restore cancelled."
+        return 0
+    fi
+
+    # Determine which setup is being used
+    if command -v docker &> /dev/null && [ -f "docker-compose.yml" ] && docker compose ps db 2>/dev/null | grep -q "Up"; then
+        log_info "Using Docker setup..."
+
+        # Get database credentials from .env
+        if [ -f .env ]; then
+            source .env
+        else
+            log_error ".env file not found"
+            return 1
+        fi
+
+        log_info "Dropping existing database..."
+        docker compose exec -T db psql -U "${DB_USER:-novel_user}" -d postgres -c "DROP DATABASE IF EXISTS ${DB_NAME:-novel_agent_db};" 2>/dev/null
+
+        log_info "Creating new database..."
+        docker compose exec -T db psql -U "${DB_USER:-novel_user}" -d postgres -c "CREATE DATABASE ${DB_NAME:-novel_agent_db};" 2>/dev/null
+
+        log_info "Restoring database from: $selected_file"
+        cat "$selected_file" | docker compose exec -T db psql -U "${DB_USER:-novel_user}" "${DB_NAME:-novel_agent_db}" > /dev/null 2>&1
+
+        if [ $? -eq 0 ]; then
+            log_info "Database restore completed successfully!"
+            echo ""
+            log_info "You may need to restart the web container:"
+            log_info "  docker compose restart web"
+        else
+            log_error "Database restore failed!"
+            return 1
+        fi
+
+    elif [ -d "venv" ]; then
+        log_info "Using local setup..."
+
+        # Check if PostgreSQL is being used
+        python_check=$(python3 -c "
+import os
+import django
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'novel_web.settings')
+django.setup()
+from django.conf import settings
+db = settings.DATABASES['default']
+print(db['ENGINE'])
+print(db.get('NAME', ''))
+print(db.get('USER', ''))
+print(db.get('PASSWORD', ''))
+print(db.get('HOST', 'localhost'))
+print(db.get('PORT', '5432'))
+" 2>/dev/null)
+
+        if [ $? -ne 0 ]; then
+            log_error "Failed to read database configuration"
+            return 1
+        fi
+
+        db_engine=$(echo "$python_check" | sed -n '1p')
+        db_name=$(echo "$python_check" | sed -n '2p')
+        db_user=$(echo "$python_check" | sed -n '3p')
+        db_password=$(echo "$python_check" | sed -n '4p')
+        db_host=$(echo "$python_check" | sed -n '5p')
+        db_port=$(echo "$python_check" | sed -n '6p')
+
+        if [[ "$db_engine" == *"postgresql"* ]]; then
+            log_info "Dropping existing database..."
+            PGPASSWORD="$db_password" psql -h "$db_host" -p "$db_port" -U "$db_user" -d postgres -c "DROP DATABASE IF EXISTS $db_name;" 2>/dev/null
+
+            log_info "Creating new database..."
+            PGPASSWORD="$db_password" psql -h "$db_host" -p "$db_port" -U "$db_user" -d postgres -c "CREATE DATABASE $db_name;" 2>/dev/null
+
+            log_info "Restoring database from: $selected_file"
+            PGPASSWORD="$db_password" psql -h "$db_host" -p "$db_port" -U "$db_user" "$db_name" < "$selected_file" > /dev/null 2>&1
+
+            if [ $? -eq 0 ]; then
+                log_info "Database restore completed successfully!"
+                echo ""
+                log_info "You may need to restart your Django server."
+            else
+                log_error "Database restore failed!"
+                return 1
+            fi
+        else
+            log_error "Only PostgreSQL databases are supported for dump/restore"
+            log_error "Current engine: $db_engine"
+            return 1
+        fi
+
+    else
+        log_error "No setup found. Please run option 1 (Docker) or 2 (Local) first."
+        return 1
+    fi
+
+    echo ""
+}
+
 # Main loop
 while true; do
     show_menu
@@ -559,6 +813,8 @@ while true; do
         3) create_superuser; read -p "Press Enter to continue..." ;;
         4) run_migrations; read -p "Press Enter to continue..." ;;
         5) cleanup_docker; read -p "Press Enter to continue..." ;;
+        6) dump_database; read -p "Press Enter to continue..." ;;
+        7) restore_database; read -p "Press Enter to continue..." ;;
         0) echo "Exiting..."; exit 0 ;;
         *) log_error "Invalid choice. Try again."; read -p "Press Enter to continue..." ;;
     esac
