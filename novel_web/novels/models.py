@@ -1184,6 +1184,30 @@ class ContentPiece(models.Model):
         help_text="Top_p used when generating this content (0.3-1.0)"
     )
 
+    # AI model and writing style used during generation
+    ai_model = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="AI model used to generate this content (e.g., 'gpt-4o-mini', 'gpt-5.2')"
+    )
+    writing_style = models.ForeignKey(
+        'WritingStyle',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='content_pieces',
+        help_text="System-level writing style used (if applicable)"
+    )
+    custom_writing_style = models.ForeignKey(
+        'CustomWritingStyle',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='content_pieces',
+        help_text="Custom writing style used (if applicable)"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

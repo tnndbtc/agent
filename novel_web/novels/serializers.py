@@ -83,12 +83,16 @@ class ContentPieceSerializer(serializers.ModelSerializer):
     """Serializer for ContentPiece model (poems, essays, sketches, articles)."""
 
     structure_template_name = serializers.SerializerMethodField()
+    writing_style_display = serializers.SerializerMethodField()
+    custom_writing_style_display = serializers.SerializerMethodField()
 
     class Meta:
         model = ContentPiece
         fields = ['id', 'project', 'title', 'content', 'word_count',
                   'structure_template', 'structure_template_name', 'sections_data',
                   'generation_temperature', 'generation_top_p',
+                  'ai_model', 'writing_style', 'writing_style_display',
+                  'custom_writing_style', 'custom_writing_style_display',
                   'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
@@ -96,6 +100,22 @@ class ContentPieceSerializer(serializers.ModelSerializer):
         """Return structure template name if available."""
         if obj.structure_template:
             return obj.structure_template.name
+        return None
+
+    def get_writing_style_display(self, obj):
+        """Return writing style display name if available."""
+        if obj.writing_style:
+            # Get translation based on request language
+            request = self.context.get('request')
+            language_code = getattr(request, 'LANGUAGE_CODE', 'en') if request else 'en'
+            translation = obj.writing_style.translations.filter(language_code=language_code).first()
+            return translation.name if translation else obj.writing_style.name_key
+        return None
+
+    def get_custom_writing_style_display(self, obj):
+        """Return custom writing style name if available."""
+        if obj.custom_writing_style:
+            return obj.custom_writing_style.style_name
         return None
 
 
@@ -137,7 +157,7 @@ class NovelProjectSerializer(serializers.ModelSerializer):
         """Return content piece data for poem/essay/sketch/article projects."""
         if hasattr(obj, 'content_piece') and obj.content_piece:
             from .serializers import ContentPieceSerializer
-            return ContentPieceSerializer(obj.content_piece).data
+            return ContentPieceSerializer(obj.content_piece, context=self.context).data
         return None
 
     def validate(self, data):

@@ -293,9 +293,10 @@ class ContentStructureTemplateAdmin(admin.ModelAdmin):
 @admin.register(ContentPiece)
 class ContentPieceAdmin(admin.ModelAdmin):
     """Admin for ContentPiece."""
-    list_display = ['title', 'project', 'word_count', 'updated_at']
+    list_display = ['title', 'project', 'word_count', 'ai_model', 'generation_temperature', 'generation_top_p', 'updated_at']
     search_fields = ['title', 'project__title', 'content']
     readonly_fields = ['created_at', 'updated_at']
+    list_filter = ['ai_model', 'writing_style', 'custom_writing_style']
     fieldsets = (
         ('Basic Info', {
             'fields': ('project', 'title', 'word_count')
@@ -305,6 +306,11 @@ class ContentPieceAdmin(admin.ModelAdmin):
         }),
         ('Structure', {
             'fields': ('structure_template', 'sections_data')
+        }),
+        ('Generation Metadata', {
+            'fields': ('ai_model', 'generation_temperature', 'generation_top_p',
+                      'writing_style', 'custom_writing_style'),
+            'description': 'Parameters used when this content was generated'
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at')

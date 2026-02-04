@@ -260,10 +260,31 @@
                 <h4 style="margin-top: 0; margin-bottom: 1rem; color: #374151;">{{ project.content_piece.title }}</h4>
                 <div id="contentPieceText" class="content-text" contenteditable="true" style="white-space: pre-wrap; line-height: 1.8; font-size: 1rem; color: #1f2937;">{{ project.content_piece.content }}</div>
                 <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 0.875rem;">
-                    <span>{% trans "Word count" %}: <span id="contentPieceWordCount">{{ project.content_piece.word_count }}</span></span>
-                    {% if project.content_piece.structure_template %}
-                    <span style="margin-left: 1.5rem;">{% trans "Structure" %}: {{ project.content_piece.structure_template.name }}</span>
-                    {% endif %}
+                    <div style="margin-bottom: 0.5rem;">
+                        <span>{% trans "Word count" %}: <span id="contentPieceWordCount">{{ project.content_piece.word_count }}</span></span>
+                        {% if project.content_piece.structure_template %}
+                        <span style="margin-left: 1.5rem;">{% trans "Structure" %}: {{ project.content_piece.structure_template.name }}</span>
+                        {% endif %}
+                    </div>
+                    <div style="margin-bottom: 0.5rem;">
+                        {% if project.content_piece.ai_model %}
+                        <span>{% trans "AI Model" %}: {{ project.content_piece.ai_model }}</span>
+                        {% endif %}
+                        {% if project.content_piece.generation_temperature %}
+                        <span style="margin-left: 1.5rem;">{% trans "Temperature" %}: {{ project.content_piece.generation_temperature }}</span>
+                        {% endif %}
+                        {% if project.content_piece.generation_top_p %}
+                        <span style="margin-left: 1.5rem;">{% trans "Top P" %}: {{ project.content_piece.generation_top_p }}</span>
+                        {% endif %}
+                    </div>
+                    <div>
+                        {% if project.content_piece.writing_style %}
+                        <span>{% trans "Writing Style" %}: {{ project.content_piece.writing_style.name_key }}</span>
+                        {% endif %}
+                        {% if project.content_piece.custom_writing_style %}
+                        <span style="margin-left: 1.5rem;">{% trans "Custom Style" %}: {{ project.content_piece.custom_writing_style.style_name }}</span>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
             {% else %}
@@ -1579,7 +1600,24 @@ async function loadContentTypeDefaults() {
                 topPSlider.value = topP;
                 if (topPValue) topPValue.textContent = topP.toFixed(1);
             }
-            console.log('[SUCCESS] Loaded last-used generation parameters from ContentPiece:', {temp, topP});
+            // Load model if available
+            if (response && response.ai_model) {
+                const modelSelector = document.getElementById('modelSelector');
+                if (modelSelector) {
+                    modelSelector.value = response.ai_model;
+                    console.log('[SUCCESS] Loaded model from ContentPiece:', response.ai_model);
+                }
+            }
+            // Load custom writing style if available
+            if (response && response.custom_writing_style_id) {
+                const customStyleSelect = document.getElementById('customStyleSelect');
+                if (customStyleSelect) {
+                    customStyleSelect.value = response.custom_writing_style_id;
+                    selectCustomStyle();  // Show details panel
+                    console.log('[SUCCESS] Loaded custom writing style from ContentPiece:', response.custom_writing_style_id);
+                }
+            }
+            console.log('[SUCCESS] Loaded last-used generation parameters from ContentPiece:', {temp, topP, model: response.ai_model, customStyleId: response.custom_writing_style_id});
             return;
         } else {
             console.log('[DEBUG] No ContentPiece data found, trying config defaults');
@@ -1676,11 +1714,12 @@ if (manualForm) {
                 const estimatedDuration = await getEstimatedDuration('content_generation');
                 startProgressBar(estimatedDuration);
 
-                // Generate content (include temperature, top_p, and model)
+                // Generate content (include temperature, top_p, model, and custom_style_id)
                 const requestBody = { idea_data: ideaData };
                 if (temperature !== null) requestBody.temperature = temperature;
                 if (topP !== null) requestBody.top_p = topP;
                 if (model !== null) requestBody.model = model;
+                if (ideaData.custom_style_id) requestBody.custom_style_id = ideaData.custom_style_id;
 
                 const response = await apiRequest(`/api/projects/${projectId}/generate_content/`, {
                     method: 'POST',

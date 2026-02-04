@@ -541,7 +541,12 @@ class ContentGenerationService:
         content_dict = {
             'title': title,
             'content': content,
-            'word_count': word_count
+            'word_count': word_count,
+            # Generation metadata
+            'ai_model': model,
+            'generation_temperature': temperature,
+            'generation_top_p': top_p,
+            'writing_style_id': project.default_style.id if project.default_style else None,
         }
 
         logger.info(f"Generated poem: {title} ({word_count} words)")
@@ -659,7 +664,12 @@ class ContentGenerationService:
             'content': content,
             'word_count': word_count,
             'sections_data': sections_data,
-            'structure_template_id': template.id if template else None
+            'structure_template_id': template.id if template else None,
+            # Generation metadata
+            'ai_model': model,
+            'generation_temperature': temperature,
+            'generation_top_p': top_p,
+            'writing_style_id': project.default_style.id if project.default_style else None,
         }
 
         logger.info(f"Generated essay: {title} ({word_count} words)")
@@ -755,7 +765,12 @@ class ContentGenerationService:
 
         content_dict = {
             'content': content,
-            'word_count': word_count
+            'word_count': word_count,
+            # Generation metadata
+            'ai_model': model,
+            'generation_temperature': temperature,
+            'generation_top_p': top_p,
+            'writing_style_id': project.default_style.id if project.default_style else None,
         }
 
         logger.info(f"Generated sketch: {word_count} words")
@@ -859,7 +874,12 @@ class ContentGenerationService:
         content_dict = {
             'title': title,
             'content': content,
-            'word_count': word_count
+            'word_count': word_count,
+            # Generation metadata
+            'ai_model': model,
+            'generation_temperature': temperature,
+            'generation_top_p': top_p,
+            'writing_style_id': project.default_style.id if project.default_style else None,
         }
 
         logger.info(f"Generated article: {title} ({word_count} words)")
@@ -1006,7 +1026,13 @@ class ContentGenerationService:
         content_dict = {
             'title': title,
             'content': content,
-            'word_count': word_count
+            'word_count': word_count,
+            # Generation metadata
+            'ai_model': model,
+            'generation_temperature': temperature,
+            'generation_top_p': top_p,
+            'writing_style_id': project.default_style.id if project.default_style else None,
+            'custom_writing_style_id': custom_style_id,
         }
 
         logger.info(f"Generated custom content: {title} ({word_count} words)")
