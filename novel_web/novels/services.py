@@ -2069,7 +2069,8 @@ class AIModificationService:
     """Service for AI-powered text modification with custom prompts using 5-layer prompt architecture."""
 
     @staticmethod
-    def modify_text_selection(user, original_text, user_prompt, content_type='text', project=None):
+    def modify_text_selection(user, original_text, user_prompt, content_type='text', project=None,
+                            temperature=0.7, top_p=1.0, model='gpt-5.2'):
         """
         Modify selected text based on user's custom prompt using 5-layer prompt architecture.
 
@@ -2079,6 +2080,9 @@ class AIModificationService:
             user_prompt: User's modification instructions
             content_type: Type of content (plot, character, chapter, etc.)
             project: Optional NovelProject instance (for styles, techniques, target_language)
+            temperature: Temperature for AI generation (0.0-1.2)
+            top_p: Top P for AI generation (0.3-1.0)
+            model: AI model to use for generation
 
         Returns:
             dict: {
@@ -2091,42 +2095,58 @@ class AIModificationService:
         from .prompt_assembly import PromptAssemblyService
         from .ai_client import LoggingOpenAIClient
 
-        logger.info(f"Modifying {content_type} text (length: {len(original_text)}) with prompt: {user_prompt[:100]}...")
+        prompt_preview = user_prompt[:100] if user_prompt else "(default improvement)"
+        logger.info(f"Modifying {content_type} text (length: {len(original_text)}) with prompt: {prompt_preview}...")
 
-        # Determine language code
-        language_code = project.target_language if project else 'en'
+        # Build user message based on whether prompt is provided
+        if user_prompt:
+            user_message = f"""Follow this instruction: {user_prompt}
 
-        # Assemble prompts using 5-layer architecture
-        messages = PromptAssemblyService.assemble_full_prompt(
-            agent_role_key='text_modifier',
-            user_prompt=user_prompt,
-            project=project,
-            language_code=language_code,
-            context_type=content_type,
-            include_context=False  # Don't include full project context for quick edits
-        )
-
-        # Add original text to the last user message
-        final_user_message = f"""**Original Text:**
+Improve and refine the following text while preserving its meaning and style with same locale:
 {original_text}
 
-{messages[-1]['content']}
+Return JSON format with 'content' key only. Example: {{"content": "your modified text here"}}"""
+        else:
+            # Default instruction when no custom prompt
+            user_message = f"""Improve and refine the following text while preserving its meaning and style with same locale:
 
-**Instructions:** Provide ONLY the modified text (no explanations, no markers, no comments). Return the complete modified text that should replace the original."""
+{original_text}
 
-        # Replace the last message content with the final version
-        messages[-1]['content'] = final_user_message
+Return JSON format with 'content' key only. Example: {{"content": "your modified text here"}}"""
+
+        messages = [
+            {
+                "role": "user",
+                "content": user_message
+            }
+        ]
 
         # Call OpenAI using LoggingOpenAIClient
         try:
             client = LoggingOpenAIClient()
             response = client.chat_completion(
                 messages=messages,
-                temperature=0.7
+                temperature=temperature,
+                top_p=top_p,
+                model=model
             )
 
-            modified_text = response.choices[0].message.content.strip()
+            # Parse JSON response
+            response_content = response.choices[0].message.content.strip()
             token_usage = client._extract_tokens(response)
+
+            try:
+                import json
+                response_json = json.loads(response_content)
+                modified_text = response_json.get('content', '')
+
+                if not modified_text:
+                    logger.warning("JSON response missing 'content' field, using raw response")
+                    modified_text = response_content
+
+            except json.JSONDecodeError as json_err:
+                logger.warning(f"Failed to parse JSON response: {json_err}. Using raw response.")
+                modified_text = response_content
 
             logger.info(f"Successfully modified text. Original length: {len(original_text)}, "
                        f"Modified length: {len(modified_text)}, Tokens: {token_usage}")

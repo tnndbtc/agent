@@ -85,8 +85,8 @@ function handleTextSelection(event) {
             end: end
         });
 
-        // Show the AI modification modal
-        showAIModificationModal();
+        // Show the AI modification modal - DISABLED: Now requires clicking "AI Modify" button
+        // showAIModificationModal();
         return;
     }
 
@@ -131,9 +131,19 @@ function handleTextSelection(event) {
         element: selectableElement.id
     });
 
-    // Show the AI modification modal
-    showAIModificationModal();
+    // Show the AI modification modal - DISABLED: Now requires clicking "AI Modify" button
+    // showAIModificationModal();
 }
+
+// Global function to show AI modification dialog (called by "AI Modify" button)
+window.showAIModificationDialog = function() {
+    if (!currentSelection.text) {
+        showToast(gettext('Please select some text first'), 'warning');
+        return;
+    }
+    console.log('Showing AI modification dialog via button click');
+    showAIModificationModal();
+};
 
 // Load preset prompts from API
 async function loadPresetPrompts() {
@@ -192,7 +202,7 @@ function showAIModificationModal() {
                 padding: 24px;
                 max-width: 600px;
                 width: 90%;
-                max-height: 80vh;
+                max-height: 90vh;
                 overflow-y: auto;
                 box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             ">
@@ -227,22 +237,76 @@ function showAIModificationModal() {
                         ">${escapeHtml(currentSelection.text)}</div>
                     </div>
 
-                    <!-- Preset prompts -->
-                    <div style="margin-bottom: 16px;">
-                        <label style="display: block; font-weight: 600; margin-bottom: 8px;">Quick Presets:</label>
-                        <div id="presetButtons" style="display: flex; flex-wrap: wrap; gap: 8px;">
-                            ${presetPrompts.map(preset => `
-                                <button onclick="selectPresetPrompt('${preset.id}')" style="
-                                    background: #3b82f6;
-                                    color: white;
-                                    border: none;
-                                    padding: 6px 12px;
-                                    border-radius: 4px;
-                                    cursor: pointer;
-                                    font-size: 0.875rem;
-                                " onmouseover="this.style.background='#2563eb'"
-                                   onmouseout="this.style.background='#3b82f6'">${preset.name}</button>
-                            `).join('')}
+                    <!-- Generation Parameters -->
+                    <div style="margin-bottom: 16px; padding: 12px; background: #f9fafb; border-radius: 6px; border: 1px solid #e5e7eb;">
+                        <div style="font-weight: 600; margin-bottom: 12px; color: #374151;">Generation Parameters</div>
+
+                        <!-- Temperature Slider -->
+                        <div style="margin-bottom: 1.5rem;">
+                            <div style="font-weight: 600; color: #374151; margin-bottom: 0.75rem; font-size: 0.95rem;">
+                                ${gettext("How Adventurous The Writing Is")}
+                            </div>
+
+                            <!-- Contextual labels above slider -->
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.7rem; color: #9ca3af;">
+                                <span style="text-align: left; flex: 1;">
+                                    ${gettext("Rigid/Over-controlled")}
+                                </span>
+                                <span style="text-align: center; flex: 1;">
+                                    ${gettext("Natural/Human-like")}
+                                </span>
+                                <span style="text-align: right; flex: 1;">
+                                    ${gettext("Wild/Chaotic")}
+                                </span>
+                            </div>
+
+                            <!-- Current value display (centered and highlighted) -->
+                            <div style="text-align: center; margin-bottom: 0.5rem;">
+                                <span id="aiModTemperatureValue" style="display: inline-block; background-color: #3b82f6; color: white; padding: 0.25rem 0.75rem; border-radius: 9999px; font-weight: 600; font-size: 0.9rem; min-width: 3rem;">0.7</span>
+                            </div>
+
+                            <input type="range" id="aiModTemperatureSlider" min="0.0" max="1.2" step="0.1" value="0.7" style="width: 100%; cursor: pointer;" />
+                        </div>
+
+                        <!-- Top P Slider -->
+                        <div style="margin-bottom: 1.5rem;">
+                            <div style="font-weight: 600; color: #374151; margin-bottom: 0.75rem; font-size: 0.95rem;">
+                                ${gettext("Word Choice")}
+                            </div>
+
+                            <!-- Contextual labels above slider -->
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.7rem; color: #9ca3af;">
+                                <span style="text-align: left; flex: 1;">
+                                    ${gettext("Narrow/Repetitive")}
+                                </span>
+                                <span style="text-align: center; flex: 1;">
+                                    ${gettext("Balanced/Coherent")}
+                                </span>
+                                <span style="text-align: right; flex: 1;">
+                                    ${gettext("Loose/Many rare words")}
+                                </span>
+                            </div>
+
+                            <!-- Current value display (centered and highlighted) -->
+                            <div style="text-align: center; margin-bottom: 0.5rem;">
+                                <span id="aiModTopPValue" style="display: inline-block; background-color: #10b981; color: white; padding: 0.25rem 0.75rem; border-radius: 9999px; font-weight: 600; font-size: 0.9rem; min-width: 3rem;">1.0</span>
+                            </div>
+
+                            <input type="range" id="aiModTopPSlider" min="0.3" max="1.0" step="0.1" value="1.0" style="width: 100%; cursor: pointer;" />
+                        </div>
+
+                        <!-- Model Selector -->
+                        <div>
+                            <div style="font-weight: 600; color: #374151; margin-bottom: 0.75rem; font-size: 0.95rem;">
+                                ${gettext("AI Model")}
+                            </div>
+                            <div style="text-align: center; margin-bottom: 0.5rem;">
+                                <span id="aiModModelValue" style="display: inline-block; background-color: #8b5cf6; color: white; padding: 0.25rem 0.75rem; border-radius: 9999px; font-weight: 600; font-size: 0.9rem; min-width: 8rem;">gpt-5.2</span>
+                            </div>
+                            <select id="aiModModelSelector" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; cursor: pointer; font-size: 0.9rem;">
+                                <option value="gpt-4o-mini">gpt-4o-mini</option>
+                                <option value="gpt-5.2" selected>gpt-5.2</option>
+                            </select>
                         </div>
                     </div>
 
@@ -279,20 +343,42 @@ function showAIModificationModal() {
                         " placeholder="Enter your modification instructions..."></textarea>
                     </div>
 
-                    <!-- Save prompt checkbox -->
-                    <div style="margin-bottom: 16px;">
-                        <label style="display: flex; align-items: center; cursor: pointer;">
-                            <input type="checkbox" id="savePromptCheckbox" onchange="togglePromptName()" style="margin-right: 8px;">
-                            <span>Save this prompt for future use</span>
+                    <!-- Preview section (hidden by default) -->
+                    <div id="aiModificationPreview" style="display: none; margin-bottom: 16px; padding: 16px; background: #f9fafb; border-radius: 6px; border: 1px solid #e5e7eb;">
+                        <label for="previewText" style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">
+                            Preview Modified Text (editable):
                         </label>
-                        <input type="text" id="promptNameInput" placeholder="Enter a name for this prompt..." style="
+                        <textarea id="previewText" rows="8" style="
                             width: 100%;
                             padding: 8px;
                             border: 1px solid #d1d5db;
                             border-radius: 4px;
-                            margin-top: 8px;
-                            display: none;
-                        ">
+                            font-family: inherit;
+                            resize: vertical;
+                            background: white;
+                        "></textarea>
+
+                        <!-- Preview action buttons -->
+                        <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px;">
+                            <button onclick="cancelPreview()" style="
+                                background: #e5e7eb;
+                                color: #374151;
+                                border: none;
+                                padding: 8px 16px;
+                                border-radius: 4px;
+                                cursor: pointer;
+                            " onmouseover="this.style.background='#d1d5db'"
+                               onmouseout="this.style.background='#e5e7eb'">Cancel</button>
+                            <button id="acceptButton" onclick="acceptModification()" disabled style="
+                                background: #9ca3af;
+                                color: white;
+                                border: none;
+                                padding: 8px 16px;
+                                border-radius: 4px;
+                                cursor: not-allowed;
+                                font-weight: 600;
+                            ">Accept</button>
+                        </div>
                     </div>
 
                     <!-- Action buttons -->
@@ -327,6 +413,38 @@ function showAIModificationModal() {
 
     // Add modal to page
     document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    // Add event handlers for generation parameter controls
+    const aiModTemperatureSlider = document.getElementById('aiModTemperatureSlider');
+    const aiModTemperatureValue = document.getElementById('aiModTemperatureValue');
+    const aiModTopPSlider = document.getElementById('aiModTopPSlider');
+    const aiModTopPValue = document.getElementById('aiModTopPValue');
+    const aiModModelSelector = document.getElementById('aiModModelSelector');
+    const aiModModelValue = document.getElementById('aiModModelValue');
+
+    if (aiModTemperatureSlider && aiModTemperatureValue) {
+        aiModTemperatureSlider.addEventListener('input', function() {
+            aiModTemperatureValue.textContent = parseFloat(this.value).toFixed(1);
+        });
+    }
+
+    if (aiModTopPSlider && aiModTopPValue) {
+        aiModTopPSlider.addEventListener('input', function() {
+            aiModTopPValue.textContent = parseFloat(this.value).toFixed(1);
+        });
+    }
+
+    if (aiModModelSelector && aiModModelValue) {
+        aiModModelSelector.addEventListener('change', function() {
+            aiModModelValue.textContent = this.value;
+        });
+    }
+
+    // Add event listener to preview textarea to update Accept button state
+    const previewTextarea = document.getElementById('previewText');
+    if (previewTextarea) {
+        previewTextarea.addEventListener('input', updateAcceptButtonState);
+    }
 
     // Focus on the custom prompt textarea
     document.getElementById('customPrompt').focus();
@@ -374,49 +492,33 @@ function selectSavedPrompt() {
     }
 }
 
-// Toggle prompt name input visibility
-function togglePromptName() {
-    const checkbox = document.getElementById('savePromptCheckbox');
-    const nameInput = document.getElementById('promptNameInput');
-    nameInput.style.display = checkbox.checked ? 'block' : 'none';
-}
-
 // Apply AI modification
 async function applyAIModification() {
     const customPrompt = document.getElementById('customPrompt').value.trim();
-    const savePrompt = document.getElementById('savePromptCheckbox').checked;
-    const promptName = document.getElementById('promptNameInput').value.trim();
     const statusDiv = document.getElementById('aiModificationStatus');
-
-    // Validation
-    if (!customPrompt) {
-        statusDiv.innerHTML = '<div style="color: #dc2626; font-size: 0.875rem;">Please enter a modification prompt.</div>';
-        statusDiv.style.display = 'block';
-        return;
-    }
-
-    if (savePrompt && !promptName) {
-        statusDiv.innerHTML = '<div style="color: #dc2626; font-size: 0.875rem;">Please enter a name for the saved prompt.</div>';
-        statusDiv.style.display = 'block';
-        return;
-    }
 
     // Show loading state
     statusDiv.innerHTML = '<div style="color: #3b82f6; font-size: 0.875rem;">⏳ Processing with AI...</div>';
     statusDiv.style.display = 'block';
 
     try {
+        // Get generation parameters from modal
+        const temperature = parseFloat(document.getElementById('aiModTemperatureSlider').value);
+        const top_p = parseFloat(document.getElementById('aiModTopPSlider').value);
+        const model = document.getElementById('aiModModelSelector').value;
+
         // Prepare request data
         const requestData = {
             original_text: currentSelection.text,
             user_prompt: customPrompt,
             content_type: currentSelection.contentType,
-            save_prompt: savePrompt
+            temperature: temperature,
+            top_p: top_p,
+            model: model
         };
 
-        if (savePrompt && promptName) {
-            requestData.prompt_name = promptName;
-        }
+        // Log request data for debugging
+        console.log('Sending AI modification request:', requestData);
 
         // Call API
         const response = await apiRequest('/api/ai-modifications/modify-text/', {
@@ -426,32 +528,99 @@ async function applyAIModification() {
 
         console.log('AI modification response:', response);
 
-        // Replace text in the document
-        replaceSelectedText(response.modified_text);
-
         // Show token usage
         if (response.token_usage) {
             showTokenUsage(response.token_usage);
         }
 
-        // Show success message
-        statusDiv.innerHTML = '<div style="color: #10b981; font-size: 0.875rem;">✅ Text modified successfully!</div>';
+        // Show preview section with modified text (form remains visible)
+        const previewSection = document.getElementById('aiModificationPreview');
+        const previewTextarea = document.getElementById('previewText');
+        previewTextarea.value = response.modified_text;
+        previewSection.style.display = 'block';
 
-        // Close modal after a delay
-        setTimeout(() => {
-            closeAIModificationModal();
-            showToast('Text modified successfully!', 'success');
-        }, 1500);
+        // Auto-scroll to show the preview
+        previewSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-        // Reload saved prompts if a new one was created
-        if (savePrompt) {
-            loadSavedPrompts();
-        }
+        // Enable Accept button since we have content
+        updateAcceptButtonState();
+
+        // Show success status
+        statusDiv.innerHTML = '<div style="color: #10b981; font-size: 0.875rem;">✅ Preview ready! You can edit the text before accepting.</div>';
+        statusDiv.style.display = 'block';
 
     } catch (error) {
         console.error('AI modification error:', error);
-        statusDiv.innerHTML = `<div style="color: #dc2626; font-size: 0.875rem;">❌ Error: ${error.message}</div>`;
+
+        // Show detailed error information
+        let errorMessage = error.message || 'Request failed';
+
+        // If error has field-specific errors, display them
+        if (error.user_prompt || error.original_text || error.content_type) {
+            const fieldErrors = [];
+            if (error.user_prompt) fieldErrors.push(`Prompt: ${error.user_prompt}`);
+            if (error.original_text) fieldErrors.push(`Text: ${error.original_text}`);
+            if (error.content_type) fieldErrors.push(`Type: ${error.content_type}`);
+            errorMessage = fieldErrors.join(', ');
+        }
+
+        statusDiv.innerHTML = `<div style="color: #dc2626; font-size: 0.875rem;">❌ Error: ${errorMessage}</div>`;
     }
+}
+
+// Update Accept button state based on preview content
+function updateAcceptButtonState() {
+    const previewTextarea = document.getElementById('previewText');
+    const acceptButton = document.getElementById('acceptButton');
+
+    if (!previewTextarea || !acceptButton) return;
+
+    const hasContent = previewTextarea.value.trim().length > 0;
+
+    if (hasContent) {
+        // Enable button
+        acceptButton.disabled = false;
+        acceptButton.style.background = '#10b981';
+        acceptButton.style.cursor = 'pointer';
+        acceptButton.onmouseover = function() { this.style.background = '#059669'; };
+        acceptButton.onmouseout = function() { this.style.background = '#10b981'; };
+    } else {
+        // Disable button
+        acceptButton.disabled = true;
+        acceptButton.style.background = '#9ca3af';
+        acceptButton.style.cursor = 'not-allowed';
+        acceptButton.onmouseover = null;
+        acceptButton.onmouseout = null;
+    }
+}
+
+// Cancel preview and return to form
+function cancelPreview() {
+    // Hide preview section
+    document.getElementById('aiModificationPreview').style.display = 'none';
+
+    // Clear status message
+    const statusDiv = document.getElementById('aiModificationStatus');
+    statusDiv.style.display = 'none';
+    statusDiv.innerHTML = '';
+
+    // Clear preview textarea
+    document.getElementById('previewText').value = '';
+}
+
+// Accept modified text and replace in document
+function acceptModification() {
+    // Get the text from preview (user may have edited it)
+    const modifiedText = document.getElementById('previewText').value;
+
+    // Replace text in the document
+    replaceSelectedText(modifiedText);
+
+    // Close modal
+    closeAIModificationModal();
+
+    // Show success toast
+    showToast('Text modified successfully!', 'success');
 }
 
 // Replace selected text in the document

@@ -104,14 +104,15 @@ class TestAIModificationAPI:
         assert response.data['modified_text'] == "The brave hero stormed dramatically into the chamber."
 
     def test_modify_text_missing_prompt(self, auth_client):
-        """Test validation for missing prompt."""
+        """Test that empty prompt uses default improvement behavior."""
         response = auth_client.post('/api/ai-modifications/modify-text/', {
             'original_text': 'Some text',
-            'user_prompt': '',  # Empty prompt
+            'user_prompt': '',  # Empty prompt - should use default
             'content_type': 'chapter'
         }, format='json')
 
-        assert response.status_code == 400
+        assert response.status_code == 200  # Now accepts empty prompts
+        assert 'modified_text' in response.data
 
     def test_modify_text_missing_original_text(self, auth_client):
         """Test validation for missing original text."""

@@ -1262,6 +1262,14 @@ msgstr ""
 msgid "User Profiles"
 msgstr ""
 
+#: frontend/static/js/ai-modification.js:141
+msgid "Please select some text first"
+msgstr "请先选择一些文本"
+
+#: frontend/static/js/ai-modification.js:301
+msgid "AI Model"
+msgstr "AI 模型"
+
 # Brainstorm page
 #~ msgid "Brainstorm Ideas"
 #~ msgstr "头脑风暴"

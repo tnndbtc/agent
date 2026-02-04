@@ -1482,7 +1482,10 @@ class AIModificationViewSet(viewsets.ViewSet):
                 user=user,
                 original_text=data['original_text'],
                 user_prompt=user_prompt,
-                content_type=data.get('content_type', 'text')
+                content_type=data.get('content_type', 'text'),
+                temperature=data.get('temperature', 0.7),
+                top_p=data.get('top_p', 1.0),
+                model=data.get('model', 'gpt-5.2')
             )
 
             # Save prompt if requested

@@ -368,6 +368,8 @@ class AIModificationRequestSerializer(serializers.Serializer):
         help_text="The selected text to modify"
     )
     user_prompt = serializers.CharField(
+        required=False,
+        allow_blank=True,
         help_text="User's modification instructions"
     )
     content_type = serializers.ChoiceField(
@@ -389,6 +391,25 @@ class AIModificationRequestSerializer(serializers.Serializer):
         allow_null=True,
         help_text="ID of a saved prompt to use (will override user_prompt)"
     )
+    temperature = serializers.FloatField(
+        required=False,
+        default=0.7,
+        min_value=0.0,
+        max_value=1.2,
+        help_text="Temperature for AI generation (0.0-1.2)"
+    )
+    top_p = serializers.FloatField(
+        required=False,
+        default=1.0,
+        min_value=0.3,
+        max_value=1.0,
+        help_text="Top P for AI generation (0.3-1.0)"
+    )
+    model = serializers.CharField(
+        required=False,
+        default='gpt-5.2',
+        help_text="AI model to use for generation"
+    )
 
     def validate(self, data):
         """Validate that required fields are present based on flags."""
@@ -396,6 +417,7 @@ class AIModificationRequestSerializer(serializers.Serializer):
             raise serializers.ValidationError({
                 'prompt_name': 'Prompt name is required when save_prompt is True.'
             })
+
         return data
 
 

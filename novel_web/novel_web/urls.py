@@ -5,12 +5,15 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.conf.urls.i18n import i18n_patterns
 from django.views.generic import RedirectView
-from django.views.i18n import set_language
+from django.views.i18n import set_language, JavaScriptCatalog
 from novels.health_views import health_check, health_detailed, readiness_check, liveness_check
 
 urlpatterns = [
     # Language switcher (outside i18n_patterns)
     path('i18n/setlang/', set_language, name='set_language'),
+
+    # JavaScript i18n catalog
+    path('jsi18n/', JavaScriptCatalog.as_view(domain='django'), name='javascript-catalog'),
 
     # Health check endpoints (outside i18n_patterns)
     path('health/', health_check, name='health'),
