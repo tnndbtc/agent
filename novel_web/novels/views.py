@@ -679,25 +679,73 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'], url_path='generation_params')
     def get_generation_params(self, request, pk=None):
-        """Get generation parameters (temperature, top_p, ai_model) from the last content generation."""
+        """Get generation parameters (temperature, top_p, ai_model) from the last content generation.
+
+        Priority order:
+        1. If ContentPiece has actual content (not empty) → use ContentPiece values
+        2. If ContentPiece is empty AND content_type='other' → use CustomWritingStyle values
+        3. If ContentPiece is empty AND other content types → use ContentTypeScoringConfig values
+        """
         project = self.get_object()
 
         # For non-novel projects, check ContentPiece
         if project.content_type != 'novel' and hasattr(project, 'content_piece'):
             content_piece = project.content_piece
-            return Response({
-                'generation_temperature': content_piece.generation_temperature,
-                'generation_top_p': content_piece.generation_top_p,
-                'ai_model': content_piece.ai_model,
-                'custom_writing_style_id': content_piece.custom_writing_style_id
-            })
 
-        # Return None if no data available
+            # Check if content exists and is not empty
+            has_content = bool(content_piece.content and content_piece.content.strip())
+
+            if has_content:
+                # Priority 1: Use ContentPiece values when content exists
+                return Response({
+                    'generation_temperature': content_piece.generation_temperature,
+                    'generation_top_p': content_piece.generation_top_p,
+                    'ai_model': content_piece.ai_model,
+                    'custom_writing_style_id': content_piece.custom_writing_style_id,
+                    'has_content': True,
+                    'source': 'content_piece'
+                })
+            else:
+                # Priority 2: If content_type='other' and content is empty, suggest CustomWritingStyle
+                if project.content_type == 'other':
+                    # Get the custom_writing_style_id if set
+                    custom_style_id = content_piece.custom_writing_style_id
+
+                    # If custom style is set, fetch its temperature/top_p
+                    if custom_style_id:
+                        try:
+                            from .models import CustomWritingStyle
+                            custom_style = CustomWritingStyle.objects.get(id=custom_style_id, user=request.user)
+                            return Response({
+                                'generation_temperature': custom_style.temperature,
+                                'generation_top_p': custom_style.top_p,
+                                'ai_model': content_piece.ai_model,  # Keep model from ContentPiece
+                                'custom_writing_style_id': custom_style_id,
+                                'has_content': False,
+                                'source': 'custom_writing_style'
+                            })
+                        except CustomWritingStyle.DoesNotExist:
+                            pass  # Fall through to config defaults
+
+                # Priority 3: Fall back to ContentTypeScoringConfig defaults
+                # Signal to frontend to load from config
+                return Response({
+                    'generation_temperature': None,
+                    'generation_top_p': None,
+                    'ai_model': content_piece.ai_model,
+                    'custom_writing_style_id': content_piece.custom_writing_style_id,
+                    'has_content': False,
+                    'source': 'config_needed'
+                })
+
+        # Return None if no data available (will trigger config load in frontend)
         return Response({
             'generation_temperature': None,
             'generation_top_p': None,
             'ai_model': None,
-            'custom_writing_style_id': None
+            'custom_writing_style_id': None,
+            'has_content': False,
+            'source': 'none'
         })
 
     @action(detail=True, methods=['post'])

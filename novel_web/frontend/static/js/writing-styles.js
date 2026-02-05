@@ -928,8 +928,10 @@ async function loadCustomStyles() {
 
 /**
  * Handle custom style selection
+ * @param {boolean} updateSliders - If true, update temperature/top_p sliders with style defaults.
+ *                                   Set to false when programmatically loading to preserve actual values.
  */
-function selectCustomStyle() {
+function selectCustomStyle(updateSliders = true) {
     const select = document.getElementById('customStyleSelect');
     if (!select) return;
 
@@ -971,27 +973,31 @@ function selectCustomStyle() {
         }
 
         // Update temperature and top_p sliders with style-specific values
-        const temperature = selectedOption.dataset.temperature;
-        const topP = selectedOption.dataset.topP;
+        // Only update if explicitly requested (e.g., user manually changing dropdown)
+        // Skip when programmatically loading to preserve actual values from ContentPiece
+        if (updateSliders) {
+            const temperature = selectedOption.dataset.temperature;
+            const topP = selectedOption.dataset.topP;
 
-        if (temperature !== undefined) {
-            const temperatureSlider = document.getElementById('temperatureSlider');
-            const temperatureValue = document.getElementById('temperatureValue');
-            if (temperatureSlider) {
-                temperatureSlider.value = parseFloat(temperature);
-                if (temperatureValue) {
-                    temperatureValue.textContent = parseFloat(temperature).toFixed(1);
+            if (temperature !== undefined) {
+                const temperatureSlider = document.getElementById('temperatureSlider');
+                const temperatureValue = document.getElementById('temperatureValue');
+                if (temperatureSlider) {
+                    temperatureSlider.value = parseFloat(temperature);
+                    if (temperatureValue) {
+                        temperatureValue.textContent = parseFloat(temperature).toFixed(1);
+                    }
                 }
             }
-        }
 
-        if (topP !== undefined) {
-            const topPSlider = document.getElementById('topPSlider');
-            const topPValue = document.getElementById('topPValue');
-            if (topPSlider) {
-                topPSlider.value = parseFloat(topP);
-                if (topPValue) {
-                    topPValue.textContent = parseFloat(topP).toFixed(1);
+            if (topP !== undefined) {
+                const topPSlider = document.getElementById('topPSlider');
+                const topPValue = document.getElementById('topPValue');
+                if (topPSlider) {
+                    topPSlider.value = parseFloat(topP);
+                    if (topPValue) {
+                        topPValue.textContent = parseFloat(topP).toFixed(1);
+                    }
                 }
             }
         }

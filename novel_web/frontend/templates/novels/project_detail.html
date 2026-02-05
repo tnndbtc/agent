@@ -1583,71 +1583,124 @@ if (modelSelector && modelValue) {
 }
 
 // Load default temperature and top_p from backend based on content type
+// Helper functions for loading generation parameters
+function updateSliders(temp, topP) {
+    if (temperatureSlider && !isNaN(temp)) {
+        temperatureSlider.value = temp;
+        if (temperatureValue) temperatureValue.textContent = temp.toFixed(1);
+    }
+    if (topPSlider && !isNaN(topP)) {
+        topPSlider.value = topP;
+        if (topPValue) topPValue.textContent = topP.toFixed(1);
+    }
+}
+
+function loadModel(model) {
+    if (model) {
+        const modelSelector = document.getElementById('modelSelector');
+        if (modelSelector) {
+            modelSelector.value = model;
+            console.log('[SUCCESS] Loaded model:', model);
+        }
+    }
+}
+
+function loadCustomStyle(customStyleId) {
+    if (customStyleId) {
+        const customStyleSelect = document.getElementById('customStyleSelect');
+        if (customStyleSelect) {
+            // Temporarily remove the onchange handler to prevent it from firing
+            // when we programmatically set the dropdown value
+            const originalOnchange = customStyleSelect.onchange;
+            customStyleSelect.onchange = null;
+
+            // Set the value (won't trigger onchange now)
+            customStyleSelect.value = customStyleId;
+
+            // Restore the onchange handler
+            customStyleSelect.onchange = originalOnchange;
+
+            // Call selectCustomStyle manually without updating sliders
+            selectCustomStyle(false);
+
+            console.log('[SUCCESS] Loaded custom writing style:', customStyleId);
+        }
+    }
+}
+
+// Load default temperature and top_p from backend based on content type and priority logic
 async function loadContentTypeDefaults() {
     try {
-        // First, try to load last-used values from ContentPiece
+        // Step 1: Fetch generation params from backend
         console.log('[DEBUG] Fetching generation params from:', `/api/projects/${projectId}/generation_params/`);
         const response = await apiRequest(`/api/projects/${projectId}/generation_params/`);
         console.log('[DEBUG] Generation params response:', response);
 
-        if (response && response.generation_temperature !== null && response.generation_top_p !== null) {
-            const temp = parseFloat(response.generation_temperature);
-            const topP = parseFloat(response.generation_top_p);
-            console.log('[DEBUG] Parsed values - temp:', temp, 'topP:', topP);
+        // Step 2: Handle based on priority logic
+        if (response && response.source) {
+            console.log('[DEBUG] Response source:', response.source);
 
-            if (temperatureSlider) {
-                temperatureSlider.value = temp;
-                if (temperatureValue) temperatureValue.textContent = temp.toFixed(1);
+            // Priority 1: ContentPiece with actual content
+            if (response.source === 'content_piece' && response.has_content) {
+                const temp = parseFloat(response.generation_temperature);
+                const topP = parseFloat(response.generation_top_p);
+                console.log('[DEBUG] Loading from ContentPiece (has content) - temp:', temp, 'topP:', topP);
+
+                updateSliders(temp, topP);
+                loadModel(response.ai_model);
+                loadCustomStyle(response.custom_writing_style_id);
+
+                console.log('[SUCCESS] Loaded from ContentPiece (with content)');
+                return;
             }
-            if (topPSlider) {
-                topPSlider.value = topP;
-                if (topPValue) topPValue.textContent = topP.toFixed(1);
+
+            // Priority 2: CustomWritingStyle (for content_type='other' with empty content)
+            if (response.source === 'custom_writing_style' && !response.has_content) {
+                const temp = parseFloat(response.generation_temperature);
+                const topP = parseFloat(response.generation_top_p);
+                console.log('[DEBUG] Loading from CustomWritingStyle - temp:', temp, 'topP:', topP);
+
+                updateSliders(temp, topP);
+                loadModel(response.ai_model);
+                loadCustomStyle(response.custom_writing_style_id);
+
+                console.log('[SUCCESS] Loaded from CustomWritingStyle');
+                return;
             }
-            // Load model if available
-            if (response && response.ai_model) {
-                const modelSelector = document.getElementById('modelSelector');
-                if (modelSelector) {
-                    modelSelector.value = response.ai_model;
-                    console.log('[SUCCESS] Loaded model from ContentPiece:', response.ai_model);
+
+            // Priority 3: ContentTypeScoringConfig (fallback)
+            if (response.source === 'config_needed' || response.source === 'none') {
+                console.log('[DEBUG] Loading from ContentTypeScoringConfig fallback');
+
+                // Load from config
+                const configResponse = await apiRequest(`/api/content-type-config/${projectContentType}/`);
+                console.log('[DEBUG] Config response:', configResponse);
+
+                if (configResponse && configResponse.default_temperature !== undefined && configResponse.default_top_p !== undefined) {
+                    const temp = parseFloat(configResponse.default_temperature);
+                    const topP = parseFloat(configResponse.default_top_p);
+                    console.log('[DEBUG] Loaded from config - temp:', temp, 'topP:', topP);
+
+                    updateSliders(temp, topP);
+
+                    // Still load model and custom style if available from ContentPiece
+                    if (response.ai_model) {
+                        loadModel(response.ai_model);
+                    }
+                    if (response.custom_writing_style_id) {
+                        loadCustomStyle(response.custom_writing_style_id);
+                    }
+
+                    console.log('[SUCCESS] Loaded from ContentTypeScoringConfig');
+                    return;
                 }
             }
-            // Load custom writing style if available
-            if (response && response.custom_writing_style_id) {
-                const customStyleSelect = document.getElementById('customStyleSelect');
-                if (customStyleSelect) {
-                    customStyleSelect.value = response.custom_writing_style_id;
-                    selectCustomStyle();  // Show details panel
-                    console.log('[SUCCESS] Loaded custom writing style from ContentPiece:', response.custom_writing_style_id);
-                }
-            }
-            console.log('[SUCCESS] Loaded last-used generation parameters from ContentPiece:', {temp, topP, model: response.ai_model, customStyleId: response.custom_writing_style_id});
-            return;
-        } else {
-            console.log('[DEBUG] No ContentPiece data found, trying config defaults');
         }
 
-        // If no ContentPiece data, try to load defaults from ContentTypeScoringConfig
-        const configResponse = await apiRequest(`/api/content-type-config/${projectContentType}/`);
-        console.log('[DEBUG] Config response:', configResponse);
+        console.log('[WARNING] No valid source found, using default values');
 
-        if (configResponse && configResponse.default_temperature !== undefined && configResponse.default_top_p !== undefined) {
-            const temp = parseFloat(configResponse.default_temperature);
-            const topP = parseFloat(configResponse.default_top_p);
-
-            if (temperatureSlider) {
-                temperatureSlider.value = temp;
-                if (temperatureValue) temperatureValue.textContent = temp.toFixed(1);
-            }
-            if (topPSlider) {
-                topPSlider.value = topP;
-                if (topPValue) topPValue.textContent = topP.toFixed(1);
-            }
-            console.log('[SUCCESS] Loaded content type defaults from config:', {temp, topP});
-        }
     } catch (error) {
-        // Silently fail and use default values already set in HTML
-        console.error('[ERROR] Could not load generation parameters:', error);
-        console.log('[FALLBACK] Using HTML defaults');
+        console.error('[ERROR] Failed to load generation params:', error);
     }
 }
 
@@ -2711,8 +2764,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Load generation parameter defaults on page load
-    const temperatureSlider = document.getElementById('temperatureSlider');
-    const topPSlider = document.getElementById('topPSlider');
+    // Use temperatureSlider and topPSlider declared at lines 1557-1560
     if (temperatureSlider && topPSlider) {
         await loadContentTypeDefaults();
     }
