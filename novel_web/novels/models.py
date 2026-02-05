@@ -476,6 +476,32 @@ class InstructionTemplate(models.Model):
             translation = self.translations.filter(language_code='en').first()
         return translation.json_format if translation else None
 
+    def get_instructions(self, language_code='en', **kwargs):
+        """
+        Get formatted instructions for this template in specified language.
+
+        Args:
+            language_code: Language code (e.g., 'en', 'zh-hans')
+            **kwargs: Variable substitutions (e.g., word_count=500, theme='love')
+
+        Returns:
+            String with formatted instructions, or None if not found
+        """
+        translation = self.translations.filter(language_code=language_code).first()
+        if not translation and language_code != 'en':
+            # Fallback to English if requested language not found
+            translation = self.translations.filter(language_code='en').first()
+
+        if not translation:
+            return None
+
+        # Format the instructions with provided kwargs
+        try:
+            return translation.instructions.format(**kwargs)
+        except KeyError as e:
+            # If placeholder not provided, return unformatted
+            return translation.instructions
+
 
 class InstructionTemplateTranslation(models.Model):
     """Translations for instruction templates."""

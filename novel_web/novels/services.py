@@ -451,6 +451,40 @@ class ContentGenerationService:
         return '\n\n' + json_format
 
     @staticmethod
+    def _get_instruction_text(content_type, language_code='en', word_count=500):
+        """
+        Fetch formatted instruction text from InstructionTemplate.
+
+        Args:
+            content_type: Content type (poem, essay, sketch, article, other)
+            language_code: Language code for translation (default: 'en')
+            word_count: Target word count for content generation
+
+        Returns:
+            String with formatted instruction text including newline prefix,
+            or fallback text if template not found
+        """
+        from .models import InstructionTemplate
+
+        template = InstructionTemplate.objects.filter(
+            content_type=content_type,
+            is_active=True
+        ).first()
+
+        if not template:
+            # Fallback for missing templates
+            logger.warning(f"No InstructionTemplate found for content_type='{content_type}'")
+            return f'\n\nWrite approximately {word_count} words.'
+
+        instructions = template.get_instructions(language_code, word_count=word_count)
+        if not instructions:
+            # Fallback if language not found
+            logger.warning(f"No instructions found for content_type='{content_type}', language='{language_code}'")
+            return f'\n\nWrite approximately {word_count} words.'
+
+        return '\n\n' + instructions
+
+    @staticmethod
     def _generate_poem(project, idea_data, user_language, temperature=None, top_p=None, model=None):
         """
         Generate complete poem from idea.
@@ -496,10 +530,8 @@ class ContentGenerationService:
         if style_notes:
             user_prompt += f"\n\n{style_notes}"
 
-        # Add word count instruction
-        user_prompt += f"\n\nWrite approximately {word_count} words."
-
-        # Add JSON format instruction from InstructionTemplate
+        # Add instruction text and JSON format from InstructionTemplate
+        user_prompt += ContentGenerationService._get_instruction_text('poem', user_language, word_count)
         user_prompt += ContentGenerationService._get_json_format_instruction('poem', user_language)
 
         # Assemble full prompt with 5-layer architecture
@@ -615,10 +647,8 @@ class ContentGenerationService:
             for point in key_points:
                 user_prompt += f"- {point}\n"
 
-        # Add word count instruction
-        user_prompt += f"\n\nWrite approximately {word_count} words."
-
-        # Add JSON format instruction from InstructionTemplate
+        # Add instruction text and JSON format from InstructionTemplate
+        user_prompt += ContentGenerationService._get_instruction_text('essay', user_language, word_count)
         user_prompt += ContentGenerationService._get_json_format_instruction('essay', user_language)
 
         # Assemble full prompt
@@ -721,10 +751,8 @@ class ContentGenerationService:
         if scene_notes:
             user_prompt += f"\n\n{scene_notes}"
 
-        # Add word count instruction
-        user_prompt += f"\n\nWrite approximately {word_count} words."
-
-        # Add JSON format instruction from InstructionTemplate
+        # Add instruction text and JSON format from InstructionTemplate
+        user_prompt += ContentGenerationService._get_instruction_text('sketch', user_language, word_count)
         user_prompt += ContentGenerationService._get_json_format_instruction('sketch', user_language)
 
         template = None  # No template needed
@@ -829,10 +857,8 @@ class ContentGenerationService:
             for fact in facts:
                 user_prompt += f"- {fact}\n"
 
-        # Add word count instruction
-        user_prompt += f"\n\nWrite approximately {word_count} words."
-
-        # Add JSON format instruction from InstructionTemplate
+        # Add instruction text and JSON format from InstructionTemplate
+        user_prompt += ContentGenerationService._get_instruction_text('article', user_language, word_count)
         user_prompt += ContentGenerationService._get_json_format_instruction('article', user_language)
 
         # Assemble full prompt
@@ -928,9 +954,9 @@ class ContentGenerationService:
 
         # Build basic user prompt
         user_prompt = idea
-        user_prompt += f"\n\nWrite approximately {word_count} words."
 
-        # Add JSON format instruction from InstructionTemplate
+        # Add instruction text and JSON format from InstructionTemplate
+        user_prompt += ContentGenerationService._get_instruction_text('other', user_language, word_count)
         user_prompt += ContentGenerationService._get_json_format_instruction('other', user_language)
 
         # Check if custom style is specified
