@@ -818,7 +818,9 @@ async function saveCustomStyle() {
                 language_code: tempAnalysisResults.language_code,
                 style_name: tempAnalysisResults.style_name,
                 style_instruction: tempAnalysisResults.style_instruction,
-                sample: tempAnalysisResults.first_100_words
+                sample: tempAnalysisResults.first_100_words,
+                temperature: tempAnalysisResults.temperature,
+                top_p: tempAnalysisResults.top_p
             })
         });
 

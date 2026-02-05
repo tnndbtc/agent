@@ -58,10 +58,14 @@ class LoggingOpenAIClient:
                 **kwargs
             }
 
-            # Only include max_tokens if it's not None
+            # Only include max_tokens/max_completion_tokens if it's not None
             # When omitted, OpenAI API uses default behavior (unlimited within model limits)
+            # GPT-5+ models use max_completion_tokens instead of max_tokens
             if max_tokens is not None:
-                api_params['max_tokens'] = max_tokens
+                if model.startswith('gpt-5'):
+                    api_params['max_completion_tokens'] = max_tokens
+                else:
+                    api_params['max_tokens'] = max_tokens
 
             # Make the API call
             response = self.client.chat.completions.create(**api_params)
