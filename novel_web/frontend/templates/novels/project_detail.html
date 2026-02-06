@@ -240,7 +240,7 @@
                     <button class="btn btn-sm" onclick="scoreContent()">
                         ⭐ {% trans "Score" %}
                     </button>
-                    <button id="aiModifyBtn" class="btn btn-sm btn-secondary" onclick="showAIModificationDialog()" disabled>
+                    <button id="aiModifyBtn" class="btn btn-sm btn-secondary" onclick="showAIModificationDialog()">
                         🤖 {% trans "AI Modify" %}
                     </button>
                     <button id="saveContentBtn" class="btn btn-sm btn-primary" onclick="saveContentPiece()">
@@ -2847,31 +2847,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         contentPieceText.addEventListener('input', checkContentChange);
         contentPieceText.addEventListener('blur', checkContentChange);
-
-        // Enable/disable "AI Modify" button based on text selection
-        const aiModifyBtn = document.getElementById('aiModifyBtn');
-        if (aiModifyBtn) {
-            // Enable button when text is selected in contentPieceText
-            contentPieceText.addEventListener('mouseup', function() {
-                const selection = window.getSelection();
-                const selectedText = selection.toString().trim();
-                aiModifyBtn.disabled = !selectedText;
-            });
-
-            // Disable button when clicking outside contentPieceText
-            document.addEventListener('mouseup', function(e) {
-                if (e.target !== contentPieceText && !contentPieceText.contains(e.target)) {
-                    setTimeout(() => {
-                        const selection = window.getSelection();
-                        const selectedText = selection.toString().trim();
-                        // Only disable if there's no selection or selection is not in contentPieceText
-                        if (!selectedText) {
-                            aiModifyBtn.disabled = true;
-                        }
-                    }, 100);
-                }
-            });
-        }
     }
 });
 
