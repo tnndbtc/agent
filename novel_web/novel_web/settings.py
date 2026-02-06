@@ -199,6 +199,7 @@ CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
 # Novel Agent Configuration
 NOVEL_AGENT = {
     'OPENAI_API_KEY': os.getenv('OPENAI_API_KEY', ''),
+    'RUNWAY_API_KEY': os.getenv('RUNWAY_API_KEY', ''),
     'MODEL_NAME': os.getenv('MODEL_NAME', 'gpt-4o-mini'),
     'TEMPERATURE': float(os.getenv('TEMPERATURE', '0.7')),
     'MAX_TOKENS': int(os.getenv('MAX_TOKENS', '2000')),

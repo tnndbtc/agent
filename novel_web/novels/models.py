@@ -1292,6 +1292,54 @@ class ContentPiece(models.Model):
         help_text="Custom writing style used (if applicable)"
     )
 
+    # Video generation fields (Runway Gen-4.5 API)
+    video_file = models.FileField(
+        upload_to='generated_videos/',
+        null=True,
+        blank=True,
+        help_text="Generated video file for this content"
+    )
+    video_generated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the video was generated"
+    )
+    video_job_id = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True,
+        help_text="Runway API job ID for tracking async generation"
+    )
+    video_status = models.CharField(
+        max_length=20,
+        default='',
+        blank=True,
+        help_text="Status: queued, processing, completed, failed"
+    )
+    video_duration = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Video duration in seconds (5, 10)"
+    )
+    video_resolution = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        help_text="Resolution (e.g., '1280x720', '1920x1080')"
+    )
+    video_model = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text="Runway model used (e.g., 'gen4-turbo', 'gen4')"
+    )
+    video_aspect_ratio = models.CharField(
+        max_length=10,
+        null=True,
+        blank=True,
+        help_text="Aspect ratio (e.g., '16:9', '9:16', '1:1')"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

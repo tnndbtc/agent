@@ -677,6 +677,163 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
             'word_count': content_piece.word_count
         })
 
+    @action(detail=True, methods=['post'], url_path='generate_video')
+    def generate_video(self, request, pk=None):
+        """Start async video generation using Runway Gen-4.5 API."""
+        from django.utils import timezone
+        from .ai_client import RunwayVideoClient
+        from .tasks import poll_video_generation
+
+        project = self.get_object()
+
+        # Ensure project is not a novel
+        if project.content_type == 'novel':
+            return Response(
+                {'error': 'Video generation is not available for novels. Use chapters instead.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if content piece exists
+        if not hasattr(project, 'content_piece'):
+            return Response(
+                {'error': 'No content piece exists for this project'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        content_piece = project.content_piece
+
+        # Check if content exists
+        if not content_piece.content or not content_piece.content.strip():
+            return Response(
+                {'error': 'Content is empty. Cannot generate video.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get parameters from request
+        duration = int(request.data.get('duration', 4))
+        resolution = request.data.get('resolution', '1280x720')
+        model = request.data.get('model', 'veo3.1')
+        aspect_ratio = request.data.get('aspect_ratio', '16:9')
+
+        # Validate parameters
+        if duration not in [4, 6, 8]:
+            return Response(
+                {'error': 'Duration must be 4, 6, or 8 seconds for veo3.1 model'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        valid_resolutions = ['1280x720', '1920x1080', '3840x2160']
+        if resolution not in valid_resolutions:
+            return Response(
+                {'error': f'Invalid resolution. Must be one of: {", ".join(valid_resolutions)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        valid_models = ['veo3.1']
+        if model not in valid_models:
+            return Response(
+                {'error': f'Invalid model. Must be one of: {", ".join(valid_models)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        valid_ratios = ['16:9', '9:16', '1:1']
+        if aspect_ratio not in valid_ratios:
+            return Response(
+                {'error': f'Invalid aspect ratio. Must be one of: {", ".join(valid_ratios)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Initialize Runway client
+            runway_client = RunwayVideoClient()
+
+            # Generate video prompt from content (use first 500 chars)
+            prompt = content_piece.content[:500]
+
+            # Start video generation
+            result = runway_client.generate_video(
+                prompt=prompt,
+                duration=duration,
+                resolution=resolution,
+                model=model,
+                aspect_ratio=aspect_ratio
+            )
+
+            # Update content piece with job info
+            content_piece.video_job_id = result['task_id']
+            content_piece.video_status = 'queued'
+            content_piece.video_duration = duration
+            content_piece.video_resolution = resolution
+            content_piece.video_model = model
+            content_piece.video_aspect_ratio = aspect_ratio
+            content_piece.save()
+
+            # Start Celery task to poll for completion
+            logger.info(f"Dispatching Celery task poll_video_generation for content piece {content_piece.id}")
+            task_result = poll_video_generation.delay(content_piece.id, result['task_id'])
+            logger.info(f"Celery task dispatched with ID: {task_result.id}")
+
+            # Return success response
+            return Response({
+                'message': 'Video generation started',
+                'job_id': result['task_id'],
+                'status': 'queued',
+                'duration': duration,
+                'resolution': resolution,
+                'model': model
+            })
+
+        except Exception as e:
+            logger.error(f"Failed to generate video for project {project.id}: {str(e)}")
+            return Response(
+                {'error': f'Failed to start video generation: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['get'], url_path='check_video_status')
+    def check_video_status(self, request, pk=None):
+        """Check the status of video generation."""
+        project = self.get_object()
+
+        # Ensure project is not a novel
+        if project.content_type == 'novel':
+            return Response(
+                {'error': 'Video generation is not available for novels.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if content piece exists
+        if not hasattr(project, 'content_piece'):
+            return Response(
+                {'error': 'No content piece exists for this project'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        content_piece = project.content_piece
+
+        # Check if there's a video job
+        if not content_piece.video_job_id:
+            return Response(
+                {'error': 'No video generation in progress'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Return current status
+        response_data = {
+            'job_id': content_piece.video_job_id,
+            'status': content_piece.video_status,
+            'duration': content_piece.video_duration,
+            'resolution': content_piece.video_resolution,
+            'model': content_piece.video_model
+        }
+
+        # If completed, include video URL
+        if content_piece.video_status == 'completed' and content_piece.video_file:
+            response_data['video_url'] = request.build_absolute_uri(content_piece.video_file.url)
+            response_data['generated_at'] = content_piece.video_generated_at
+
+        return Response(response_data)
+
     @action(detail=True, methods=['get'], url_path='generation_params')
     def get_generation_params(self, request, pk=None):
         """Get generation parameters (temperature, top_p, ai_model) from the last content generation.

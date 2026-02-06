@@ -246,6 +246,9 @@
                     <button id="saveContentBtn" class="btn btn-sm btn-primary" onclick="saveContentPiece()">
                         💾 {% trans "Save" %}
                     </button>
+                    <button id="videoBtn" class="btn btn-sm btn-secondary" onclick="showVideoConfigModal()">
+                        🎬 {% trans "Generate Video" %}
+                    </button>
                 </div>
                 {% endif %}
             </div>
@@ -254,6 +257,20 @@
             <div class="content-display" style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.5rem;">
                 <h4 style="margin-top: 0; margin-bottom: 1rem; color: #374151;">{{ project.content_piece.title }}</h4>
                 <div id="contentPieceText" class="content-text" contenteditable="true" style="white-space: pre-wrap; line-height: 1.8; font-size: 1rem; color: #1f2937;">{{ project.content_piece.content }}</div>
+
+                <!-- Video Player Container -->
+                <div id="videoPlayerContainer" style="display: none; margin-top: 1rem; padding: 1rem; background: #ffffff; border: 1px solid #d1d5db; border-radius: 6px;">
+                    <div style="margin-bottom: 0.5rem;">
+                        <span style="color: #374151; font-weight: 500;">🎬 {% trans "Generated Video" %}:</span>
+                    </div>
+                    <div style="display: block;">
+                        <video id="videoPlayer" controls playsinline webkit-playsinline style="width: 100%; max-width: 100%; display: block; border-radius: 4px;">
+                            <source id="videoSource" type="video/mp4">
+                            {% trans "Your browser does not support the video element." %}
+                        </video>
+                    </div>
+                </div>
+
                 <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 0.875rem;">
                     <div style="margin-bottom: 0.5rem;">
                         <span>{% trans "Word count" %}: <span id="contentPieceWordCount">{{ project.content_piece.word_count }}</span></span>
@@ -646,6 +663,93 @@
                     <p>{% trans "Browse and create custom writing styles" %}</p>
                 </button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Video Generation Configuration Modal -->
+<div id="videoConfigModal" class="modal-overlay" style="display: none;">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <h3>{% trans "Video Generation Settings" %}</h3>
+            <button class="modal-close" onclick="closeVideoConfigModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <!-- Duration Selection -->
+            <div style="margin-bottom: 1.5rem;">
+                <div style="font-weight: 600; color: #374151; margin-bottom: 0.75rem; font-size: 0.95rem;">
+                    {% trans "Duration" %}
+                </div>
+                <div style="text-align: center; margin-bottom: 0.5rem;">
+                    <span id="videoDurationValue" style="display: inline-block; background-color: #ec4899; color: white; padding: 0.25rem 0.75rem; border-radius: 9999px; font-weight: 600; font-size: 0.9rem; min-width: 5rem;">4 seconds</span>
+                </div>
+                <select id="videoDurationSelector" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; cursor: pointer; font-size: 0.9rem;">
+                    <option value="4" selected>4 seconds (~$1.60)</option>
+                    <option value="6">6 seconds (~$2.40)</option>
+                    <option value="8">8 seconds (~$3.20)</option>
+                </select>
+            </div>
+
+            <!-- Resolution Selection -->
+            <div style="margin-bottom: 1.5rem;">
+                <div style="font-weight: 600; color: #374151; margin-bottom: 0.75rem; font-size: 0.95rem;">
+                    {% trans "Resolution" %}
+                </div>
+                <div style="text-align: center; margin-bottom: 0.5rem;">
+                    <span id="videoResolutionValue" style="display: inline-block; background-color: #8b5cf6; color: white; padding: 0.25rem 0.75rem; border-radius: 9999px; font-weight: 600; font-size: 0.9rem; min-width: 8rem;">720p (HD)</span>
+                </div>
+                <select id="videoResolutionSelector" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; cursor: pointer; font-size: 0.9rem;">
+                    <option value="1280x720" selected>720p (1280x720) - HD</option>
+                    <option value="1920x1080">1080p (1920x1080) - Full HD</option>
+                    <option value="3840x2160">4K (3840x2160) - Ultra HD</option>
+                </select>
+            </div>
+
+            <!-- Model Selection -->
+            <div style="margin-bottom: 1.5rem;">
+                <div style="font-weight: 600; color: #374151; margin-bottom: 0.75rem; font-size: 0.95rem;">
+                    {% trans "Model" %}
+                </div>
+                <div style="text-align: center; margin-bottom: 0.5rem;">
+                    <span id="videoModelValue" style="display: inline-block; background-color: #3b82f6; color: white; padding: 0.25rem 0.75rem; border-radius: 9999px; font-weight: 600; font-size: 0.9rem; min-width: 8rem;">Veo 3.1</span>
+                </div>
+                <select id="videoModelSelector" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; cursor: pointer; font-size: 0.9rem;">
+                    <option value="veo3.1" selected>Veo 3.1 (Google, $0.40/sec)</option>
+                </select>
+            </div>
+
+            <!-- Aspect Ratio Selection -->
+            <div style="margin-bottom: 1.5rem;">
+                <div style="font-weight: 600; color: #374151; margin-bottom: 0.75rem; font-size: 0.95rem;">
+                    {% trans "Aspect Ratio" %}
+                </div>
+                <div style="text-align: center; margin-bottom: 0.5rem;">
+                    <span id="videoRatioValue" style="display: inline-block; background-color: #f59e0b; color: white; padding: 0.25rem 0.75rem; border-radius: 9999px; font-weight: 600; font-size: 0.9rem; min-width: 6rem;">16:9</span>
+                </div>
+                <select id="videoRatioSelector" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; cursor: pointer; font-size: 0.9rem;">
+                    <option value="16:9" selected>16:9 (Landscape/Widescreen)</option>
+                    <option value="9:16">9:16 (Portrait/Mobile)</option>
+                    <option value="1:1">1:1 (Square)</option>
+                </select>
+            </div>
+
+            <!-- Estimated Cost -->
+            <div style="padding: 1rem; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 0.375rem; margin-bottom: 1rem;">
+                <div style="font-size: 0.875rem; color: #92400e;">
+                    <strong>{% trans "Estimated Cost" %}:</strong> <span id="estimatedCost">$1.60</span>
+                </div>
+                <div style="font-size: 0.75rem; color: #92400e; margin-top: 0.25rem;">
+                    {% trans "Processing time: 2-5 minutes" %}
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeVideoConfigModal()">
+                {% trans "Cancel" %}
+            </button>
+            <button class="btn btn-primary" onclick="generateVideoWithConfig()">
+                🎬 {% trans "Generate Video" %}
+            </button>
         </div>
     </div>
 </div>
@@ -1353,6 +1457,11 @@ const projectId = '{{ project.id }}';
 const projectContentType = '{{ project.content_type }}';
 window.PROJECT_ID = projectId;  // Make globally accessible for writing-styles.js
 
+// Initialize content piece ID for video generation and other features
+{% if project.content_piece %}
+window.currentContentPieceId = '{{ project.content_piece.id }}';
+{% endif %}
+
 /**
  * Calculate word count for text in any language.
  * For CJK (Chinese, Japanese, Korean) languages, counts characters.
@@ -1927,6 +2036,275 @@ async function saveContentPiece() {
     } catch (error) {
         hideLoading();
         showToast('Error: ' + error.message, 'error');
+    }
+}
+
+// Video generation functions
+function showVideoConfigModal() {
+    const modal = document.getElementById('videoConfigModal');
+    modal.style.display = 'flex';
+
+    // Load preferences from localStorage
+    const savedPrefs = localStorage.getItem('videoGenerationPrefs');
+    if (savedPrefs) {
+        try {
+            const prefs = JSON.parse(savedPrefs);
+            if (prefs.duration) document.getElementById('videoDurationSelector').value = prefs.duration;
+            if (prefs.resolution) document.getElementById('videoResolutionSelector').value = prefs.resolution;
+            if (prefs.model) document.getElementById('videoModelSelector').value = prefs.model;
+            if (prefs.aspectRatio) document.getElementById('videoRatioSelector').value = prefs.aspectRatio;
+            updateVideoCostEstimate();
+        } catch (e) {
+            console.error('Error loading video preferences:', e);
+        }
+    }
+}
+
+function closeVideoConfigModal() {
+    const modal = document.getElementById('videoConfigModal');
+    modal.style.display = 'none';
+}
+
+async function generateVideoWithConfig() {
+    // Read configuration values
+    const duration = parseInt(document.getElementById('videoDurationSelector').value);
+    const resolution = document.getElementById('videoResolutionSelector').value;
+    const model = document.getElementById('videoModelSelector').value;
+    const aspectRatio = document.getElementById('videoRatioSelector').value;
+
+    // Save preferences to localStorage
+    const prefs = { duration, resolution, model, aspectRatio };
+    localStorage.setItem('videoGenerationPrefs', JSON.stringify(prefs));
+
+    // Close modal and show loading
+    closeVideoConfigModal();
+    showLoading('{% trans "Starting video generation..." %}');
+
+    try {
+        const response = await fetch(`/api/projects/${projectId}/generate_video/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                duration: duration,
+                resolution: resolution,
+                model: model,
+                aspect_ratio: aspectRatio
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || '{% trans "Video generation failed" %}');
+        }
+
+        // Update button to show processing state
+        const videoBtn = document.getElementById('videoBtn');
+        videoBtn.disabled = true;
+        videoBtn.innerHTML = '⏳ {% trans "Generating..." %}';
+
+        showToast('{% trans "Video generation started. This may take a few minutes..." %}', 'info');
+        hideLoading();
+
+        // Start polling for video status
+        pollVideoStatus(projectId);
+
+    } catch (error) {
+        hideLoading();
+        showToast('{% trans "Error" %}: ' + error.message, 'error');
+    }
+}
+
+let videoPollingInterval = null;
+let videoPollingStartTime = null;
+
+function pollVideoStatus(projectId) {
+    // Clear any existing polling interval
+    if (videoPollingInterval) {
+        clearInterval(videoPollingInterval);
+    }
+
+    // Track when polling started
+    videoPollingStartTime = Date.now();
+    const maxPollingDuration = 10 * 60 * 1000; // 10 minutes in milliseconds
+
+    // Poll every 60 seconds
+    videoPollingInterval = setInterval(async () => {
+        try {
+            // Check if we've exceeded 10-minute timeout
+            const elapsedTime = Date.now() - videoPollingStartTime;
+            if (elapsedTime > maxPollingDuration) {
+                clearInterval(videoPollingInterval);
+                videoPollingInterval = null;
+
+                // Update button
+                const videoBtn = document.getElementById('videoBtn');
+                videoBtn.disabled = false;
+                videoBtn.innerHTML = '🎬 {% trans "Generate Video" %}';
+
+                showToast('{% trans "Video generation timed out after 10 minutes" %}', 'error');
+                return;
+            }
+
+            const response = await fetch(`/api/projects/${projectId}/check_video_status/`, {
+                method: 'GET',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.status === 'completed' && data.video_url) {
+                // Stop polling
+                clearInterval(videoPollingInterval);
+                videoPollingInterval = null;
+
+                // Update button
+                const videoBtn = document.getElementById('videoBtn');
+                videoBtn.disabled = false;
+                videoBtn.innerHTML = '🎬 {% trans "Generate Video" %}';
+
+                // Display video player
+                displayVideoPlayer(data.video_url);
+                showToast('{% trans "Video generated successfully!" %}', 'success');
+
+            } else if (data.status === 'failed') {
+                // Stop polling on failure
+                clearInterval(videoPollingInterval);
+                videoPollingInterval = null;
+
+                // Update button
+                const videoBtn = document.getElementById('videoBtn');
+                videoBtn.disabled = false;
+                videoBtn.innerHTML = '🎬 {% trans "Generate Video" %}';
+
+                showToast('{% trans "Video generation failed" %}', 'error');
+            }
+            // Otherwise keep polling (status is 'processing' or 'pending')
+
+        } catch (error) {
+            console.error('Error checking video status:', error);
+        }
+    }, 60000); // Poll every 60 seconds
+}
+
+function displayVideoPlayer(videoUrl) {
+    const playerContainer = document.getElementById('videoPlayerContainer');
+    const videoSource = document.getElementById('videoSource');
+    const videoPlayer = document.getElementById('videoPlayer');
+
+    if (playerContainer && videoSource && videoPlayer) {
+        videoSource.src = videoUrl;
+        videoPlayer.load();
+        playerContainer.style.display = 'block';
+    }
+}
+
+function updateVideoCostEstimate() {
+    const duration = parseInt(document.getElementById('videoDurationSelector').value);
+    const model = document.getElementById('videoModelSelector').value;
+
+    // Cost calculation based on Runway pricing
+    // veo3.1: $0.40/second (40 credits/sec at $0.01 per credit)
+    let costPerSecond = 0.40;
+
+    const estimatedCost = (duration * costPerSecond).toFixed(2);
+
+    // Update display
+    const costDisplay = document.getElementById('estimatedCost');
+    if (costDisplay) {
+        costDisplay.textContent = `$${estimatedCost}`;
+    }
+}
+
+// Event listeners for video configuration selectors
+document.addEventListener('DOMContentLoaded', function() {
+    const videoDuration = document.getElementById('videoDurationSelector');
+    const videoResolution = document.getElementById('videoResolutionSelector');
+    const videoModel = document.getElementById('videoModelSelector');
+    const videoAspectRatio = document.getElementById('videoRatioSelector');
+
+    if (videoDuration) {
+        videoDuration.addEventListener('change', function() {
+            document.getElementById('videoDurationValue').textContent = this.options[this.selectedIndex].text;
+            updateVideoCostEstimate();
+        });
+    }
+
+    if (videoResolution) {
+        videoResolution.addEventListener('change', function() {
+            document.getElementById('videoResolutionValue').textContent = this.options[this.selectedIndex].text;
+            updateVideoCostEstimate();
+        });
+    }
+
+    if (videoModel) {
+        videoModel.addEventListener('change', function() {
+            document.getElementById('videoModelValue').textContent = this.options[this.selectedIndex].text;
+            updateVideoCostEstimate();
+        });
+    }
+
+    if (videoAspectRatio) {
+        videoAspectRatio.addEventListener('change', function() {
+            document.getElementById('videoRatioValue').textContent = this.options[this.selectedIndex].text;
+        });
+    }
+
+    // Close modal when clicking outside
+    const videoModal = document.getElementById('videoConfigModal');
+    if (videoModal) {
+        videoModal.addEventListener('click', function(e) {
+            if (e.target === videoModal) {
+                closeVideoConfigModal();
+            }
+        });
+    }
+
+    // Check for existing video on page load
+    checkExistingVideo();
+});
+
+// Check if there's an existing video and display it
+async function checkExistingVideo() {
+    try {
+        const response = await fetch(`/api/projects/${projectId}/check_video_status/`, {
+            method: 'GET',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        });
+
+        if (!response.ok) {
+            // No video or error - that's fine, just return
+            return;
+        }
+
+        const data = await response.json();
+
+        if (data.status === 'completed' && data.video_url) {
+            // Video exists! Display it
+            displayVideoPlayer(data.video_url);
+            console.log('Existing video found and displayed:', data.video_url);
+
+        } else if (data.status === 'processing' || data.status === 'queued') {
+            // Video is still being generated - start polling
+            console.log('Video generation in progress, starting polling...');
+            const videoBtn = document.getElementById('videoBtn');
+            if (videoBtn) {
+                videoBtn.disabled = true;
+                videoBtn.innerHTML = '⏳ {% trans "Generating..." %}';
+            }
+            pollVideoStatus(projectId);
+        }
+
+    } catch (error) {
+        // Silently fail - no video available
+        console.log('No existing video found');
     }
 }
 

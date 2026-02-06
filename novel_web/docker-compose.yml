@@ -58,6 +58,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - RUNWAY_API_KEY=${RUNWAY_API_KEY}
       - MODEL_NAME=${MODEL_NAME:-gpt-4o-mini}
       - TEMPERATURE=${TEMPERATURE:-0.7}
     depends_on:
@@ -90,6 +91,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - RUNWAY_API_KEY=${RUNWAY_API_KEY}
       - MODEL_NAME=${MODEL_NAME:-gpt-4o-mini}
       - TEMPERATURE=${TEMPERATURE:-0.7}
     depends_on:
@@ -118,6 +120,10 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - RUNWAY_API_KEY=${RUNWAY_API_KEY}
+      - MODEL_NAME=${MODEL_NAME:-gpt-4o-mini}
+      - TEMPERATURE=${TEMPERATURE:-0.7}
     depends_on:
       - db
       - redis

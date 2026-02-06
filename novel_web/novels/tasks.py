@@ -596,3 +596,103 @@ def generate_example_scores_task(self, task_id, content, category=None, user_lan
         else:
             logger.error(f"Example scoring task {task_id} failed after {self.max_retries} retries")
             raise
+
+
+@shared_task(bind=True, max_retries=10)
+def poll_video_generation(self, content_piece_id, task_id):
+    """
+    Poll Runway API for video generation completion and download video when ready.
+    Polls every 60 seconds for up to 10 minutes (10 retries).
+
+    Args:
+        content_piece_id: ContentPiece model ID
+        task_id: Runway API task ID
+    """
+    from .models import ContentPiece
+    from .ai_client import RunwayVideoClient
+    from django.core.files.base import ContentFile
+    from django.utils import timezone
+    import time
+
+    logger.info("=" * 80)
+    logger.info("=== CELERY TASK STARTED: poll_video_generation ===")
+    logger.info(f"Content Piece ID: {content_piece_id}")
+    logger.info(f"Runway Task ID: {task_id}")
+    logger.info(f"Retry count: {self.request.retries}")
+    logger.info("=" * 80)
+
+    # Check if this is a mock/test task - exit immediately to avoid log spam
+    if task_id == "mock-task-id-for-testing":
+        logger.info("Mock task detected - skipping polling to avoid log spam")
+        logger.info("When ready to test with real API, uncomment the API calls in ai_client.py")
+        logger.info("=" * 80)
+        return
+
+    logger.info(f"Polling video generation: content_piece={content_piece_id}, task={task_id}")
+
+    try:
+        content_piece = ContentPiece.objects.get(id=content_piece_id)
+        runway_client = RunwayVideoClient()
+
+        # Check video status
+        status_result = runway_client.check_video_status(task_id)
+
+        logger.info(f"Video status: {status_result['status']}, progress: {status_result.get('progress', 0)*100:.1f}%")
+
+        # Update status
+        content_piece.video_status = status_result['status']
+        content_piece.save()
+
+        if status_result['status'] == 'completed' and status_result.get('video_url'):
+            # Video is ready - download it
+            logger.info(f"Video completed, downloading from: {status_result['video_url'][:100]}...")
+
+            video_content = runway_client.download_video(status_result['video_url'])
+
+            # Save video file
+            filename = f"content_{content_piece.project.id}_{task_id[:8]}.mp4"
+            content_piece.video_file.save(
+                filename,
+                ContentFile(video_content),
+                save=False
+            )
+            content_piece.video_status = 'completed'
+            content_piece.video_generated_at = timezone.now()
+            content_piece.save()
+
+            logger.info(f"Video saved successfully: {filename}")
+
+        elif status_result['status'] == 'failed':
+            # Video generation failed
+            error_msg = status_result.get('error', 'Unknown error')
+            logger.error(f"Video generation failed: {error_msg}")
+            content_piece.video_status = 'failed'
+            content_piece.save()
+
+        elif status_result['status'] in ['queued', 'processing']:
+            # Still processing - retry in 60 seconds
+            logger.info(f"Video still processing, retrying in 60 seconds...")
+            raise self.retry(countdown=60)
+
+    except ContentPiece.DoesNotExist:
+        logger.error(f"ContentPiece {content_piece_id} not found")
+        raise
+
+    except Exception as exc:
+        logger.error(f"Video polling task failed: {exc}", exc_info=True)
+
+        # Update status to failed
+        try:
+            content_piece = ContentPiece.objects.get(id=content_piece_id)
+            content_piece.video_status = 'failed'
+            content_piece.save()
+        except:
+            pass
+
+        # Retry if we haven't exhausted retries (max 10 retries = 10 minutes)
+        if self.request.retries < self.max_retries:
+            logger.info(f"Retrying video poll, attempt {self.request.retries + 1}/{self.max_retries}")
+            raise self.retry(exc=exc, countdown=60)
+        else:
+            logger.error(f"Video poll task failed after {self.max_retries} retries (10 minutes)")
+            raise

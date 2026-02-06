@@ -422,3 +422,273 @@ Return ONLY the JSON object, no additional text or explanation."""
         logger.error(f"Failed to generate theme: {str(e)}")
         # Return a default theme if generation fails
         return "A story of personal growth and discovery.", {}
+
+
+class RunwayVideoClient:
+    """
+    Runway Gen-4.5 API client for video generation.
+    """
+
+    def __init__(self):
+        """Initialize the Runway client with API key from settings."""
+        self.api_key = settings.NOVEL_AGENT.get('RUNWAY_API_KEY', '').strip()
+        if not self.api_key:
+            logger.warning("Runway API key not configured in settings")
+        else:
+            # Log first 4 characters to verify key is loaded (without exposing full key)
+            key_preview = self.api_key[:4] + "..." if len(self.api_key) > 4 else "***"
+            logger.info(f"Runway API key loaded: {key_preview}")
+        self.base_url = "https://api.dev.runwayml.com/v1"
+
+    def generate_video(self, prompt, duration=4, resolution="1280x720",
+                      model="veo3.1", aspect_ratio="16:9"):
+        """
+        Start async video generation using Runway API.
+
+        Args:
+            prompt: Text description of the video to generate
+            duration: Video duration in seconds (4, 6, or 8 depending on model)
+            resolution: Video resolution (e.g., '1280x720', '1920x1080')
+            model: Runway model (currently only 'veo3.1' supported for text-to-video)
+            aspect_ratio: Aspect ratio ('16:9', '9:16', '1:1')
+
+        Returns:
+            dict: {
+                'task_id': str,  # Job ID for polling
+                'status': str,   # 'queued' or 'processing'
+            }
+        """
+        import requests
+
+        logger.info("=" * 80)
+        logger.info("Runway API Call - Video Generation")
+        logger.info(f"Model: {model}, Duration: {duration}s, Resolution: {resolution}")
+        logger.info(f"Aspect Ratio: {aspect_ratio}")
+        logger.info(f"Prompt: {prompt[:200]}...")  # Log first 200 chars
+        logger.info("-" * 80)
+
+        try:
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+                "X-Runway-Version": "2024-11-06"
+            }
+
+            # Convert aspect_ratio + resolution to Runway's ratio format
+            # e.g., "16:9" + "1280x720" -> "1280:720"
+            width, height = resolution.split('x')
+            if aspect_ratio == "9:16":
+                # Portrait: swap width and height
+                ratio = f"{height}:{width}"
+            else:
+                # Landscape (16:9) or Square (1:1)
+                ratio = f"{width}:{height}"
+
+            payload = {
+                "model": model,
+                "promptText": prompt,
+                "duration": duration,
+                "ratio": ratio,
+                "audio": False  # Disable audio for now
+            }
+
+            # ============ VERIFICATION LOGGING (API CALL COMMENTED OUT) ============
+            import json as json_lib
+            masked_headers = headers.copy()
+            if 'Authorization' in masked_headers:
+                masked_headers['Authorization'] = 'Bearer your_api_key_...'
+
+            logger.info("=" * 80)
+            logger.info("RUNWAY API CALL DETAILS - TEXT TO VIDEO GENERATION")
+            logger.info("=" * 80)
+            logger.info(f"URL: {self.base_url}/text_to_video")
+            logger.info(f"Method: POST")
+            logger.info(f"Headers: {json_lib.dumps(masked_headers, indent=2)}")
+            logger.info(f"Payload: {json_lib.dumps(payload, indent=2)}")
+            logger.info("=" * 80)
+            logger.info("NOTE: Actual API call is COMMENTED OUT to avoid charges")
+            logger.info("Returning mock response for testing")
+            logger.info("=" * 80)
+
+            # COMMENTED OUT TO AVOID API CHARGES - Uncomment after verification
+            response = requests.post(
+                f"{self.base_url}/text_to_video",
+                headers=headers,
+                json=payload,
+                timeout=30
+            )
+            response.raise_for_status()
+            data = response.json()
+            task_id = data.get('id') or data.get('task_id')
+
+            # Mock response for testing (remove after verification)
+            # task_id = "mock-task-id-for-testing"
+
+            logger.info(f"Video generation started successfully (MOCK)")
+            logger.info(f"Task ID: {task_id}")
+            logger.info("=" * 80)
+
+            return {
+                'task_id': task_id,
+                'status': 'queued'
+            }
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Runway API Error: {str(e)}")
+
+            # Log additional details for debugging
+            if hasattr(e, 'response') and e.response is not None:
+                logger.error(f"Status Code: {e.response.status_code}")
+                try:
+                    logger.error(f"Response Body: {e.response.text}")
+                except:
+                    pass
+
+                # Special handling for 401 Unauthorized
+                if e.response.status_code == 401:
+                    key_preview = self.api_key[:4] + "..." if len(self.api_key) > 4 else "(empty)"
+                    logger.error(f"Authentication failed. API key starts with: {key_preview}")
+                    logger.error("Verify that RUNWAY_API_KEY environment variable is set correctly")
+
+            logger.info("=" * 80)
+            raise
+
+    def check_video_status(self, task_id):
+        """
+        Check the status of a video generation task.
+
+        Args:
+            task_id: The task ID returned from generate_video()
+
+        Returns:
+            dict: {
+                'status': str,      # 'queued', 'processing', 'completed', 'failed'
+                'progress': float,  # 0.0 to 1.0
+                'video_url': str,   # Available when completed
+                'error': str        # Error message if failed
+            }
+        """
+        import requests
+        import json as json_lib
+
+        logger.info("=" * 80)
+        logger.info("Runway API Call - Video Status Check")
+        logger.info(f"Task ID: {task_id}")
+        logger.info("-" * 80)
+
+        try:
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+                "X-Runway-Version": "2024-11-06"  # Required for all API calls
+            }
+
+            # ============ VERIFICATION LOGGING (API CALL COMMENTED OUT) ============
+            masked_headers = headers.copy()
+            if 'Authorization' in masked_headers:
+                masked_headers['Authorization'] = 'Bearer your_api_key_...'
+
+            logger.info("=" * 80)
+            logger.info("RUNWAY API CALL DETAILS - CHECK VIDEO STATUS")
+            logger.info("=" * 80)
+            logger.info(f"URL: {self.base_url}/tasks/{task_id}")
+            logger.info(f"Method: GET")
+            logger.info(f"Headers: {json_lib.dumps(masked_headers, indent=2)}")
+            logger.info("=" * 80)
+            logger.info("NOTE: Actual API call is COMMENTED OUT to avoid charges")
+            logger.info("Returning mock response for testing")
+            logger.info("=" * 80)
+
+            # COMMENTED OUT TO AVOID API CHARGES - Uncomment after verification
+            response = requests.get(
+                f"{self.base_url}/tasks/{task_id}",
+                headers=headers,
+                timeout=10
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            # Mock response for testing (remove after verification)
+            # Simulating a "processing" status
+            # data = {
+            #     'status': 'RUNNING',
+            #     'progress': 0.5,
+            #     'output': None
+            # }
+
+            status_mapping = {
+                'PENDING': 'queued',
+                'RUNNING': 'processing',
+                'SUCCEEDED': 'completed',
+                'FAILED': 'failed',
+                'queued': 'queued',
+                'processing': 'processing',
+                'completed': 'completed',
+                'failed': 'failed'
+            }
+
+            # Fixed: Extract video URL from array instead of object
+            video_url = None
+            if data.get('output'):
+                if isinstance(data['output'], list) and len(data['output']) > 0:
+                    video_url = data['output'][0]
+                elif isinstance(data['output'], dict):
+                    video_url = data['output'].get('url')
+
+            result = {
+                'status': status_mapping.get(data.get('status', 'queued'), 'queued'),
+                'progress': data.get('progress', 0.0),
+                'video_url': video_url,
+                'error': data.get('failure_reason') or data.get('error')
+            }
+
+            logger.info(f"Task {task_id}: {result['status']} ({result['progress']*100:.1f}%)")
+            logger.info("=" * 80)
+
+            return result
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Runway API Status Check Error: {str(e)}")
+
+            # Log additional details for debugging
+            if hasattr(e, 'response') and e.response is not None:
+                logger.error(f"Status Code: {e.response.status_code}")
+                try:
+                    logger.error(f"Response Body: {e.response.text}")
+                except:
+                    pass
+
+            logger.info("=" * 80)
+            return {
+                'status': 'failed',
+                'progress': 0.0,
+                'video_url': None,
+                'error': str(e)
+            }
+
+    def download_video(self, video_url):
+        """
+        Download the generated video from Runway's URL.
+
+        Args:
+            video_url: URL of the completed video
+
+        Returns:
+            bytes: Video file content (MP4)
+        """
+        import requests
+
+        logger.info(f"Downloading video from: {video_url[:100]}...")
+
+        try:
+            response = requests.get(video_url, timeout=120)  # 2 min timeout for large files
+            response.raise_for_status()
+
+            video_content = response.content
+            logger.info(f"Video downloaded successfully: {len(video_content)} bytes")
+
+            return video_content
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Video download error: {str(e)}")
+            raise
