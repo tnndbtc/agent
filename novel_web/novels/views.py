@@ -790,6 +790,111 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @action(detail=True, methods=['post'], url_path='get_images')
+    def get_images(self, request, pk=None):
+        """Get images and videos from external agent API."""
+        import requests
+
+        project = self.get_object()
+
+        # Get text content from request
+        text = request.data.get('text', '')
+        count = int(request.data.get('count', 10))
+
+        # Validate count
+        if count < 1:
+            count = 1
+        elif count > 1000:
+            count = 1000
+
+        if not text or not text.strip():
+            return Response(
+                {'error': 'Text content is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Make POST request to external agent API
+            agent_api_url = 'http://192.168.86.40:28000/agent'
+
+            logger.info(f"Fetching {count} images/videos from agent API for project {project.id}")
+
+            response = requests.post(
+                agent_api_url,
+                json={
+                    'text': text,
+                    'number': count
+                },
+                timeout=60
+            )
+
+            response.raise_for_status()
+            data = response.json()
+
+            # Extract images and videos from response
+            all_images = data.get('images', [])
+            all_videos = data.get('videos', [])
+
+            # Combine and limit results based on requested count
+            # Calculate distribution: roughly equal split between images and videos
+            total_available = len(all_images) + len(all_videos)
+
+            if total_available <= count:
+                # Return all if we have fewer than requested
+                images = all_images
+                videos = all_videos
+            else:
+                # Distribute count proportionally
+                images_ratio = len(all_images) / total_available if total_available > 0 else 0.5
+                images_count = int(count * images_ratio)
+                videos_count = count - images_count
+
+                # Adjust if one category doesn't have enough
+                if images_count > len(all_images):
+                    images_count = len(all_images)
+                    videos_count = count - images_count
+                elif videos_count > len(all_videos):
+                    videos_count = len(all_videos)
+                    images_count = count - videos_count
+
+                images = all_images[:images_count]
+                videos = all_videos[:videos_count]
+
+            logger.info(f"Successfully retrieved {len(images)} images and {len(videos)} videos from agent API (requested: {count})")
+
+            # Extract metadata
+            keywords = data.get('keywords', {})
+            processing_time_ms = data.get('processing_time_ms', 0)
+
+            return Response({
+                'success': True,
+                'images': images,
+                'videos': videos,
+                'total_count': len(images) + len(videos),
+                'requested_count': count,
+                'keywords': keywords,
+                'processing_time_ms': processing_time_ms
+            })
+
+        except requests.exceptions.Timeout:
+            logger.error(f"Timeout while fetching images from agent API for project {project.id}")
+            return Response(
+                {'error': 'Request to agent API timed out'},
+                status=status.HTTP_504_GATEWAY_TIMEOUT
+            )
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to fetch images from agent API for project {project.id}: {str(e)}")
+            return Response(
+                {'error': f'Failed to fetch images: {str(e)}'},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error while fetching images for project {project.id}: {str(e)}")
+            return Response(
+                {'error': f'An unexpected error occurred: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     @action(detail=True, methods=['get'], url_path='check_video_status')
     def check_video_status(self, request, pk=None):
         """Check the status of video generation."""

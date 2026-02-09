@@ -249,6 +249,9 @@
                     <button id="videoBtn" class="btn btn-sm btn-secondary" onclick="showVideoConfigModal()">
                         🎬 {% trans "Generate Video" %}
                     </button>
+                    <button id="getImagesBtn" class="btn btn-sm btn-secondary" onclick="getImages()">
+                        🖼️ {% trans "Get Images" %}
+                    </button>
                 </div>
                 {% endif %}
             </div>
@@ -268,6 +271,39 @@
                             <source id="videoSource" type="video/mp4">
                             {% trans "Your browser does not support the video element." %}
                         </video>
+                    </div>
+                </div>
+
+                <!-- Images/Videos Gallery Container -->
+                <div id="imagesGalleryContainer" style="display: none; margin-top: 1rem; padding: 1rem; background: #ffffff; border: 1px solid #d1d5db; border-radius: 6px;">
+                    <div style="margin-bottom: 1rem;">
+                        <span style="color: #374151; font-weight: 500;">🖼️ {% trans "Retrieved Images & Videos" %}:</span>
+                        <span id="imagesCount" style="color: #6b7280; font-size: 0.875rem; margin-left: 0.5rem;"></span>
+                    </div>
+                    <!-- Metadata Section -->
+                    <div id="imagesMetadata" style="margin-bottom: 1rem; padding: 0.75rem; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 0.875rem;">
+                        <!-- Metadata will be displayed here -->
+                    </div>
+                    <!-- Tabs -->
+                    <div style="border-bottom: 1px solid #e5e7eb; margin-bottom: 1rem;">
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button id="imagesTab" onclick="switchMediaTab('images')"
+                                    style="padding: 0.5rem 1rem; border: none; background: none; cursor: pointer; font-weight: 500; border-bottom: 2px solid #3b82f6; color: #3b82f6;">
+                                📷 {% trans "Images" %} (<span id="imagesTabCount">0</span>)
+                            </button>
+                            <button id="videosTab" onclick="switchMediaTab('videos')"
+                                    style="padding: 0.5rem 1rem; border: none; background: none; cursor: pointer; font-weight: 500; border-bottom: 2px solid transparent; color: #6b7280;">
+                                🎬 {% trans "Videos" %} (<span id="videosTabCount">0</span>)
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Images Grid -->
+                    <div id="imagesGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; max-height: 600px; overflow-y: auto; padding-right: 0.5rem;">
+                        <!-- Images will be displayed here -->
+                    </div>
+                    <!-- Videos Grid -->
+                    <div id="videosGrid" style="display: none; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; max-height: 600px; overflow-y: auto; padding-right: 0.5rem;">
+                        <!-- Videos will be displayed here -->
                     </div>
                 </div>
 
@@ -749,6 +785,51 @@
             </button>
             <button class="btn btn-primary" onclick="generateVideoWithConfig()">
                 🎬 {% trans "Generate Video" %}
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Get Images Configuration Modal -->
+<div id="imagesConfigModal" class="modal-overlay" style="display: none;">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <h3>{% trans "Get Images/Videos Settings" %}</h3>
+            <button class="modal-close" onclick="closeImagesConfigModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <!-- Number of Items Selection -->
+            <div style="margin-bottom: 1.5rem;">
+                <div style="font-weight: 600; color: #374151; margin-bottom: 0.75rem; font-size: 0.95rem;">
+                    {% trans "Number of Items to Retrieve" %}
+                </div>
+                <div style="text-align: center; margin-bottom: 0.5rem;">
+                    <span id="imagesCountValue" style="display: inline-block; background-color: #10b981; color: white; padding: 0.25rem 0.75rem; border-radius: 9999px; font-weight: 600; font-size: 0.9rem; min-width: 5rem;">10 items</span>
+                </div>
+                <input type="number" id="imagesCountInput" min="1" max="1000" value="10"
+                       style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.9rem;"
+                       oninput="updateImagesCountDisplay()">
+                <div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.5rem;">
+                    {% trans "Total images and videos combined (1-1000)" %}
+                </div>
+            </div>
+
+            <!-- Info Box -->
+            <div style="padding: 1rem; background: #dbeafe; border: 1px solid #3b82f6; border-radius: 0.375rem; margin-bottom: 1rem;">
+                <div style="font-size: 0.875rem; color: #1e40af;">
+                    <strong>ℹ️ {% trans "Note" %}:</strong> {% trans "Free images and videos from Pixabay" %}
+                </div>
+                <div style="font-size: 0.75rem; color: #1e40af; margin-top: 0.25rem;">
+                    {% trans "Results based on your content keywords" %}
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeImagesConfigModal()">
+                {% trans "Cancel" %}
+            </button>
+            <button class="btn btn-primary" onclick="getImagesWithConfig()">
+                🖼️ {% trans "Get Images" %}
             </button>
         </div>
     </div>
@@ -2221,6 +2302,306 @@ function updateVideoCostEstimate() {
     }
 }
 
+// Get Images functions
+function getImages() {
+    // Validate content exists
+    const contentElement = document.getElementById('contentPieceText');
+    if (!contentElement) {
+        showToast('{% trans "No content available" %}', 'error');
+        return;
+    }
+
+    const content = contentElement.textContent || contentElement.innerText;
+    if (!content.trim()) {
+        showToast('{% trans "Content is empty. Please add content first." %}', 'error');
+        return;
+    }
+
+    // Show configuration modal
+    showImagesConfigModal();
+}
+
+function showImagesConfigModal() {
+    const modal = document.getElementById('imagesConfigModal');
+    modal.style.display = 'flex';
+
+    // Load saved preference from localStorage
+    const savedCount = localStorage.getItem('imagesCount');
+    if (savedCount) {
+        document.getElementById('imagesCountInput').value = savedCount;
+        updateImagesCountDisplay();
+    }
+}
+
+function closeImagesConfigModal() {
+    const modal = document.getElementById('imagesConfigModal');
+    modal.style.display = 'none';
+}
+
+function updateImagesCountDisplay() {
+    const countInput = document.getElementById('imagesCountInput');
+    const countValue = document.getElementById('imagesCountValue');
+
+    let count = parseInt(countInput.value) || 10;
+
+    // Enforce limits
+    if (count < 1) {
+        count = 1;
+        countInput.value = 1;
+    } else if (count > 1000) {
+        count = 1000;
+        countInput.value = 1000;
+    }
+
+    countValue.textContent = `${count} ${count === 1 ? 'item' : 'items'}`;
+}
+
+async function getImagesWithConfig() {
+    // Get the count value
+    const count = parseInt(document.getElementById('imagesCountInput').value) || 10;
+
+    // Save preference
+    localStorage.setItem('imagesCount', count);
+
+    // Close modal
+    closeImagesConfigModal();
+
+    // Get content from the content piece
+    const contentElement = document.getElementById('contentPieceText');
+    const content = contentElement.textContent || contentElement.innerText;
+
+    showLoading('{% trans "Fetching images and videos..." %}');
+
+    try {
+        const response = await fetch(`/api/projects/${projectId}/get_images/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                text: content,
+                count: count
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || '{% trans "Failed to fetch images" %}');
+        }
+
+        hideLoading();
+
+        if (data.images && data.images.length > 0 || data.videos && data.videos.length > 0) {
+            const metadata = {
+                keywords: data.keywords || {},
+                processing_time_ms: data.processing_time_ms || 0
+            };
+            displayImagesGallery(data.images || [], data.videos || [], metadata);
+            showToast(`{% trans "Found" %} ${(data.images?.length || 0) + (data.videos?.length || 0)} {% trans "items" %}`, 'success');
+        } else {
+            showToast('{% trans "No images or videos found" %}', 'info');
+        }
+
+    } catch (error) {
+        hideLoading();
+        showToast('{% trans "Error" %}: ' + error.message, 'error');
+    }
+}
+
+function displayImagesGallery(images, videos, metadata) {
+    const galleryContainer = document.getElementById('imagesGalleryContainer');
+    const imagesGrid = document.getElementById('imagesGrid');
+    const videosGrid = document.getElementById('videosGrid');
+    const metadataDiv = document.getElementById('imagesMetadata');
+
+    if (!galleryContainer || !imagesGrid || !videosGrid) {
+        console.error('Gallery container not found');
+        return;
+    }
+
+    // Clear existing content
+    imagesGrid.innerHTML = '';
+    videosGrid.innerHTML = '';
+
+    // Display metadata if available
+    if (metadataDiv && metadata) {
+        let metadataHTML = '<div style="color: #374151;">';
+
+        // Display keywords
+        if (metadata.keywords) {
+            const { english, native, bilingual } = metadata.keywords;
+
+            if (english && english.length > 0) {
+                const keywordsStr = english.map(k => `<span style="background: #dbeafe; color: #1e40af; padding: 0.125rem 0.5rem; border-radius: 9999px; margin-right: 0.25rem; font-size: 0.8rem;">${k}</span>`).join('');
+                metadataHTML += `<div style="margin-bottom: 0.5rem;"><strong>🔑 {% trans "English Keywords" %}:</strong> ${keywordsStr}</div>`;
+            }
+
+            if (native && native.length > 0) {
+                const keywordsStr = native.map(k => `<span style="background: #fce7f3; color: #9f1239; padding: 0.125rem 0.5rem; border-radius: 9999px; margin-right: 0.25rem; font-size: 0.8rem;">${k}</span>`).join('');
+                metadataHTML += `<div style="margin-bottom: 0.5rem;"><strong>🌏 {% trans "Native Keywords" %}:</strong> ${keywordsStr}</div>`;
+            }
+
+            if (bilingual && bilingual.length > 0) {
+                const keywordsStr = bilingual.map(k => `<span style="background: #dcfce7; color: #166534; padding: 0.125rem 0.5rem; border-radius: 9999px; margin-right: 0.25rem; font-size: 0.8rem;">${k}</span>`).join('');
+                metadataHTML += `<div style="margin-bottom: 0.5rem;"><strong>🌐 {% trans "Bilingual Keywords" %}:</strong> ${keywordsStr}</div>`;
+            }
+        }
+
+        // Display processing time
+        if (metadata.processing_time_ms) {
+            const timeInSeconds = (metadata.processing_time_ms / 1000).toFixed(2);
+            metadataHTML += `<div style="color: #6b7280; font-size: 0.8rem; margin-top: 0.5rem;">⏱️ {% trans "Processing time" %}: ${timeInSeconds}s</div>`;
+        }
+
+        metadataHTML += '</div>';
+        metadataDiv.innerHTML = metadataHTML;
+    }
+
+    // Add images
+    images.forEach((item, index) => {
+        const itemDiv = document.createElement('div');
+        itemDiv.style.cssText = 'position: relative; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; background: #f9fafb; transition: transform 0.2s; cursor: pointer;';
+        itemDiv.onmouseover = () => itemDiv.style.transform = 'scale(1.05)';
+        itemDiv.onmouseout = () => itemDiv.style.transform = 'scale(1)';
+
+        const img = document.createElement('img');
+        img.src = item.urls.thumbnail || item.urls.small || item.urls.medium;
+        img.alt = item.title || 'Image';
+        img.style.cssText = 'width: 100%; height: 150px; object-fit: cover; display: block;';
+        img.loading = 'lazy';
+
+        const infoDiv = document.createElement('div');
+        infoDiv.style.cssText = 'padding: 0.5rem; font-size: 0.75rem;';
+
+        if (item.photographer) {
+            const photographerLink = document.createElement('a');
+            photographerLink.href = item.photographer_url || '#';
+            photographerLink.target = '_blank';
+            photographerLink.textContent = item.photographer;
+            photographerLink.style.cssText = 'color: #2563eb; text-decoration: none;';
+
+            const photographerDiv = document.createElement('div');
+            photographerDiv.style.cssText = 'color: #6b7280; margin-bottom: 0.25rem;';
+            photographerDiv.innerHTML = '📷 ';
+            photographerDiv.appendChild(photographerLink);
+            infoDiv.appendChild(photographerDiv);
+        }
+
+        if (item.source_url) {
+            const sourceLink = document.createElement('a');
+            sourceLink.href = item.source_url;
+            sourceLink.target = '_blank';
+            sourceLink.textContent = '{% trans "View Source" %}';
+            sourceLink.style.cssText = 'color: #2563eb; text-decoration: none; font-size: 0.7rem;';
+            infoDiv.appendChild(sourceLink);
+        }
+
+        itemDiv.onclick = () => window.open(item.urls.large || item.urls.original, '_blank');
+
+        itemDiv.appendChild(img);
+        itemDiv.appendChild(infoDiv);
+        imagesGrid.appendChild(itemDiv);
+    });
+
+    // Add videos
+    videos.forEach((item, index) => {
+        const itemDiv = document.createElement('div');
+        itemDiv.style.cssText = 'position: relative; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; background: #f9fafb;';
+
+        const video = document.createElement('video');
+        video.src = item.urls.small || item.urls.medium;
+        video.controls = true;
+        video.style.cssText = 'width: 100%; height: 150px; object-fit: cover; display: block;';
+        video.preload = 'metadata';
+
+        const infoDiv = document.createElement('div');
+        infoDiv.style.cssText = 'padding: 0.5rem; font-size: 0.75rem;';
+
+        const durationDiv = document.createElement('div');
+        durationDiv.style.cssText = 'color: #6b7280; margin-bottom: 0.25rem;';
+        durationDiv.textContent = `🎬 ${item.duration ? Math.round(item.duration) + 's' : '{% trans "Video" %}'}`;
+        infoDiv.appendChild(durationDiv);
+
+        if (item.photographer) {
+            const photographerLink = document.createElement('a');
+            photographerLink.href = item.photographer_url || '#';
+            photographerLink.target = '_blank';
+            photographerLink.textContent = item.photographer;
+            photographerLink.style.cssText = 'color: #2563eb; text-decoration: none;';
+
+            const photographerDiv = document.createElement('div');
+            photographerDiv.style.cssText = 'color: #6b7280; margin-bottom: 0.25rem;';
+            photographerDiv.innerHTML = '📹 ';
+            photographerDiv.appendChild(photographerLink);
+            infoDiv.appendChild(photographerDiv);
+        }
+
+        if (item.source_url) {
+            const sourceLink = document.createElement('a');
+            sourceLink.href = item.source_url;
+            sourceLink.target = '_blank';
+            sourceLink.textContent = '{% trans "View Source" %}';
+            sourceLink.style.cssText = 'color: #2563eb; text-decoration: none; font-size: 0.7rem;';
+            infoDiv.appendChild(sourceLink);
+        }
+
+        itemDiv.appendChild(video);
+        itemDiv.appendChild(infoDiv);
+        videosGrid.appendChild(itemDiv);
+    });
+
+    // Update count display
+    const imagesCountSpan = document.getElementById('imagesCount');
+    if (imagesCountSpan) {
+        const totalShown = images.length + videos.length;
+        imagesCountSpan.textContent = `(${images.length} ${images.length === 1 ? 'image' : 'images'}, ${videos.length} ${videos.length === 1 ? 'video' : 'videos'} - ${totalShown} total)`;
+    }
+
+    // Update tab counts
+    const imagesTabCount = document.getElementById('imagesTabCount');
+    const videosTabCount = document.getElementById('videosTabCount');
+    if (imagesTabCount) imagesTabCount.textContent = images.length;
+    if (videosTabCount) videosTabCount.textContent = videos.length;
+
+    // Show Images tab by default
+    switchMediaTab('images');
+
+    // Show the gallery
+    galleryContainer.style.display = 'block';
+}
+
+// Switch between Images and Videos tabs
+function switchMediaTab(tab) {
+    const imagesTab = document.getElementById('imagesTab');
+    const videosTab = document.getElementById('videosTab');
+    const imagesGrid = document.getElementById('imagesGrid');
+    const videosGrid = document.getElementById('videosGrid');
+
+    if (tab === 'images') {
+        // Activate Images tab
+        imagesTab.style.borderBottom = '2px solid #3b82f6';
+        imagesTab.style.color = '#3b82f6';
+        videosTab.style.borderBottom = '2px solid transparent';
+        videosTab.style.color = '#6b7280';
+
+        // Show images, hide videos
+        imagesGrid.style.display = 'grid';
+        videosGrid.style.display = 'none';
+    } else {
+        // Activate Videos tab
+        videosTab.style.borderBottom = '2px solid #3b82f6';
+        videosTab.style.color = '#3b82f6';
+        imagesTab.style.borderBottom = '2px solid transparent';
+        imagesTab.style.color = '#6b7280';
+
+        // Show videos, hide images
+        videosGrid.style.display = 'grid';
+        imagesGrid.style.display = 'none';
+    }
+}
+
 // Event listeners for video configuration selectors
 document.addEventListener('DOMContentLoaded', function() {
     const videoDuration = document.getElementById('videoDurationSelector');
@@ -2261,6 +2642,16 @@ document.addEventListener('DOMContentLoaded', function() {
         videoModal.addEventListener('click', function(e) {
             if (e.target === videoModal) {
                 closeVideoConfigModal();
+            }
+        });
+    }
+
+    // Close images modal when clicking outside
+    const imagesModal = document.getElementById('imagesConfigModal');
+    if (imagesModal) {
+        imagesModal.addEventListener('click', function(e) {
+            if (e.target === imagesModal) {
+                closeImagesConfigModal();
             }
         });
     }
