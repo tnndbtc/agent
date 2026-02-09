@@ -61,6 +61,7 @@ services:
       - RUNWAY_API_KEY=${RUNWAY_API_KEY}
       - MODEL_NAME=${MODEL_NAME:-gpt-4o-mini}
       - TEMPERATURE=${TEMPERATURE:-0.7}
+      - MEDIA_URL=${MEDIA_URL}
     depends_on:
       db:
         condition: service_healthy
@@ -94,6 +95,7 @@ services:
       - RUNWAY_API_KEY=${RUNWAY_API_KEY}
       - MODEL_NAME=${MODEL_NAME:-gpt-4o-mini}
       - TEMPERATURE=${TEMPERATURE:-0.7}
+      - MEDIA_URL=${MEDIA_URL}
     depends_on:
       - db
       - redis
@@ -124,6 +126,7 @@ services:
       - RUNWAY_API_KEY=${RUNWAY_API_KEY}
       - MODEL_NAME=${MODEL_NAME:-gpt-4o-mini}
       - TEMPERATURE=${TEMPERATURE:-0.7}
+      - MEDIA_URL=${MEDIA_URL}
     depends_on:
       - db
       - redis

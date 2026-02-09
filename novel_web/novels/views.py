@@ -794,6 +794,7 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
     def get_images(self, request, pk=None):
         """Get images and videos from external agent API."""
         import requests
+        import os
 
         project = self.get_object()
 
@@ -815,7 +816,12 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
 
         try:
             # Make POST request to external agent API
-            agent_api_url = 'http://192.168.86.40:28000/agent'
+            agent_api_url = os.environ.get('MEDIA_URL')
+            if not agent_api_url:
+                return Response(
+                    {'error': 'MEDIA_URL environment variable is not set'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
 
             logger.info(f"Fetching {count} images/videos from agent API for project {project.id}")
 
