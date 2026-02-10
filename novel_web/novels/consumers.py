@@ -84,3 +84,37 @@ class GenerationConsumer(AsyncWebsocketConsumer):
                 'error': 'Task not found',
                 'status': 'failed'
             }
+
+
+class ProjectConsumer(AsyncWebsocketConsumer):
+    """WebSocket consumer for project-level real-time updates (video completion, etc)."""
+
+    async def connect(self):
+        """Handle WebSocket connection for project updates."""
+        self.project_id = self.scope['url_route']['kwargs']['project_id']
+        self.group_name = f'project_{self.project_id}'
+
+        # Join project group
+        await self.channel_layer.group_add(
+            self.group_name,
+            self.channel_name
+        )
+
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        """Handle WebSocket disconnection."""
+        # Leave project group
+        await self.channel_layer.group_discard(
+            self.group_name,
+            self.channel_name
+        )
+
+    async def video_complete(self, event):
+        """Send video completion event to WebSocket."""
+        await self.send(text_data=json.dumps({
+            'type': 'video_complete',
+            'video_url': event['video_url'],
+            'status': event['status'],
+            'job_id': event.get('job_id')
+        }))

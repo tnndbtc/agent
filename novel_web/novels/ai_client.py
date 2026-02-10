@@ -1,5 +1,6 @@
 """AI Client wrapper with comprehensive logging for OpenAI API calls."""
 import logging
+import requests
 from django.conf import settings
 from openai import OpenAI
 
@@ -691,4 +692,130 @@ class RunwayVideoClient:
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Video download error: {str(e)}")
+            raise
+
+    def generate_video_from_image(self, image_url, model, ratio, duration, prompt_text=""):
+        """
+        Generate video from image using Runway API.
+
+        API Endpoint: POST /v1/image_to_video
+        Docs: https://docs.dev.runwayml.com/api/#tag/Start-generating/paths/~1v1~1image_to_video/post
+
+        Args:
+            image_url: HTTPS URL to source image (from Pixabay)
+            model: One of ['gen4_turbo', 'veo3.1', 'gen3a_turbo', 'veo3.1_fast', 'veo3']
+            ratio: One of ['1280:720', '720:1280', '1104:832', '832:1104', '960:960', '1584:672']
+            duration: Integer - must be exactly 4, 6, or 8 seconds
+            prompt_text: Optional description up to 1000 characters
+
+        Returns:
+            dict: {'task_id': str, 'status': str}
+        """
+        if not self.api_key:
+            raise ValueError("RUNWAY_API_KEY not configured")
+
+        # Validate model
+        valid_models = ['gen4_turbo', 'veo3.1', 'gen3a_turbo', 'veo3.1_fast', 'veo3']
+        if model not in valid_models:
+            raise ValueError(f"Invalid model. Must be one of: {valid_models}")
+
+        # Validate ratio
+        valid_ratios = ['1280:720', '720:1280', '1104:832', '832:1104', '960:960', '1584:672']
+        if ratio not in valid_ratios:
+            raise ValueError(f"Invalid ratio. Must be one of: {valid_ratios}")
+
+        # Validate duration - Runway API only accepts 4, 6, or 8 seconds
+        valid_durations = [4, 6, 8]
+        if duration not in valid_durations:
+            raise ValueError(f"Duration must be exactly 4, 6, or 8 seconds (got {duration})")
+
+        url = f"{self.base_url}/image_to_video"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "X-Runway-Version": "2024-11-06",
+            "Content-Type": "application/json"
+        }
+
+        body = {
+            "model": model,
+            "promptImage": image_url,  # HTTPS URL from Pixabay
+            "ratio": ratio,
+            "duration": duration
+        }
+
+        if prompt_text:
+            body["promptText"] = prompt_text[:1000]  # Limit to 1000 chars
+
+        try:
+            logger.info(f"Generating video from image: {image_url[:100]}... with model {model}")
+            response = requests.post(url, json=body, headers=headers, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+
+            task_id = data.get('id')
+            logger.info(f"Image-to-video generation started: task_id={task_id}")
+
+            return {
+                'task_id': task_id,
+                'status': 'queued'
+            }
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Runway image_to_video API error: {str(e)}")
+            if hasattr(e, 'response') and e.response is not None:
+                logger.error(f"Response content: {e.response.text}")
+            raise
+
+    def generate_video_from_video(self, video_url, prompt_text):
+        """
+        Transform/extend video using Runway API.
+
+        API Endpoint: POST /v1/video_to_video
+        Docs: https://docs.dev.runwayml.com/api/#tag/Start-generating/paths/~1v1~1video_to_video/post
+
+        Args:
+            video_url: HTTPS URL to source video (from Pixabay)
+            prompt_text: REQUIRED description of transformation (1-1000 characters)
+
+        Returns:
+            dict: {'task_id': str, 'status': str}
+
+        Note: Model is fixed to 'gen4_aleph' (only model supported)
+              Duration and ratio are determined by input video
+        """
+        if not self.api_key:
+            raise ValueError("RUNWAY_API_KEY not configured")
+
+        if not prompt_text or len(prompt_text.strip()) == 0:
+            raise ValueError("prompt_text is required for video-to-video generation")
+
+        url = f"{self.base_url}/video_to_video"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "X-Runway-Version": "2024-11-06",
+            "Content-Type": "application/json"
+        }
+
+        body = {
+            "model": "gen4_aleph",  # Only model supported
+            "videoUri": video_url,  # HTTPS URL from Pixabay
+            "promptText": prompt_text[:1000]  # Limit to 1000 chars
+        }
+
+        try:
+            logger.info(f"Generating video from video: {video_url[:100]}... with prompt: {prompt_text[:50]}...")
+            response = requests.post(url, json=body, headers=headers, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+
+            task_id = data.get('id')
+            logger.info(f"Video-to-video generation started: task_id={task_id}")
+
+            return {
+                'task_id': task_id,
+                'status': 'queued'
+            }
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Runway video_to_video API error: {str(e)}")
+            if hasattr(e, 'response') and e.response is not None:
+                logger.error(f"Response content: {e.response.text}")
             raise

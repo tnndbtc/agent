@@ -1339,6 +1339,33 @@ class ContentPiece(models.Model):
         blank=True,
         help_text="Aspect ratio (e.g., '16:9', '9:16', '1:1')"
     )
+    # New fields for media-to-video generation
+    source_image_url = models.URLField(
+        max_length=1000,
+        null=True,
+        blank=True,
+        help_text="Source image URL for image-to-video generation"
+    )
+    source_video_url = models.URLField(
+        max_length=1000,
+        null=True,
+        blank=True,
+        help_text="Source video URL for video-to-video generation"
+    )
+    video_generation_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('text', 'Text to Video'),
+            ('image', 'Image to Video'),
+            ('video', 'Video to Video')
+        ],
+        default='text',
+        help_text="Type of video generation method used"
+    )
+    video_motion_prompt = models.TextField(
+        blank=True,
+        help_text="Optional prompt for guiding video generation from media"
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

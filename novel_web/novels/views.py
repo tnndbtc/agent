@@ -945,6 +945,187 @@ class NovelProjectViewSet(viewsets.ModelViewSet):
 
         return Response(response_data)
 
+    @action(detail=True, methods=['post'], url_path='generate_video_from_media')
+    def generate_video_from_media(self, request, pk=None):
+        """
+        Generate video from image or video using Runway API.
+
+        Image-to-Video uses: gen4_turbo, veo3.1, gen3a_turbo, veo3.1_fast, veo3
+        Video-to-Video uses: gen4_aleph only
+
+        Request body:
+        {
+            "source_type": "image" | "video",
+            "source_url": "https://pixabay.com/...",
+            "model": "veo3.1" (for image) or "gen4_aleph" (for video),
+            "duration": 5 (for image only, 2-10 seconds),
+            "ratio": "1280:720" (for image only),
+            "prompt": "optional for image, required for video"
+        }
+        """
+        from .ai_client import RunwayVideoClient
+        from .tasks import poll_video_generation
+
+        project = self.get_object()
+        content_piece = project.content_piece
+
+        if not content_piece:
+            return Response(
+                {'error': 'No content available for video generation'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        source_type = request.data.get('source_type')
+        source_url = request.data.get('source_url')
+        prompt = request.data.get('prompt', '')
+
+        if not source_type or not source_url:
+            return Response(
+                {'error': 'source_type and source_url are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # MOCK MODE: Comment out real API calls for testing
+            # USE_MOCK = True  # Set to False to use real Runway API
+            USE_MOCK = False  # Set to False to use real Runway API
+
+            if USE_MOCK:
+                logger.info(f"🧪 MOCK MODE: Simulating {source_type}-to-video generation (To disable: novels/views.py:990 USE_MOCK=False)")
+                logger.info(f"🧪 MOCK: source_url={source_url[:100]}...")
+                logger.info(f"🧪 MOCK: prompt={prompt}")
+
+                # Mock response
+                result = {
+                    'task_id': f'mock_task_{source_type}_{timezone.now().timestamp()}',
+                    'status': 'queued'
+                }
+
+                if source_type == 'image':
+                    model = request.data.get('model', 'veo3.1')
+                    duration = int(request.data.get('duration', 6))
+                    ratio = request.data.get('ratio', '1280:720')
+
+                    logger.info(f"🧪 MOCK: Image-to-video with model={model}, duration={duration}, ratio={ratio}")
+
+                    # Update content piece
+                    content_piece.video_generation_type = 'image'
+                    content_piece.source_image_url = source_url
+                    content_piece.video_duration = duration
+                    content_piece.video_resolution = ratio
+                    content_piece.video_model = model
+
+                elif source_type == 'video':
+                    if not prompt:
+                        return Response(
+                            {'error': 'prompt is required for video-to-video generation'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
+                    logger.info(f"🧪 MOCK: Video-to-video with prompt={prompt[:50]}...")
+
+                    # Update content piece
+                    content_piece.video_generation_type = 'video'
+                    content_piece.source_video_url = source_url
+                    content_piece.video_model = 'gen4_aleph'
+
+                else:
+                    return Response(
+                        {'error': 'Invalid source_type. Must be "image" or "video"'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+            else:
+                # REAL API MODE
+                logger.info(f"🚀 REAL API MODE: Calling Runway API for {source_type}-to-video (To enable mock: novels/views.py:991 USE_MOCK=True)")
+                runway_client = RunwayVideoClient()
+
+                if source_type == 'image':
+                    model = request.data.get('model', 'veo3.1')
+                    duration = int(request.data.get('duration', 6))
+                    ratio = request.data.get('ratio', '1280:720')
+
+                    logger.info(f"Starting image-to-video generation: model={model}, duration={duration}, ratio={ratio}")
+
+                    result = runway_client.generate_video_from_image(
+                        image_url=source_url,
+                        model=model,
+                        ratio=ratio,
+                        duration=duration,
+                        prompt_text=prompt
+                    )
+
+                    # Update content piece
+                    content_piece.video_generation_type = 'image'
+                    content_piece.source_image_url = source_url
+                    content_piece.video_duration = duration
+                    content_piece.video_resolution = ratio
+                    content_piece.video_model = model
+
+                elif source_type == 'video':
+                    if not prompt:
+                        return Response(
+                            {'error': 'prompt is required for video-to-video generation'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
+                    logger.info(f"Starting video-to-video generation with prompt: {prompt[:50]}...")
+
+                    result = runway_client.generate_video_from_video(
+                        video_url=source_url,
+                        prompt_text=prompt
+                    )
+
+                    # Update content piece
+                    content_piece.video_generation_type = 'video'
+                    content_piece.source_video_url = source_url
+                    content_piece.video_model = 'gen4_aleph'
+
+                else:
+                    return Response(
+                        {'error': 'Invalid source_type. Must be "image" or "video"'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+            # Common updates
+            content_piece.video_job_id = result['task_id']
+            content_piece.video_status = result['status']
+            content_piece.video_motion_prompt = prompt
+            content_piece.video_generated_at = timezone.now()
+            content_piece.save()
+
+            logger.info(f"Video generation job created: task_id={result['task_id']}, type={source_type}")
+
+            # Dispatch Celery task to poll for completion
+            poll_video_generation.apply_async(
+                args=[content_piece.id, result['task_id']],
+                countdown=60  # Start polling after 60 seconds
+            )
+
+            response_data = {
+                'job_id': result['task_id'],
+                'status': result['status'],
+                'message': 'Video generation started',
+                'source_type': source_type
+            }
+
+            logger.info(f"✅ SUCCESS: Returning response: {response_data}")
+
+            return Response(response_data)
+
+        except ValueError as e:
+            logger.error(f"Validation error in generate_video_from_media: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Error generating video from media: {str(e)}")
+            return Response(
+                {'error': 'Failed to start video generation'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     @action(detail=True, methods=['get'], url_path='generation_params')
     def get_generation_params(self, request, pk=None):
         """Get generation parameters (temperature, top_p, ai_model) from the last content generation.

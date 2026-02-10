@@ -662,6 +662,23 @@ def poll_video_generation(self, content_piece_id, task_id):
 
             logger.info(f"Video saved successfully: {filename}")
 
+            # Broadcast completion to WebSocket for real-time frontend update
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                try:
+                    async_to_sync(channel_layer.group_send)(
+                        f'project_{content_piece.project.id}',
+                        {
+                            'type': 'video_complete',
+                            'video_url': content_piece.video_file.url,
+                            'status': 'completed',
+                            'job_id': task_id
+                        }
+                    )
+                    logger.info(f"✅ WebSocket broadcast sent to project_{content_piece.project.id}")
+                except Exception as e:
+                    logger.warning(f"Failed to broadcast WebSocket message: {e}")
+
         elif status_result['status'] == 'failed':
             # Video generation failed
             error_msg = status_result.get('error', 'Unknown error')

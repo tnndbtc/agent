@@ -246,9 +246,6 @@
                     <button id="saveContentBtn" class="btn btn-sm btn-primary" onclick="saveContentPiece()">
                         💾 {% trans "Save" %}
                     </button>
-                    <button id="videoBtn" class="btn btn-sm btn-secondary" onclick="showVideoConfigModal()">
-                        🎬 {% trans "Generate Video" %}
-                    </button>
                     <button id="getImagesBtn" class="btn btn-sm btn-secondary" onclick="getImages()">
                         🖼️ {% trans "Get Images" %}
                     </button>
@@ -271,39 +268,6 @@
                             <source id="videoSource" type="video/mp4">
                             {% trans "Your browser does not support the video element." %}
                         </video>
-                    </div>
-                </div>
-
-                <!-- Images/Videos Gallery Container -->
-                <div id="imagesGalleryContainer" style="display: none; margin-top: 1rem; padding: 1rem; background: #ffffff; border: 1px solid #d1d5db; border-radius: 6px;">
-                    <div style="margin-bottom: 1rem;">
-                        <span style="color: #374151; font-weight: 500;">🖼️ {% trans "Retrieved Images & Videos" %}:</span>
-                        <span id="imagesCount" style="color: #6b7280; font-size: 0.875rem; margin-left: 0.5rem;"></span>
-                    </div>
-                    <!-- Metadata Section -->
-                    <div id="imagesMetadata" style="margin-bottom: 1rem; padding: 0.75rem; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 0.875rem;">
-                        <!-- Metadata will be displayed here -->
-                    </div>
-                    <!-- Tabs -->
-                    <div style="border-bottom: 1px solid #e5e7eb; margin-bottom: 1rem;">
-                        <div style="display: flex; gap: 0.5rem;">
-                            <button id="imagesTab" onclick="switchMediaTab('images')"
-                                    style="padding: 0.5rem 1rem; border: none; background: none; cursor: pointer; font-weight: 500; border-bottom: 2px solid #3b82f6; color: #3b82f6;">
-                                📷 {% trans "Images" %} (<span id="imagesTabCount">0</span>)
-                            </button>
-                            <button id="videosTab" onclick="switchMediaTab('videos')"
-                                    style="padding: 0.5rem 1rem; border: none; background: none; cursor: pointer; font-weight: 500; border-bottom: 2px solid transparent; color: #6b7280;">
-                                🎬 {% trans "Videos" %} (<span id="videosTabCount">0</span>)
-                            </button>
-                        </div>
-                    </div>
-                    <!-- Images Grid -->
-                    <div id="imagesGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; max-height: 600px; overflow-y: auto; padding-right: 0.5rem;">
-                        <!-- Images will be displayed here -->
-                    </div>
-                    <!-- Videos Grid -->
-                    <div id="videosGrid" style="display: none; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; max-height: 600px; overflow-y: auto; padding-right: 0.5rem;">
-                        <!-- Videos will be displayed here -->
                     </div>
                 </div>
 
@@ -703,96 +667,9 @@
     </div>
 </div>
 
-<!-- Video Generation Configuration Modal -->
-<div id="videoConfigModal" class="modal-overlay" style="display: none;">
-    <div class="modal-dialog">
-        <div class="modal-header">
-            <h3>{% trans "Video Generation Settings" %}</h3>
-            <button class="modal-close" onclick="closeVideoConfigModal()">&times;</button>
-        </div>
-        <div class="modal-body">
-            <!-- Duration Selection -->
-            <div style="margin-bottom: 1.5rem;">
-                <div style="font-weight: 600; color: #374151; margin-bottom: 0.75rem; font-size: 0.95rem;">
-                    {% trans "Duration" %}
-                </div>
-                <div style="text-align: center; margin-bottom: 0.5rem;">
-                    <span id="videoDurationValue" style="display: inline-block; background-color: #ec4899; color: white; padding: 0.25rem 0.75rem; border-radius: 9999px; font-weight: 600; font-size: 0.9rem; min-width: 5rem;">4 seconds</span>
-                </div>
-                <select id="videoDurationSelector" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; cursor: pointer; font-size: 0.9rem;">
-                    <option value="4" selected>4 seconds (~$1.60)</option>
-                    <option value="6">6 seconds (~$2.40)</option>
-                    <option value="8">8 seconds (~$3.20)</option>
-                </select>
-            </div>
-
-            <!-- Resolution Selection -->
-            <div style="margin-bottom: 1.5rem;">
-                <div style="font-weight: 600; color: #374151; margin-bottom: 0.75rem; font-size: 0.95rem;">
-                    {% trans "Resolution" %}
-                </div>
-                <div style="text-align: center; margin-bottom: 0.5rem;">
-                    <span id="videoResolutionValue" style="display: inline-block; background-color: #8b5cf6; color: white; padding: 0.25rem 0.75rem; border-radius: 9999px; font-weight: 600; font-size: 0.9rem; min-width: 8rem;">720p (HD)</span>
-                </div>
-                <select id="videoResolutionSelector" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; cursor: pointer; font-size: 0.9rem;">
-                    <option value="1280x720" selected>720p (1280x720) - HD</option>
-                    <option value="1920x1080">1080p (1920x1080) - Full HD</option>
-                    <option value="3840x2160">4K (3840x2160) - Ultra HD</option>
-                </select>
-            </div>
-
-            <!-- Model Selection -->
-            <div style="margin-bottom: 1.5rem;">
-                <div style="font-weight: 600; color: #374151; margin-bottom: 0.75rem; font-size: 0.95rem;">
-                    {% trans "Model" %}
-                </div>
-                <div style="text-align: center; margin-bottom: 0.5rem;">
-                    <span id="videoModelValue" style="display: inline-block; background-color: #3b82f6; color: white; padding: 0.25rem 0.75rem; border-radius: 9999px; font-weight: 600; font-size: 0.9rem; min-width: 8rem;">Veo 3.1</span>
-                </div>
-                <select id="videoModelSelector" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; cursor: pointer; font-size: 0.9rem;">
-                    <option value="veo3.1" selected>Veo 3.1 (Google, $0.40/sec)</option>
-                </select>
-            </div>
-
-            <!-- Aspect Ratio Selection -->
-            <div style="margin-bottom: 1.5rem;">
-                <div style="font-weight: 600; color: #374151; margin-bottom: 0.75rem; font-size: 0.95rem;">
-                    {% trans "Aspect Ratio" %}
-                </div>
-                <div style="text-align: center; margin-bottom: 0.5rem;">
-                    <span id="videoRatioValue" style="display: inline-block; background-color: #f59e0b; color: white; padding: 0.25rem 0.75rem; border-radius: 9999px; font-weight: 600; font-size: 0.9rem; min-width: 6rem;">16:9</span>
-                </div>
-                <select id="videoRatioSelector" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; cursor: pointer; font-size: 0.9rem;">
-                    <option value="16:9" selected>16:9 (Landscape/Widescreen)</option>
-                    <option value="9:16">9:16 (Portrait/Mobile)</option>
-                    <option value="1:1">1:1 (Square)</option>
-                </select>
-            </div>
-
-            <!-- Estimated Cost -->
-            <div style="padding: 1rem; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 0.375rem; margin-bottom: 1rem;">
-                <div style="font-size: 0.875rem; color: #92400e;">
-                    <strong>{% trans "Estimated Cost" %}:</strong> <span id="estimatedCost">$1.60</span>
-                </div>
-                <div style="font-size: 0.75rem; color: #92400e; margin-top: 0.25rem;">
-                    {% trans "Processing time: 2-5 minutes" %}
-                </div>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="closeVideoConfigModal()">
-                {% trans "Cancel" %}
-            </button>
-            <button class="btn btn-primary" onclick="generateVideoWithConfig()">
-                🎬 {% trans "Generate Video" %}
-            </button>
-        </div>
-    </div>
-</div>
-
 <!-- Get Images Configuration Modal -->
 <div id="imagesConfigModal" class="modal-overlay" style="display: none;">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-large">
         <div class="modal-header">
             <h3>{% trans "Get Images/Videos Settings" %}</h3>
             <button class="modal-close" onclick="closeImagesConfigModal()">&times;</button>
@@ -823,6 +700,113 @@
                     {% trans "Results based on your content keywords" %}
                 </div>
             </div>
+
+            <!-- Progress Bar for Image Retrieval -->
+            <div id="imagesProgressContainer" class="progress-container" style="display: none; margin-bottom: 1rem;">
+                <div class="progress-bar">
+                    <div id="imagesProgressBarFill" class="progress-bar-fill">0%</div>
+                </div>
+                <div id="imagesProgressText" class="progress-text">
+                    {% trans "Fetching images and videos..." %}
+                </div>
+            </div>
+
+            <!-- Video Generation Settings (collapsed by default) -->
+            <div id="videoGenSettings" style="display: none; padding: 1rem; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 1rem;">
+                <h4 style="margin-top: 0; margin-bottom: 1rem; color: #374151;">🎬 {% trans "Video Generation Settings" %}</h4>
+
+                <!-- Image-to-Video Options (shown when Images tab active) -->
+                <div id="imageToVideoOptions">
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">{% trans "Model" %}:</label>
+                        <select id="imageVideoModel" class="form-control" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem;">
+                            <option value="gen4_turbo">Gen4 Turbo</option>
+                            <option value="veo3.1" selected>Veo 3.1</option>
+                            <option value="gen3a_turbo">Gen3a Turbo</option>
+                            <option value="veo3.1_fast">Veo 3.1 Fast</option>
+                            <option value="veo3">Veo 3</option>
+                        </select>
+                    </div>
+
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">{% trans "Duration" %}:</label>
+                        <select id="imageVideoDuration" class="form-control" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem;">
+                            <option value="4">4 seconds</option>
+                            <option value="6" selected>6 seconds</option>
+                            <option value="8">8 seconds</option>
+                        </select>
+                    </div>
+
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">{% trans "Aspect Ratio" %}:</label>
+                        <select id="imageVideoRatio" class="form-control" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem;">
+                            <option value="1280:720">1280:720 (16:9 Landscape)</option>
+                            <option value="720:1280">720:1280 (9:16 Portrait)</option>
+                            <option value="1104:832">1104:832</option>
+                            <option value="832:1104">832:1104</option>
+                            <option value="960:960">960:960 (1:1 Square)</option>
+                            <option value="1584:672">1584:672 (21:9 Ultrawide)</option>
+                        </select>
+                    </div>
+
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">{% trans "Motion Prompt (Optional)" %}:</label>
+                        <textarea id="imageVideoPrompt" class="form-control" placeholder="{% trans "e.g., camera slowly zooms in, waves moving, clouds drifting" %}" rows="2" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; resize: vertical;"></textarea>
+                    </div>
+                </div>
+
+                <!-- Video-to-Video Options (shown when Videos tab active) -->
+                <div id="videoToVideoOptions" style="display: none;">
+                    <div style="padding: 0.75rem; background: #dbeafe; border: 1px solid #3b82f6; border-radius: 0.375rem; margin-bottom: 1rem; font-size: 0.875rem; color: #1e40af;">
+                        <strong>ℹ️ {% trans "Note" %}:</strong> {% trans "Model: gen4_aleph (only model for video-to-video). Duration & aspect ratio match source video." %}
+                    </div>
+
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">{% trans "Transformation Prompt (Required)" %}:</label>
+                        <textarea id="videoVideoPrompt" class="form-control" required placeholder="{% trans "e.g., make it look like watercolor painting, add vintage film effect" %}" rows="3" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; resize: vertical;" oninput="updateGenerateVideoButton()"></textarea>
+                        <div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;">
+                            {% trans "Describe how you want to transform the video" %}
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 0.75rem; padding: 0.5rem; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 0.375rem; font-size: 0.875rem; color: #92400e;">
+                    <strong>{% trans "Selected" %}:</strong> <span id="selectedMediaInfo">{% trans "None" %}</span>
+                </div>
+            </div>
+
+            <!-- Images/Videos Gallery Container -->
+            <div id="imagesGalleryContainer" style="display: none; margin-top: 1rem; padding: 1rem; background: #ffffff; border: 1px solid #d1d5db; border-radius: 6px;">
+                <div style="margin-bottom: 1rem;">
+                    <span style="color: #374151; font-weight: 500;">🖼️ {% trans "Retrieved Images & Videos" %}:</span>
+                    <span id="imagesCount" style="color: #6b7280; font-size: 0.875rem; margin-left: 0.5rem;"></span>
+                </div>
+                <!-- Metadata Section -->
+                <div id="imagesMetadata" style="margin-bottom: 1rem; padding: 0.75rem; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 0.875rem;">
+                    <!-- Metadata will be displayed here -->
+                </div>
+                <!-- Tabs -->
+                <div style="border-bottom: 1px solid #e5e7eb; margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button id="imagesTab" onclick="switchMediaTab('images')"
+                                style="padding: 0.5rem 1rem; border: none; background: none; cursor: pointer; font-weight: 500; border-bottom: 2px solid #3b82f6; color: #3b82f6;">
+                            📷 {% trans "Images" %} (<span id="imagesTabCount">0</span>)
+                        </button>
+                        <button id="videosTab" onclick="switchMediaTab('videos')"
+                                style="padding: 0.5rem 1rem; border: none; background: none; cursor: pointer; font-weight: 500; border-bottom: 2px solid transparent; color: #6b7280;">
+                            🎬 {% trans "Videos" %} (<span id="videosTabCount">0</span>)
+                        </button>
+                    </div>
+                </div>
+                <!-- Images Grid -->
+                <div id="imagesGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; max-height: 400px; overflow-y: auto; padding-right: 0.5rem;">
+                    <!-- Images will be displayed here -->
+                </div>
+                <!-- Videos Grid -->
+                <div id="videosGrid" style="display: none; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; max-height: 400px; overflow-y: auto; padding-right: 0.5rem;">
+                    <!-- Videos will be displayed here -->
+                </div>
+            </div>
         </div>
         <div class="modal-footer">
             <button class="btn btn-secondary" onclick="closeImagesConfigModal()">
@@ -830,6 +814,9 @@
             </button>
             <button class="btn btn-primary" onclick="getImagesWithConfig()">
                 🖼️ {% trans "Get Images" %}
+            </button>
+            <button id="generateVideoBtn" class="btn btn-primary" onclick="generateVideoFromMedia()" disabled style="background-color: #8b5cf6; border-color: #8b5cf6;">
+                🎬 {% trans "Generate Video" %}
             </button>
         </div>
     </div>
@@ -2120,87 +2107,85 @@ async function saveContentPiece() {
     }
 }
 
-// Video generation functions
-function showVideoConfigModal() {
-    const modal = document.getElementById('videoConfigModal');
-    modal.style.display = 'flex';
-
-    // Load preferences from localStorage
-    const savedPrefs = localStorage.getItem('videoGenerationPrefs');
-    if (savedPrefs) {
-        try {
-            const prefs = JSON.parse(savedPrefs);
-            if (prefs.duration) document.getElementById('videoDurationSelector').value = prefs.duration;
-            if (prefs.resolution) document.getElementById('videoResolutionSelector').value = prefs.resolution;
-            if (prefs.model) document.getElementById('videoModelSelector').value = prefs.model;
-            if (prefs.aspectRatio) document.getElementById('videoRatioSelector').value = prefs.aspectRatio;
-            updateVideoCostEstimate();
-        } catch (e) {
-            console.error('Error loading video preferences:', e);
-        }
-    }
-}
-
-function closeVideoConfigModal() {
-    const modal = document.getElementById('videoConfigModal');
-    modal.style.display = 'none';
-}
-
-async function generateVideoWithConfig() {
-    // Read configuration values
-    const duration = parseInt(document.getElementById('videoDurationSelector').value);
-    const resolution = document.getElementById('videoResolutionSelector').value;
-    const model = document.getElementById('videoModelSelector').value;
-    const aspectRatio = document.getElementById('videoRatioSelector').value;
-
-    // Save preferences to localStorage
-    const prefs = { duration, resolution, model, aspectRatio };
-    localStorage.setItem('videoGenerationPrefs', JSON.stringify(prefs));
-
-    // Close modal and show loading
-    closeVideoConfigModal();
-    showLoading('{% trans "Starting video generation..." %}');
-
-    try {
-        const response = await fetch(`/api/projects/${projectId}/generate_video/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            },
-            body: JSON.stringify({
-                duration: duration,
-                resolution: resolution,
-                model: model,
-                aspect_ratio: aspectRatio
-            })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || '{% trans "Video generation failed" %}');
-        }
-
-        // Update button to show processing state
-        const videoBtn = document.getElementById('videoBtn');
-        videoBtn.disabled = true;
-        videoBtn.innerHTML = '⏳ {% trans "Generating..." %}';
-
-        showToast('{% trans "Video generation started. This may take a few minutes..." %}', 'info');
-        hideLoading();
-
-        // Start polling for video status
-        pollVideoStatus(projectId);
-
-    } catch (error) {
-        hideLoading();
-        showToast('{% trans "Error" %}: ' + error.message, 'error');
-    }
-}
-
+// Video polling functions (reused for both text-to-video and media-to-video)
 let videoPollingInterval = null;
 let videoPollingStartTime = null;
+let videoPollingRetries = 0;
+const MAX_VIDEO_POLLING_RETRIES = 20; // 20 retries * 15s = 5 minutes
+
+// WebSocket for real-time video completion updates
+let projectWebSocket = null;
+
+function connectProjectWebSocket(projectId) {
+    // Don't reconnect if already connected
+    if (projectWebSocket && projectWebSocket.readyState === WebSocket.OPEN) {
+        console.log('WebSocket already connected');
+        return;
+    }
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/project/${projectId}/`;
+
+    console.log(`🔌 Connecting to WebSocket: ${wsUrl}`);
+
+    try {
+        projectWebSocket = new WebSocket(wsUrl);
+
+        projectWebSocket.onopen = function(e) {
+            console.log('✅ WebSocket connected for project updates');
+        };
+
+        projectWebSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            console.log('📨 WebSocket message received:', data);
+
+            if (data.type === 'video_complete' && data.video_url) {
+                console.log('🎬 Video generation completed via WebSocket!');
+
+                // Stop polling
+                if (videoPollingInterval) {
+                    clearInterval(videoPollingInterval);
+                    videoPollingInterval = null;
+                }
+
+                // Update button
+                const videoBtn = document.getElementById('videoBtn');
+                if (videoBtn) {
+                    videoBtn.disabled = false;
+                    videoBtn.innerHTML = '🎬 {% trans "Generate Video" %}';
+                }
+
+                // Display video player
+                displayVideoPlayer(data.video_url);
+                showToast('{% trans "Video generated successfully!" %}', 'success');
+
+                // Close WebSocket after video is displayed
+                closeProjectWebSocket();
+            }
+        };
+
+        projectWebSocket.onerror = function(error) {
+            console.error('❌ WebSocket error:', error);
+        };
+
+        projectWebSocket.onclose = function(e) {
+            console.log('🔌 WebSocket closed:', e.code, e.reason);
+            projectWebSocket = null;
+        };
+
+    } catch (error) {
+        console.error('Failed to create WebSocket:', error);
+        projectWebSocket = null;
+    }
+}
+
+function closeProjectWebSocket() {
+    if (projectWebSocket) {
+        console.log('🔌 Closing WebSocket connection');
+        projectWebSocket.close();
+        projectWebSocket = null;
+    }
+}
 
 function pollVideoStatus(projectId) {
     // Clear any existing polling interval
@@ -2208,25 +2193,29 @@ function pollVideoStatus(projectId) {
         clearInterval(videoPollingInterval);
     }
 
-    // Track when polling started
-    videoPollingStartTime = Date.now();
-    const maxPollingDuration = 10 * 60 * 1000; // 10 minutes in milliseconds
+    // Reset retry counter
+    videoPollingRetries = 0;
+    console.log(`📊 Starting video status polling (max ${MAX_VIDEO_POLLING_RETRIES} retries, 15s interval)`);
 
-    // Poll every 60 seconds
+    // Poll every 15 seconds (improved from 60s)
     videoPollingInterval = setInterval(async () => {
+        videoPollingRetries++;
+        console.log(`📊 Polling video status... (attempt ${videoPollingRetries}/${MAX_VIDEO_POLLING_RETRIES})`);
+
         try {
-            // Check if we've exceeded 10-minute timeout
-            const elapsedTime = Date.now() - videoPollingStartTime;
-            if (elapsedTime > maxPollingDuration) {
+            // Check if we've exceeded max retries
+            if (videoPollingRetries > MAX_VIDEO_POLLING_RETRIES) {
                 clearInterval(videoPollingInterval);
                 videoPollingInterval = null;
 
                 // Update button
                 const videoBtn = document.getElementById('videoBtn');
-                videoBtn.disabled = false;
-                videoBtn.innerHTML = '🎬 {% trans "Generate Video" %}';
+                if (videoBtn) {
+                    videoBtn.disabled = false;
+                    videoBtn.innerHTML = '🎬 {% trans "Generate Video" %}';
+                }
 
-                showToast('{% trans "Video generation timed out after 10 minutes" %}', 'error');
+                showToast('{% trans "Video generation timed out after 5 minutes" %}', 'error');
                 return;
             }
 
@@ -2243,40 +2232,63 @@ function pollVideoStatus(projectId) {
                 // Stop polling
                 clearInterval(videoPollingInterval);
                 videoPollingInterval = null;
+                console.log('✅ Video completed via polling');
 
                 // Update button
                 const videoBtn = document.getElementById('videoBtn');
-                videoBtn.disabled = false;
-                videoBtn.innerHTML = '🎬 {% trans "Generate Video" %}';
+                if (videoBtn) {
+                    videoBtn.disabled = false;
+                    videoBtn.innerHTML = '🎬 {% trans "Generate Video" %}';
+                }
 
                 // Display video player
                 displayVideoPlayer(data.video_url);
                 showToast('{% trans "Video generated successfully!" %}', 'success');
 
+                // Close WebSocket if still open
+                closeProjectWebSocket();
+
             } else if (data.status === 'failed') {
                 // Stop polling on failure
                 clearInterval(videoPollingInterval);
                 videoPollingInterval = null;
+                console.error('❌ Video generation failed');
 
                 // Update button
                 const videoBtn = document.getElementById('videoBtn');
-                videoBtn.disabled = false;
-                videoBtn.innerHTML = '🎬 {% trans "Generate Video" %}';
+                if (videoBtn) {
+                    videoBtn.disabled = false;
+                    videoBtn.innerHTML = '🎬 {% trans "Generate Video" %}';
+                }
 
                 showToast('{% trans "Video generation failed" %}', 'error');
+
+                // Close WebSocket if still open
+                closeProjectWebSocket();
             }
-            // Otherwise keep polling (status is 'processing' or 'pending')
+            // Otherwise keep polling (status is 'processing' or 'queued')
 
         } catch (error) {
             console.error('Error checking video status:', error);
         }
-    }, 60000); // Poll every 60 seconds
+    }, 15000); // Poll every 15 seconds (improved from 60s)
 }
 
 function displayVideoPlayer(videoUrl) {
     const playerContainer = document.getElementById('videoPlayerContainer');
     const videoSource = document.getElementById('videoSource');
     const videoPlayer = document.getElementById('videoPlayer');
+
+    // Stop polling if still running
+    if (videoPollingInterval) {
+        clearInterval(videoPollingInterval);
+        videoPollingInterval = null;
+    }
+
+    // Close WebSocket if still open
+    closeProjectWebSocket();
+
+    console.log(`🎬 Displaying video player: ${videoUrl}`);
 
     if (playerContainer && videoSource && videoPlayer) {
         videoSource.src = videoUrl;
@@ -2285,20 +2297,73 @@ function displayVideoPlayer(videoUrl) {
     }
 }
 
-function updateVideoCostEstimate() {
-    const duration = parseInt(document.getElementById('videoDurationSelector').value);
-    const model = document.getElementById('videoModelSelector').value;
+// Images progress bar management
+let imagesProgressInterval = null;
+let currentImagesProgress = 0;
 
-    // Cost calculation based on Runway pricing
-    // veo3.1: $0.40/second (40 credits/sec at $0.01 per credit)
-    let costPerSecond = 0.40;
+function startImagesProgressBar() {
+    const progressContainer = document.getElementById('imagesProgressContainer');
+    const progressBarFill = document.getElementById('imagesProgressBarFill');
+    const getImagesBtn = document.querySelector('button[onclick="getImagesWithConfig()"]');
 
-    const estimatedCost = (duration * costPerSecond).toFixed(2);
+    if (progressContainer) {
+        progressContainer.style.display = 'block';
+        if (getImagesBtn) {
+            getImagesBtn.disabled = true;
+            getImagesBtn.style.opacity = '0.6';
+        }
+        currentImagesProgress = 0;
 
-    // Update display
-    const costDisplay = document.getElementById('estimatedCost');
-    if (costDisplay) {
-        costDisplay.textContent = `$${estimatedCost}`;
+        // Faster increment for image retrieval (usually quick)
+        const increment = 10; // 10% every 500ms
+
+        imagesProgressInterval = setInterval(() => {
+            if (currentImagesProgress < 90) {
+                currentImagesProgress += increment;
+                if (currentImagesProgress > 90) currentImagesProgress = 90;
+                progressBarFill.style.width = currentImagesProgress + '%';
+                progressBarFill.textContent = Math.round(currentImagesProgress) + '%';
+            }
+        }, 500); // Update every 500ms for faster feedback
+    }
+}
+
+function completeImagesProgressBar() {
+    const progressBarFill = document.getElementById('imagesProgressBarFill');
+
+    if (imagesProgressInterval) {
+        clearInterval(imagesProgressInterval);
+    }
+
+    currentImagesProgress = 100;
+    progressBarFill.style.width = '100%';
+    progressBarFill.textContent = '100%';
+
+    // Hide after a short delay
+    setTimeout(() => {
+        resetImagesProgressBar();
+    }, 1000);
+}
+
+function resetImagesProgressBar() {
+    const progressContainer = document.getElementById('imagesProgressContainer');
+    const progressBarFill = document.getElementById('imagesProgressBarFill');
+    const getImagesBtn = document.querySelector('button[onclick="getImagesWithConfig()"]');
+
+    if (imagesProgressInterval) {
+        clearInterval(imagesProgressInterval);
+    }
+
+    if (progressContainer) {
+        progressContainer.style.display = 'none';
+        currentImagesProgress = 0;
+        progressBarFill.style.width = '0%';
+        progressBarFill.textContent = '0%';
+    }
+
+    if (getImagesBtn) {
+        getImagesBtn.disabled = false;
+        getImagesBtn.style.opacity = '1';
     }
 }
 
@@ -2335,7 +2400,182 @@ function showImagesConfigModal() {
 
 function closeImagesConfigModal() {
     const modal = document.getElementById('imagesConfigModal');
+    const galleryContainer = document.getElementById('imagesGalleryContainer');
+
+    // Hide the gallery container when closing the modal
+    if (galleryContainer) {
+        galleryContainer.style.display = 'none';
+    }
+
     modal.style.display = 'none';
+
+    // Reset video generation settings and selection
+    const videoGenSettings = document.getElementById('videoGenSettings');
+    if (videoGenSettings) {
+        videoGenSettings.style.display = 'none';
+    }
+
+    // Reset selection
+    selectedMedia = null;
+    selectedMediaType = null;
+    const generateVideoBtn = document.getElementById('generateVideoBtn');
+    if (generateVideoBtn) {
+        generateVideoBtn.disabled = true;
+    }
+
+    // Uncheck all radios and reset borders
+    document.querySelectorAll('input[name="mediaSelection"]').forEach(r => r.checked = false);
+    document.querySelectorAll('.media-item').forEach(el => el.style.border = '1px solid #e5e7eb');
+}
+
+// Track selected media for video generation
+let selectedMedia = null;
+let selectedMediaType = null; // 'image' or 'video'
+
+// Called when user selects an image/video thumbnail
+function selectMediaForVideo(mediaItem, sourceType) {
+    selectedMedia = mediaItem;
+    selectedMediaType = sourceType;
+
+    // Show video generation settings
+    const videoGenSettings = document.getElementById('videoGenSettings');
+    if (videoGenSettings) {
+        videoGenSettings.style.display = 'block';
+    }
+
+    // Show appropriate options based on media type
+    const imageOptions = document.getElementById('imageToVideoOptions');
+    const videoOptions = document.getElementById('videoToVideoOptions');
+
+    if (sourceType === 'image') {
+        if (imageOptions) imageOptions.style.display = 'block';
+        if (videoOptions) videoOptions.style.display = 'none';
+    } else {
+        if (imageOptions) imageOptions.style.display = 'none';
+        if (videoOptions) videoOptions.style.display = 'block';
+    }
+
+    // Update selected info display
+    const selectedMediaInfo = document.getElementById('selectedMediaInfo');
+    if (selectedMediaInfo) {
+        const photographerName = mediaItem.photographer || mediaItem.user?.name || '{% trans "Unknown" %}';
+        selectedMediaInfo.textContent = `${sourceType === 'image' ? '{% trans "Image" %}' : '{% trans "Video" %}'} by ${photographerName}`;
+    }
+
+    // Enable/disable generate button with validation
+    updateGenerateVideoButton();
+}
+
+// Enable/disable button based on requirements
+function updateGenerateVideoButton() {
+    const btn = document.getElementById('generateVideoBtn');
+    if (!btn) return;
+
+    if (!selectedMedia) {
+        btn.disabled = true;
+        return;
+    }
+
+    // For video-to-video, prompt is required
+    if (selectedMediaType === 'video') {
+        const promptInput = document.getElementById('videoVideoPrompt');
+        const prompt = promptInput ? promptInput.value.trim() : '';
+        btn.disabled = prompt.length === 0;
+    } else {
+        btn.disabled = false;
+    }
+}
+
+// Generate video from selected media
+async function generateVideoFromMedia() {
+    if (!selectedMedia || !selectedMediaType) {
+        showToast('{% trans "Please select an image or video first" %}', 'error');
+        return;
+    }
+
+    let requestBody;
+
+    if (selectedMediaType === 'image') {
+        const model = document.getElementById('imageVideoModel')?.value || 'veo3.1';
+        const duration = parseInt(document.getElementById('imageVideoDuration')?.value) || 5;
+        const ratio = document.getElementById('imageVideoRatio')?.value || '1280:720';
+        const prompt = document.getElementById('imageVideoPrompt')?.value.trim() || '';
+
+        // Get the image URL
+        const imageUrl = selectedMedia.urls?.large || selectedMedia.urls?.regular || selectedMedia.urls?.original;
+
+        if (!imageUrl) {
+            showToast('{% trans "Image URL not available" %}', 'error');
+            return;
+        }
+
+        requestBody = {
+            source_type: 'image',
+            source_url: imageUrl,
+            model: model,
+            duration: duration,
+            ratio: ratio,
+            prompt: prompt
+        };
+    } else {
+        const prompt = document.getElementById('videoVideoPrompt')?.value.trim();
+
+        if (!prompt) {
+            showToast('{% trans "Please enter a transformation prompt for video-to-video generation" %}', 'error');
+            return;
+        }
+
+        // Get the video URL
+        const videoUrl = selectedMedia.video_files && selectedMedia.video_files.length > 0
+            ? selectedMedia.video_files[0].link
+            : (selectedMedia.urls?.large || selectedMedia.urls?.original);
+
+        if (!videoUrl) {
+            showToast('{% trans "Video URL not available" %}', 'error');
+            return;
+        }
+
+        requestBody = {
+            source_type: 'video',
+            source_url: videoUrl,
+            model: 'gen4_aleph', // only model for video-to-video
+            prompt: prompt
+        };
+    }
+
+    // Close modal
+    closeImagesConfigModal();
+    showLoading('{% trans "Generating video..." %}');
+
+    try {
+        const response = await fetch(`/api/projects/${projectId}/generate_video_from_media/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || '{% trans "Failed to generate video" %}');
+        }
+
+        hideLoading();
+        showToast('{% trans "Video generation started! This may take several minutes..." %}', 'info');
+
+        // Connect WebSocket for real-time updates
+        connectProjectWebSocket(projectId);
+
+        // Start polling as fallback (uses projectId, not job_id)
+        pollVideoStatus(projectId);
+
+    } catch (error) {
+        hideLoading();
+        showToast('{% trans "Error" %}: ' + error.message, 'error');
+    }
 }
 
 function updateImagesCountDisplay() {
@@ -2363,14 +2603,12 @@ async function getImagesWithConfig() {
     // Save preference
     localStorage.setItem('imagesCount', count);
 
-    // Close modal
-    closeImagesConfigModal();
-
     // Get content from the content piece
     const contentElement = document.getElementById('contentPieceText');
     const content = contentElement.textContent || contentElement.innerText;
 
-    showLoading('{% trans "Fetching images and videos..." %}');
+    // Start progress bar instead of showLoading
+    startImagesProgressBar();
 
     try {
         const response = await fetch(`/api/projects/${projectId}/get_images/`, {
@@ -2391,7 +2629,8 @@ async function getImagesWithConfig() {
             throw new Error(data.error || '{% trans "Failed to fetch images" %}');
         }
 
-        hideLoading();
+        // Complete progress bar
+        completeImagesProgressBar();
 
         if (data.images && data.images.length > 0 || data.videos && data.videos.length > 0) {
             const metadata = {
@@ -2405,7 +2644,7 @@ async function getImagesWithConfig() {
         }
 
     } catch (error) {
-        hideLoading();
+        resetImagesProgressBar();
         showToast('{% trans "Error" %}: ' + error.message, 'error');
     }
 }
@@ -2462,9 +2701,26 @@ function displayImagesGallery(images, videos, metadata) {
     // Add images
     images.forEach((item, index) => {
         const itemDiv = document.createElement('div');
-        itemDiv.style.cssText = 'position: relative; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; background: #f9fafb; transition: transform 0.2s; cursor: pointer;';
-        itemDiv.onmouseover = () => itemDiv.style.transform = 'scale(1.05)';
-        itemDiv.onmouseout = () => itemDiv.style.transform = 'scale(1)';
+        itemDiv.style.cssText = 'position: relative; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; background: #f9fafb; transition: all 0.2s; cursor: pointer;';
+        itemDiv.className = 'media-item';
+        itemDiv.dataset.mediaType = 'image';
+
+        // Add radio button for selection
+        const radioDiv = document.createElement('div');
+        radioDiv.style.cssText = 'position: absolute; top: 8px; left: 8px; z-index: 10; background: white; border-radius: 50%; padding: 2px;';
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'mediaSelection';
+        radio.value = `image-${index}`;
+        radio.style.cssText = 'cursor: pointer; width: 18px; height: 18px;';
+        radio.onclick = (e) => {
+            e.stopPropagation();
+            selectMediaForVideo(item, 'image');
+            // Highlight selected item
+            document.querySelectorAll('.media-item').forEach(el => el.style.border = '1px solid #e5e7eb');
+            itemDiv.style.border = '3px solid #8b5cf6';
+        };
+        radioDiv.appendChild(radio);
 
         const img = document.createElement('img');
         img.src = item.urls.thumbnail || item.urls.small || item.urls.medium;
@@ -2481,6 +2737,7 @@ function displayImagesGallery(images, videos, metadata) {
             photographerLink.target = '_blank';
             photographerLink.textContent = item.photographer;
             photographerLink.style.cssText = 'color: #2563eb; text-decoration: none;';
+            photographerLink.onclick = (e) => e.stopPropagation();
 
             const photographerDiv = document.createElement('div');
             photographerDiv.style.cssText = 'color: #6b7280; margin-bottom: 0.25rem;';
@@ -2495,11 +2752,28 @@ function displayImagesGallery(images, videos, metadata) {
             sourceLink.target = '_blank';
             sourceLink.textContent = '{% trans "View Source" %}';
             sourceLink.style.cssText = 'color: #2563eb; text-decoration: none; font-size: 0.7rem;';
+            sourceLink.onclick = (e) => e.stopPropagation();
             infoDiv.appendChild(sourceLink);
         }
 
-        itemDiv.onclick = () => window.open(item.urls.large || item.urls.original, '_blank');
+        itemDiv.onclick = () => {
+            radio.click();
+        };
 
+        itemDiv.onmouseover = () => {
+            if (itemDiv.style.border !== '3px solid rgb(139, 92, 246)') {
+                itemDiv.style.transform = 'scale(1.02)';
+                itemDiv.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+            }
+        };
+        itemDiv.onmouseout = () => {
+            if (itemDiv.style.border !== '3px solid rgb(139, 92, 246)') {
+                itemDiv.style.transform = 'scale(1)';
+                itemDiv.style.boxShadow = 'none';
+            }
+        };
+
+        itemDiv.appendChild(radioDiv);
         itemDiv.appendChild(img);
         itemDiv.appendChild(infoDiv);
         imagesGrid.appendChild(itemDiv);
@@ -2508,13 +2782,33 @@ function displayImagesGallery(images, videos, metadata) {
     // Add videos
     videos.forEach((item, index) => {
         const itemDiv = document.createElement('div');
-        itemDiv.style.cssText = 'position: relative; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; background: #f9fafb;';
+        itemDiv.style.cssText = 'position: relative; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; background: #f9fafb; transition: all 0.2s; cursor: pointer;';
+        itemDiv.className = 'media-item';
+        itemDiv.dataset.mediaType = 'video';
+
+        // Add radio button for selection
+        const radioDiv = document.createElement('div');
+        radioDiv.style.cssText = 'position: absolute; top: 8px; left: 8px; z-index: 10; background: white; border-radius: 50%; padding: 2px;';
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'mediaSelection';
+        radio.value = `video-${index}`;
+        radio.style.cssText = 'cursor: pointer; width: 18px; height: 18px;';
+        radio.onclick = (e) => {
+            e.stopPropagation();
+            selectMediaForVideo(item, 'video');
+            // Highlight selected item
+            document.querySelectorAll('.media-item').forEach(el => el.style.border = '1px solid #e5e7eb');
+            itemDiv.style.border = '3px solid #8b5cf6';
+        };
+        radioDiv.appendChild(radio);
 
         const video = document.createElement('video');
-        video.src = item.urls.small || item.urls.medium;
+        video.src = item.video_files && item.video_files.length > 0 ? item.video_files[0].link : (item.urls?.small || item.urls?.medium);
         video.controls = true;
         video.style.cssText = 'width: 100%; height: 150px; object-fit: cover; display: block;';
         video.preload = 'metadata';
+        video.onclick = (e) => e.stopPropagation();
 
         const infoDiv = document.createElement('div');
         infoDiv.style.cssText = 'padding: 0.5rem; font-size: 0.75rem;';
@@ -2524,12 +2818,13 @@ function displayImagesGallery(images, videos, metadata) {
         durationDiv.textContent = `🎬 ${item.duration ? Math.round(item.duration) + 's' : '{% trans "Video" %}'}`;
         infoDiv.appendChild(durationDiv);
 
-        if (item.photographer) {
+        if (item.photographer || item.user) {
             const photographerLink = document.createElement('a');
-            photographerLink.href = item.photographer_url || '#';
+            photographerLink.href = item.photographer_url || item.user?.url || '#';
             photographerLink.target = '_blank';
-            photographerLink.textContent = item.photographer;
+            photographerLink.textContent = item.photographer || item.user?.name || 'Unknown';
             photographerLink.style.cssText = 'color: #2563eb; text-decoration: none;';
+            photographerLink.onclick = (e) => e.stopPropagation();
 
             const photographerDiv = document.createElement('div');
             photographerDiv.style.cssText = 'color: #6b7280; margin-bottom: 0.25rem;';
@@ -2538,15 +2833,34 @@ function displayImagesGallery(images, videos, metadata) {
             infoDiv.appendChild(photographerDiv);
         }
 
-        if (item.source_url) {
+        if (item.source_url || item.url) {
             const sourceLink = document.createElement('a');
-            sourceLink.href = item.source_url;
+            sourceLink.href = item.source_url || item.url;
             sourceLink.target = '_blank';
             sourceLink.textContent = '{% trans "View Source" %}';
             sourceLink.style.cssText = 'color: #2563eb; text-decoration: none; font-size: 0.7rem;';
+            sourceLink.onclick = (e) => e.stopPropagation();
             infoDiv.appendChild(sourceLink);
         }
 
+        itemDiv.onclick = () => {
+            radio.click();
+        };
+
+        itemDiv.onmouseover = () => {
+            if (itemDiv.style.border !== '3px solid rgb(139, 92, 246)') {
+                itemDiv.style.transform = 'scale(1.02)';
+                itemDiv.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+            }
+        };
+        itemDiv.onmouseout = () => {
+            if (itemDiv.style.border !== '3px solid rgb(139, 92, 246)') {
+                itemDiv.style.transform = 'scale(1)';
+                itemDiv.style.boxShadow = 'none';
+            }
+        };
+
+        itemDiv.appendChild(radioDiv);
         itemDiv.appendChild(video);
         itemDiv.appendChild(infoDiv);
         videosGrid.appendChild(itemDiv);
@@ -2578,6 +2892,22 @@ function switchMediaTab(tab) {
     const videosTab = document.getElementById('videosTab');
     const imagesGrid = document.getElementById('imagesGrid');
     const videosGrid = document.getElementById('videosGrid');
+
+    // Reset selection when switching tabs
+    selectedMedia = null;
+    selectedMediaType = null;
+    const videoGenSettings = document.getElementById('videoGenSettings');
+    if (videoGenSettings) {
+        videoGenSettings.style.display = 'none';
+    }
+    const generateVideoBtn = document.getElementById('generateVideoBtn');
+    if (generateVideoBtn) {
+        generateVideoBtn.disabled = true;
+    }
+
+    // Uncheck all radios and reset borders
+    document.querySelectorAll('input[name="mediaSelection"]').forEach(r => r.checked = false);
+    document.querySelectorAll('.media-item').forEach(el => el.style.border = '1px solid #e5e7eb');
 
     if (tab === 'images') {
         // Activate Images tab
@@ -3302,9 +3632,10 @@ window.addEventListener('DOMContentLoaded', function() {
     closeNovelTextModal();
 });
 
-// Clean up modals before page unload
+// Clean up modals and WebSocket before page unload
 window.addEventListener('beforeunload', function() {
     closeNovelTextModal();
+    closeProjectWebSocket();
 });
 
 // Plot editing functions
